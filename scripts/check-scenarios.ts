@@ -1,10 +1,18 @@
 // Génère chaque scénario avec plusieurs graines et vérifie la cohérence.
-// Usage : npx tsx scripts/check-scenarios.ts [idScenario]
+// Usage : npx tsx scripts/check-scenarios.ts [idScenario | chemin/vers/scenario.ts]
+// Un chemin de fichier vérifie les scénarios qu'il exporte, même non enregistrés.
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { SCENARIOS } from '../src/scenarios/index'
+import type { ScenarioTemplate } from '../src/scenarios/types'
 
-const only = process.argv[2]
+const arg = process.argv[2]
+const fromFile = arg?.endsWith('.ts')
+  ? (Object.values(await import(pathToFileURL(path.resolve(arg)).href)) as ScenarioTemplate[]).filter((s) => typeof s?.generate === 'function')
+  : null
+const only = fromFile ? undefined : arg
 let failed = 0
-for (const s of SCENARIOS) {
+for (const s of fromFile ?? SCENARIOS) {
   if (only && s.id !== only) continue
   for (const seed of [1, 42, 1337, 98765, 4242424]) {
     try {

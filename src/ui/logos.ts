@@ -12,6 +12,7 @@ import okx from '@web3icons/core/svgs/exchanges/background/okx.svg.js'
 import swissborg from '@web3icons/core/svgs/exchanges/background/swissborg.svg.js'
 import uniswap from '@web3icons/core/svgs/exchanges/background/uniswap.svg.js'
 import pancakeswap from '@web3icons/core/svgs/exchanges/background/pancake-swap.svg.js'
+import ray from '@web3icons/core/svgs/tokens/background/RAY.svg.js'
 import sun from '@web3icons/core/svgs/tokens/background/SUN.svg.js'
 import torn from '@web3icons/core/svgs/tokens/background/TORN.svg.js'
 import usdt from '@web3icons/core/svgs/tokens/background/USDT.svg.js'
@@ -42,6 +43,7 @@ const ENTITY_LOGOS: Record<string, string> = {
   uniswap: uri(uniswap),
   pancakeswap: uri(pancakeswap),
   sunswap: uri(sun),
+  raydium: uri(ray),
   tornado: uri(torn),
   tether: uri(usdt),
   mullvad: uri(onBrand(siMullvad)),

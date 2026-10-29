@@ -323,8 +323,8 @@ Ce fonctionnement a une conséquence majeure : on ne remonte pas « de l'achat a
         caption: `Circuit type (Hydra Market) : l'acheteur dépose, le séquestre centralisé garde le prix, le vendeur est payé à la finalisation, moins la commission.`,
         nodes: [
           { id: 'cex', label: 'Exchange régulé', kind: 'exchange', sub: 'compte de l’acheteur' },
-          { id: 'bd', label: 'Dépôt acheteur', kind: 'deposit', sub: 'Obsidian' },
-          { id: 'esc', label: 'Séquestre Obsidian', kind: 'hot', sub: 'paie tous les vendeurs' },
+          { id: 'bd', label: 'Dépôt acheteur', kind: 'deposit', sub: 'Hydra' },
+          { id: 'esc', label: 'Séquestre Hydra', kind: 'hot', sub: 'paie tous les vendeurs' },
           { id: 'vw', label: 'Portefeuille vendeur', kind: 'suspect' },
           { id: 'p2p', label: 'Hodl Hodl', kind: 'service', sub: 'P2P' },
           { id: 'sw', label: 'ChangeNOW', kind: 'exchange', sub: 'BTC → LTC' },
@@ -390,7 +390,7 @@ La réquisition de l'exchange donne l'identité, les adresses IP de connexion et
       },
       {
         type: 'case',
-        title: 'Cas pratique — 14 retraits vers Obsidian',
+        title: 'Cas pratique — 14 retraits vers Hydra',
         md: `L'outil signale qu'un compte client Coinhouse a effectué, entre janvier et juin, **14 retraits** vers des adresses directement balayées dans le cluster Hydra Market : de 0,0021 à 0,0185 BTC (environ 120 à 1 100 €), en moyenne tous les douze jours, avec une hausse nette en mai.
 
 Réquisition de Coinhouse : identité, IP de connexion, moyens de paiement. L'analyse de la fréquence et des montants, croisée avec la surveillance des colis à l'adresse du titulaire, oriente vers une activité de revente locale.`,
@@ -423,9 +423,9 @@ Réquisition de Coinhouse : identité, IP de connexion, moyens de paiement. L'an
       {
         type: 'case',
         title: 'Cas pratique — le vendeur et son erreur de KYC',
-        md: `Achat sous pseudonyme de 0,0412 BTC, finalisé le 9 février à 18:20 UTC. À 18:34, le séquestre Obsidian libère **0,0391 BTC** (prix − 5 % de commission) vers \`bc1q…v3n\`. Cette adresse est ensuite regroupée avec 37 autres adresses ayant reçu des libérations du séquestre : **2,86 BTC** de chiffre d'affaires en quatre mois.
+        md: `Achat sous pseudonyme de 0,0412 BTC, finalisé le 9 février à 18:20 UTC. À 18:34, le séquestre Hydra libère **0,0391 BTC** (prix − 5 % de commission) vers \`bc1q…v3n\`. Cette adresse est ensuite regroupée avec 37 autres adresses ayant reçu des libérations du séquestre : **2,86 BTC** de chiffre d'affaires en quatre mois.
 
-Sorties : 0,9 BTC vendus sur Hodl Hodl, 1,1 BTC convertis en Litecoin via ChangeNOW (corrélation : un seul candidat sur 96 sorties LTC dans la fenêtre), et **0,64 BTC déposés chez Coinhouse** sur un compte vérifié. La clé PGP publiée sur le forum est identique à celle de la boutique Obsidian.
+Sorties : 0,9 BTC vendus sur Hodl Hodl, 1,1 BTC convertis en Litecoin via ChangeNOW (corrélation : un seul candidat sur 96 sorties LTC dans la fenêtre), et **0,64 BTC déposés chez Coinhouse** sur un compte vérifié. La clé PGP publiée sur le forum est identique à celle de la boutique Hydra.
 
 Stratégie : réquisition de Coinhouse en priorité (identité, IP), demande à ChangeNOW avec le hash du dépôt, puis Hodl Hodl.`,
       },

@@ -9,7 +9,7 @@ const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 
 export const btcDarknetVendor: ScenarioTemplate = {
   id: 'darknet-vendor',
-  title: 'Le vendeur d\'Obsidian',
+  title: 'Le vendeur d\'Hydra',
   tagline: 'Séquestre darknet, profil PGP, P2P, swap vers Litecoin… et une erreur de KYC.',
   description:
     'Un vendeur de stupéfiants opère sur Hydra Market. À partir d\'un achat sous pseudonyme et de son profil public sur un forum, reconstituez son portefeuille, chiffrez ses revenus de séquestre, suivez ses sorties (P2P, échangeur instantané vers Litecoin, exchange régulé) et bâtissez la stratégie de réquisition.',
@@ -135,16 +135,16 @@ export const btcDarknetVendor: ScenarioTemplate = {
       title: `Opération Obsidienne — ${city}`,
       briefing:
         `Dans le cadre d'une information judiciaire ouverte à ${city}, la section de recherches enquête sur « ${handle} », vendeur de cocaïne et de MDMA actif sur Hydra Market et livrant par voie postale dans toute la France.\n\n` +
-        `Sur Obsidian, l'acheteur paie sur une adresse de dépôt de la plateforme ; les fonds restent sur un portefeuille de séquestre (escrow) jusqu'à la confirmation de réception, puis sont libérés au vendeur, moins la commission du marché. Un achat sous pseudonyme a été réalisé, et le vendeur entretient un profil public sur un forum spécialisé.\n\n` +
+        `Sur Hydra, l'acheteur paie sur une adresse de dépôt de la plateforme ; les fonds restent sur un portefeuille de séquestre (escrow) jusqu'à la confirmation de réception, puis sont libérés au vendeur, moins la commission du marché. Un achat sous pseudonyme a été réalisé, et le vendeur entretient un profil public sur un forum spécialisé.\n\n` +
         `Objectifs : reconstituer le portefeuille du vendeur, chiffrer les libérations de séquestre reçues, suivre ses sorties (y compris vers une autre blockchain) et déterminer la meilleure stratégie de réquisition.`,
       evidence: [
         {
           id: 'forum', type: 'forum', title: `Forum « Le Sous-Sol » — profil vendeur ${handle}`, date: w.at(-40 * 24), author: handle,
           body:
             `-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA512\n\n` +
-            `${handle} — vendeur vérifié Obsidian depuis ${r.int(8, 30)} mois.\n` +
+            `${handle} — vendeur vérifié Hydra depuis ${r.int(8, 30)} mois.\n` +
             `Expédition France / Belgique sous 24 h, emballage sous vide, double enveloppe.\n` +
-            `Litiges : uniquement via le séquestre Obsidian.\n` +
+            `Litiges : uniquement via le séquestre Hydra.\n` +
             `Pour les pourboires ou les commandes hors marché (clients de confiance) :\n` +
             `BTC : ${A(w, tips)}\n\n` +
             `-----BEGIN PGP SIGNATURE-----\n${sig}\n-----END PGP SIGNATURE-----\n\n` +
@@ -162,7 +162,7 @@ export const btcDarknetVendor: ScenarioTemplate = {
         {
           id: 'note', type: 'note', title: 'Note de l\'analyste — pistes', date: w.at(2 * 24), author: 'Cellule d\'appui',
           body:
-            `• Le séquestre d'Obsidian est un portefeuille centralisé : il paie tous les vendeurs. On ne remonte pas « de l'achat au vendeur » par la chaîne : il faut un point d'entrée côté vendeur.\n` +
+            `• Le séquestre d'Hydra est un portefeuille centralisé : il paie tous les vendeurs. On ne remonte pas « de l'achat au vendeur » par la chaîne : il faut un point d'entrée côté vendeur.\n` +
             `• Un vendeur qui publie une adresse sous sa clé PGP s'en attribue la propriété.\n` +
             `• Les échangeurs instantanés ne gardent pas de compte client, mais un dépôt BTC et un paiement sur l'autre chaîne se répondent en montant et en temps.`,
         },
@@ -178,9 +178,9 @@ export const btcDarknetVendor: ScenarioTemplate = {
         },
         {
           id: 'o2', type: 'amount', points: 20, unit: 'BTC', tolerance: 0.03,
-          prompt: 'Montant total (en BTC) des libérations de séquestre Obsidian reçues par le portefeuille du vendeur ?',
+          prompt: 'Montant total (en BTC) des libérations de séquestre Hydra reçues par le portefeuille du vendeur ?',
           answer: totalReleased,
-          hint: 'Utilisez le cluster de l\'adresse principale : additionnez ce que chaque adresse a reçu directement du séquestre Obsidian.',
+          hint: 'Utilisez le cluster de l\'adresse principale : additionnez ce que chaque adresse a reçu directement du séquestre Hydra.',
           explanation: `${nRel} libérations pour ${amt(totalReleased, 'BTC')} (environ ${Math.round(exposureUsd).toLocaleString('fr-FR')} $). Celle de ${amt(ucRelease.value, 'BTC')} correspond exactement à l'achat sous pseudonyme moins ${Math.round(MARKET_FEE * 100)} % : elle valide le rattachement du cluster au vendeur.`,
         },
         {
@@ -198,13 +198,13 @@ export const btcDarknetVendor: ScenarioTemplate = {
         },
         {
           id: 'o5', type: 'choice', points: 15,
-          prompt: 'Qu\'est-ce qui permet de rattacher l\'adresse « tips » du forum aux revenus Obsidian ?',
+          prompt: 'Qu\'est-ce qui permet de rattacher l\'adresse « tips » du forum aux revenus Hydra ?',
           ...choice(r,
             'Elle est co-dépensée avec des adresses de libération de séquestre (entrées communes)',
             [
-              'Elle a reçu directement des fonds du portefeuille de séquestre Obsidian',
+              'Elle a reçu directement des fonds du portefeuille de séquestre Hydra',
               'Elle utilise le même type d\'adresse (SegWit natif) que le séquestre du marché',
-              'La signature PGP prouve à elle seule que ses fonds proviennent d\'Obsidian',
+              'La signature PGP prouve à elle seule que ses fonds proviennent d\'Hydra',
             ]),
           explanation: 'La signature PGP rattache l\'adresse au pseudonyme ; l\'heuristique des entrées communes rattache cette adresse aux adresses de libération. La combinaison OSINT + on-chain relie le profil public aux revenus du marché. Le type d\'adresse n\'est pas un indice.',
         },
@@ -226,7 +226,7 @@ export const btcDarknetVendor: ScenarioTemplate = {
         addresses: [tips, main, ...releases.map((x) => x.addr), v2, v3, v4, ltcAddr, cvRes.deposit, order.deposit],
         debrief:
           `1. OSINT : le profil PGP de ${handle} publie l'adresse ${A(w, tips)}.\n` +
-          `2. Cette adresse est dépensée lors du 2ᵉ regroupement vers ${A(w, main)} (adresse de la première libération, réutilisée), avec des adresses recevant des libérations du séquestre Obsidian : même portefeuille.\n` +
+          `2. Cette adresse est dépensée lors du 2ᵉ regroupement vers ${A(w, main)} (adresse de la première libération, réutilisée), avec des adresses recevant des libérations du séquestre Hydra : même portefeuille.\n` +
           `3. Trois regroupements successifs (chacun réutilisant l'adresse principale en entrée) soudent le cluster : ${nRel} libérations, ${amt(totalReleased, 'BTC')} au total. La libération de ${amt(ucRelease.value, 'BTC')} du ${fmtDate(ucRelease.tx.time, false)} correspond à l'achat sous pseudonyme (−${Math.round(MARKET_FEE * 100)} %).\n` +
           `4. Sorties : ${amt(lsValue, 'BTC')} vers le séquestre Hodl Hodl (vente P2P), puis ${amt(swapValue, 'BTC')} échangés chez ChangeNOW contre ${amt(order.payoutValue, 'LTC')} reçus sur ${A(w, ltcAddr)}, puis ${amt(cvValue, 'BTC')} déposés chez Coinhouse. Le reliquat reste sur ${A(w, v4)}.\n\n` +
           `Leçon : face à un marché darknet, le point d'entrée est presque toujours côté vendeur (OSINT, adresse publiée, achat sous pseudonyme). Le clustering transforme une adresse en portefeuille complet, et c'est la sortie vers un prestataire régulé — ici français — qui permet l'identification.`,

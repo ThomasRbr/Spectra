@@ -66,7 +66,7 @@ C'est la signature du **blanchiment professionnel** : un prestataire spécialis�
       nodes: [
         { id: 's1', label: 'Escroquerie (Lyon)', kind: 'suspect' },
         { id: 's2', label: 'Rançongiciel LockBit', kind: 'suspect' },
-        { id: 's3', label: 'Vendeur Obsidian', kind: 'suspect' },
+        { id: 's3', label: 'Vendeur Hydra', kind: 'suspect' },
         { id: 'otc', label: 'SatsDesk OTC', kind: 'service', sub: 'collecte USDT-TRC20' },
         { id: 'ex', label: 'Comptes chez OKX', kind: 'exchange', sub: 'au nom de sociétés' },
         { id: 'cash', label: 'Remise d\'espèces', kind: 'unknown', sub: 'coursiers, compensation' },

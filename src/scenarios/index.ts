@@ -3,8 +3,9 @@ import { s01FirstTrace } from './s01_first_trace'
 import { s02PigButchering } from './s02_pig_butchering'
 import { PACK_BTC } from './pack_btc'
 import { PACK_ACCOUNT } from './pack_account'
+import { PACK_OPS } from './pack_ops'
 
-export const SCENARIOS: ScenarioTemplate[] = [s01FirstTrace, s02PigButchering, ...PACK_BTC, ...PACK_ACCOUNT].sort(
+export const SCENARIOS: ScenarioTemplate[] = [s01FirstTrace, s02PigButchering, ...PACK_BTC, ...PACK_ACCOUNT, ...PACK_OPS].sort(
   (a, b) => a.difficulty - b.difficulty,
 )
 

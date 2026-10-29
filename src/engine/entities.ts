@@ -178,6 +178,7 @@ export const ENTITY_CATALOG: Record<string, Template> = {
   uniswap: { name: 'Uniswap', category: 'dex', risk: 'low', description: 'DEX à teneur de marché automatisé (AMM) sur Ethereum.' },
   pancakeswap: { name: 'PancakeSwap', category: 'dex', risk: 'low', description: 'DEX AMM sur BNB Smart Chain.' },
   sunswap: { name: 'SunSwap', category: 'dex', risk: 'low', description: 'DEX AMM sur Tron.' },
+  raydium: { name: 'Raydium', category: 'dex', risk: 'low', description: 'DEX AMM sur Solana, où sont lancés la plupart des nouveaux jetons.' },
   // Fictif : bridge générique qui sert à enseigner la mécanique commune aux
   // bridges de liquidité (aucun bridge réel ne couvre toutes ces chaînes).
   arcbridge: {

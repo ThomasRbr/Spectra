@@ -144,8 +144,9 @@ export function extraLinks(w: World, addrPos: Record<string, Pos>, revealed: Rec
     const tx = w.txs.get(txId)
     if (!tx?.bridge || tx.bridge.direction !== 'out' || !tx.bridge.otherTx || !revealed[tx.bridge.otherTx]) continue
     const other = w.txs.get(tx.bridge.otherTx)
-    const from = tx.transfers[0]?.to
-    const to = other?.transfers[0]?.from
+    // Côté UTXO (arrivée sur Bitcoin), la réserve du bridge est une entrée.
+    const from = tx.transfers[0]?.to ?? tx.outputs[0]?.address
+    const to = other?.transfers[0]?.from ?? other?.inputs[0]?.address
     if (!from || !to || !addrPos[from] || !addrPos[to]) continue
     out.push({ id: `x:${tx.id}`, source: aKey(from), target: aKey(to), kind: 'bridge', label: `bridge · nonce ${tx.bridge.nonce}`, txIds: [tx.id, other!.id] })
   }
