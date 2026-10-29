@@ -14,6 +14,7 @@ import { PeelModal } from './Heuristics'
 import { LiveClockBar } from './Live'
 import { DemixModal } from './Demix'
 import { CaseBar } from './CaseBar'
+import { CertBanner, CertReportModal } from './CertExam'
 import { Briefing, ConfirmSubmit, Correlator, Debrief, HintModal, ReportModal, RequisitionModal, SearchPalette, ShortcutsModal } from './Tools'
 
 function useClock(startedAt: number, stopped?: number) {
@@ -95,10 +96,12 @@ export function Workspace() {
   if (!inst || !template) return null
 
   const exit = () => {
-    if (!score && !confirm('Quitter l\'enquête ? Votre progression est sauvegardée et pourra être reprise depuis le tableau de bord.')) return
+    const inCert = !!useGame.getState().cert
+    if (!score && !confirm(inCert ? 'Quitter l\'examen ? Le chronomètre continue de tourner ; vous pourrez reprendre depuis la page Certificats de l\'Académie.' : 'Quitter l\'enquête ? Votre progression est sauvegardée et pourra être reprise depuis le tableau de bord.')) return
     useGame.setState({ inst: null, template: null })
     if (score) useGame.getState().quit()
-    useUi.getState().setPage('missions')
+    if (inCert) useUi.getState().openAcademy({ kind: 'certs' })
+    else useUi.getState().setPage('missions')
   }
   const replay = () => {
     useGame.getState().start(template.id, randomSeed(), { mode, coverage, live })
@@ -125,6 +128,7 @@ export function Workspace() {
           {live && <span className="chip bg-rose-500/15 text-rose-300">Temps réel</span>}
         </div>
         <div className="ml-auto flex items-center gap-1">
+          <CertBanner />
           <LiveClockBar />
           <div className={`mr-2 flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-mono text-[12.5px] ${finishedAt ? 'border-emerald-400/30 text-emerald-300' : 'border-ink-600 text-ink-100'}`}>
             <Icon name="Timer" size={13} className={finishedAt ? '' : 'text-accent'} /> {fmtDuration(elapsed)}
@@ -176,6 +180,7 @@ export function Workspace() {
       <TracerModal />
       <PeelModal />
       <DemixModal />
+      <CertReportModal />
       <SearchPalette />
       <RequisitionModal />
       <HintModal />

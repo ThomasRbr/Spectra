@@ -99,6 +99,13 @@ export interface CaseExport {
   addresses: Record<string, string>
 }
 
+/** Volet d'un examen de certification pratique en cours. */
+export interface CertRun {
+  attemptId: string
+  certId: string
+  index: number
+}
+
 export interface LogEntry {
   t: number
   text: string
@@ -134,6 +141,7 @@ interface GameState {
   views: GraphView[]
   viewId: string
   viewName: string
+  cert: CertRun | null
   minUsd: number
   showTruth: boolean
   score?: CaseScore
@@ -144,7 +152,7 @@ interface GameState {
   history: GraphSnapshot[]
   xpNote?: string
 
-  start(templateId: string, seed: number, opts?: { mode?: Mode; coverage?: Coverage; live?: boolean }): void
+  start(templateId: string, seed: number, opts?: { mode?: Mode; coverage?: Coverage; live?: boolean; cert?: CertRun }): void
   resume(saved: SavedCase): boolean
   quit(): void
   addAddress(id: string, near?: string, side?: 1 | -1): void
@@ -218,6 +226,7 @@ export interface SavedCase {
   views?: GraphView[]
   viewId?: string
   viewName?: string
+  cert?: CertRun
   /** Temps d'analyse actif (ms) au moment de la sauvegarde. */
   elapsed?: number
 }
@@ -303,6 +312,7 @@ export const useGame = create<GameState>()((set, get) => ({
   views: [],
   viewId: 'v1',
   viewName: 'Graphe principal',
+  cert: null,
   minUsd: 0,
   showTruth: false,
   focus: null,
@@ -326,6 +336,7 @@ export const useGame = create<GameState>()((set, get) => ({
       log: [{ t: Date.now(), text: `Ouverture du dossier « ${inst.title} » (graine ${seed})${live ? ` en temps réel, horloge au ${fmtClock(live.now)}` : ''}`, kind: 'system' }],
       showTruth: false, focus: null, layoutTick: 0, minUsd: 0, links: [], history: [], xpNote: undefined,
       trace: null, pathHighlight: null, live, watch: [], alerts: [], views: [], viewId: 'v1', viewName: 'Graphe principal',
+      cert: opts.cert ?? null,
     })
   },
 
@@ -366,13 +377,14 @@ export const useGame = create<GameState>()((set, get) => ({
       showTruth: false, focus: null, layoutTick: 0, trace, pathHighlight: null,
       live, watch: (saved.watch ?? []).filter((a) => w.addresses.has(a)), alerts: (saved.alerts ?? []).filter((a) => w.txs.has(a.txId)),
       views: (saved.views ?? []).map((v) => cleanView(w, v)), viewId: saved.viewId ?? 'v1', viewName: saved.viewName ?? 'Graphe principal',
+      cert: saved.cert ?? null,
     })
     return true
   },
 
   quit() {
     writeSave(null)
-    set({ template: null, inst: null, selection: null, score: undefined })
+    set({ template: null, inst: null, selection: null, score: undefined, cert: null })
   },
 
   addAddress(id, near, side = 1) {
@@ -608,6 +620,12 @@ export const useGame = create<GameState>()((set, get) => ({
     if (!s.inst || !s.template) return
     const score = scoreCase(s.inst.objectives, s.answers, s.hintsUsed, s.objHints)
     const finishedAt = Date.now()
+    if (s.cert) {
+      writeSave(null)
+      set({ score, finishedAt, xpGained: 0, xpNote: undefined })
+      get().addLog(`Volet remis : ${score.total}/${score.max}`, 'system')
+      return
+    }
     const base = DIFFICULTY[s.template.difficulty].xp
     const potential = Math.round(base * score.pct * (s.mode === 'examen' ? 1.5 : 1) * (s.coverage === 'partial' ? 1.25 : 1))
     // Rejouer la même graine ne rapporte que l'amélioration par rapport au meilleur essai
@@ -893,6 +911,7 @@ function currentSave(s: GameState): SavedCase | null {
     hintsUsed: s.hintsUsed, objHints: s.objHints, log: s.log, links: s.links, elapsed: Date.now() - s.startedAt,
     trace: s.trace ? { source: s.trace.source, opts: s.trace.opts } : undefined,
     live: s.live ?? undefined, watch: s.watch, alerts: s.alerts, views: s.views, viewId: s.viewId, viewName: s.viewName,
+    cert: s.cert ?? undefined,
   }
 }
 

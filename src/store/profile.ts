@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { Difficulty, SkillId } from '../scenarios/types'
+import type { Answer } from '../lib/scoring'
+import type { CertReport, ReportGrade } from '../lib/certs'
 
 export interface CaseRecord {
   templateId: string
@@ -49,10 +51,42 @@ export interface ExamRecord {
 
 export interface Certificate {
   id: string
-  kind: 'path' | 'exam'
+  kind: 'path' | 'exam' | 'practical'
   title: string
   date: number
   score?: number
+  /** Certifications pratiques : code de vérification et fin de validité. */
+  code?: string
+  expires?: number
+}
+
+/** Résultat d'un volet d'examen de certification pratique. */
+export interface VoletResult {
+  templateId: string
+  seed: number
+  title: string
+  earned: number
+  max: number
+  answers: Record<string, Answer>
+  report: CertReport
+  grade: ReportGrade
+  durationSec: number
+  /** Remis automatiquement à l'expiration du temps. */
+  timedOut?: boolean
+}
+
+export interface CertAttempt {
+  id: string
+  certId: string
+  startedAt: number
+  deadline: number
+  /** Affaires tirées au sort, graines secrètes. */
+  volets: { templateId: string; seed: number }[]
+  results: VoletResult[]
+  status: 'running' | 'passed' | 'failed'
+  finishedAt?: number
+  flagsPct?: number
+  reportPct?: number
 }
 
 export type CardGrade = 'again' | 'hard' | 'good' | 'easy'
@@ -74,6 +108,7 @@ interface ProfileState {
   cards: Record<string, CardRecord>
   exams: Record<string, ExamRecord>
   certificates: Certificate[]
+  certAttempts: CertAttempt[]
   days: string[]
   xp: number
   setIdentity(name: string, unit: string): void
@@ -84,7 +119,10 @@ interface ProfileState {
   recordDrill(id: string, ok: boolean): number
   reviewCard(key: string, grade: CardGrade): void
   recordExam(id: string, pct: number, passed: boolean, xp: number): void
-  addCertificate(c: Omit<Certificate, 'date'>): boolean
+  addCertificate(c: Omit<Certificate, 'date'> & { date?: number }): boolean
+  startCertAttempt(a: CertAttempt): void
+  recordVolet(attemptId: string, r: VoletResult): void
+  closeCertAttempt(attemptId: string, outcome: { status: 'passed' | 'failed'; flagsPct: number; reportPct: number }): void
   touchDay(): void
   reset(): void
 }
@@ -117,6 +155,7 @@ export const useProfile = create<ProfileState>()(
       cards: {},
       exams: {},
       certificates: [],
+      certAttempts: [],
       days: [],
       xp: 0,
       setIdentity: (name, unit) => set({ name, unit }),
@@ -174,9 +213,12 @@ export const useProfile = create<ProfileState>()(
       addCertificate: (c) => {
         let added = false
         set((s) => {
-          if (s.certificates.some((x) => x.id === c.id && x.kind === c.kind)) return {}
+          // Une certification pratique renouvelée remplace l'ancienne ; les autres ne se délivrent qu'une fois
+          const prev = s.certificates.find((x) => x.id === c.id && x.kind === c.kind)
+          if (prev && c.kind !== 'practical') return {}
           added = true
-          return { certificates: [...s.certificates, { ...c, date: Date.now() }], xp: s.xp + (c.kind === 'path' ? 250 : 0) }
+          const rest = prev ? s.certificates.filter((x) => x !== prev) : s.certificates
+          return { certificates: [...rest, { ...c, date: c.date ?? Date.now() }], xp: s.xp + (c.kind === 'path' ? 250 : c.kind === 'practical' && !prev ? 500 : 0) }
         })
         return added
       },
@@ -185,7 +227,10 @@ export const useProfile = create<ProfileState>()(
           const t = today()
           return s.days.includes(t) ? {} : { days: [...s.days, t].slice(-400) }
         }),
-      reset: () => set({ cases: [], lessons: {}, drills: {}, cards: {}, exams: {}, certificates: [], days: [], xp: 0 }),
+      startCertAttempt: (a) => set((s) => ({ certAttempts: [...s.certAttempts, a].slice(-60) })),
+      recordVolet: (id, r) => set((s) => ({ certAttempts: s.certAttempts.map((a) => (a.id === id && a.status === 'running' ? { ...a, results: [...a.results, r] } : a)) })),
+      closeCertAttempt: (id, o) => set((s) => ({ certAttempts: s.certAttempts.map((a) => (a.id === id ? { ...a, ...o, finishedAt: Date.now() } : a)) })),
+      reset: () => set({ cases: [], lessons: {}, drills: {}, cards: {}, exams: {}, certificates: [], certAttempts: [], days: [], xp: 0 }),
     }),
     { name: 'spectra-profile', storage: safeStorage, version: 1 },
   ),

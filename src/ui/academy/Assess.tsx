@@ -7,6 +7,7 @@ import { dueCards, pathProgress, type CardRef } from '../../lib/academy'
 import { Empty, Icon, ProgressBar, fmtDuration } from '../common'
 import { QuestionCard, isCorrect } from './Quiz'
 import { DrillQuestion, checkDrill } from './Practice'
+import { PracticalCerts, printPractical } from './Practical'
 
 // ── Révisions (répétition espacée) ─────────────────────────────────────────
 
@@ -308,18 +309,21 @@ export function Certificates() {
     <div className="mx-auto max-w-6xl px-8 py-8">
       <div className="label text-accent">Reconnaissance</div>
       <h1 className="mt-1 text-3xl font-bold text-white">Certificats</h1>
-      <p className="mt-1 text-[13.5px] text-ink-300">Un certificat est délivré pour chaque examen réussi et pour chaque parcours terminé. Ils sont imprimables (ou enregistrables en PDF).</p>
+      <p className="mt-1 text-[13.5px] text-ink-300">Les certifications pratiques valident la capacité à mener une enquête. Les examens à questions et les parcours délivrent des insignes de compétence, exigés pour s'y présenter. Tous les certificats sont imprimables (ou enregistrables en PDF).</p>
+      <div className="mt-6"><PracticalCerts /></div>
+      <h2 className="mb-3 mt-10 text-[15px] font-semibold text-white">Certificats obtenus</h2>
       {!certs.length ? (
-        <div className="mt-10"><Empty icon="Award" title="Aucun certificat pour l'instant" sub="Réussissez un examen ou terminez un parcours pour obtenir votre premier certificat." /></div>
+        <div><Empty icon="Award" title="Aucun certificat pour l'instant" sub="Réussissez un examen, terminez un parcours ou passez une certification pratique." /></div>
       ) : (
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2">
           {certs.map((c) => (
             <div key={`${c.kind}-${c.id}`} className="relative overflow-hidden rounded-2xl border border-amber-400/30 bg-gradient-to-br from-amber-400/[0.08] via-ink-900 to-ink-900 p-5">
               <Icon name="Award" size={80} className="absolute -right-4 -top-4 text-amber-400/10" />
-              <div className="text-[10.5px] uppercase tracking-[0.18em] text-amber-300">{c.kind === 'path' ? 'Parcours terminé' : 'Examen réussi'}</div>
+              <div className="text-[10.5px] uppercase tracking-[0.18em] text-amber-300">{c.kind === 'practical' ? 'Certification pratique' : c.kind === 'path' ? 'Parcours terminé' : 'Insigne de compétence'}</div>
               <div className="mt-1 text-[17px] font-bold text-white">{c.title}</div>
-              <div className="mt-1 text-[12.5px] text-ink-300">Délivré le {new Date(c.date).toLocaleDateString('fr-FR')}{c.score !== undefined ? ` · ${c.score} %` : ''}</div>
-              <button className="btn-outline mt-4 !py-1 text-[12px]" onClick={() => printCertificate(c, p.name, p.unit)}><Icon name="Printer" size={13} /> Imprimer</button>
+              <div className="mt-1 text-[12.5px] text-ink-300">Délivré le {new Date(c.date).toLocaleDateString('fr-FR')}{c.score !== undefined ? ` · ${c.score} %` : ''}{c.expires ? ` · valide jusqu'au ${new Date(c.expires).toLocaleDateString('fr-FR')}` : ''}</div>
+              {c.code && <div className="mt-0.5 font-mono text-[11.5px] text-ink-200">{c.code}</div>}
+              <button className="btn-outline mt-4 !py-1 text-[12px]" onClick={() => (c.kind === 'practical' ? printPractical(c, p.name, p.unit) : printCertificate(c, p.name, p.unit))}><Icon name="Printer" size={13} /> Imprimer</button>
             </div>
           ))}
         </div>

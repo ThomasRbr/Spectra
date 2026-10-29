@@ -359,6 +359,7 @@ export function ConfirmSubmit() {
   const open = useUi((s) => s.confirmSubmit)
   const inst = useGame((s) => s.inst)
   const answers = useGame((s) => s.answers)
+  const inCert = useGame((s) => !!s.cert)
   if (!inst) return null
   const missing = inst.objectives.filter((o) => evaluate(o, answers[o.id]).status === 'empty')
   const close = () => useUi.getState().set({ confirmSubmit: false })
@@ -374,10 +375,11 @@ export function ConfirmSubmit() {
       <div className="mt-4 flex justify-end gap-2">
         <button className="btn-ghost" onClick={close}>Continuer l'enquête</button>
         <button className="btn-primary" onClick={() => {
-          useGame.getState().submit()
           close()
+          if (useGame.getState().cert) useUi.getState().set({ certReport: true })
+          else useGame.getState().submit()
         }}>
-          <Icon name="Send" size={14} /> Remettre
+          <Icon name="Send" size={14} /> {inCert ? 'Rédiger le rapport du volet' : 'Remettre'}
         </button>
       </div>
     </Modal>
@@ -393,6 +395,7 @@ export function Briefing() {
   const mode = useGame((s) => s.mode)
   const coverage = useGame((s) => s.coverage)
   const seed = useGame((s) => s.seed)
+  const cert = useGame((s) => s.cert)
   if (!inst || !template) return null
   const close = () => useUi.getState().set({ briefingOpen: false })
   return (
@@ -404,7 +407,7 @@ export function Briefing() {
           <span className="chip bg-ink-800 text-ink-200"><Icon name="Clock" size={11} /> ~{template.estMinutes} min</span>
           {mode === 'examen' && <span className="chip bg-rose-500/15 text-rose-300"><Icon name="Timer" size={11} /> Mode examen</span>}
           {coverage === 'partial' && <span className="chip bg-orange-500/15 text-orange-300"><Icon name="EyeOff" size={11} /> Attribution partielle</span>}
-          <span className="chip ml-auto bg-ink-800 font-mono text-ink-300">graine {seed}</span>
+          {!cert && <span className="chip ml-auto bg-ink-800 font-mono text-ink-300">graine {seed}</span>}
         </div>
         <h2 className="mt-3 text-2xl font-bold text-white">{inst.title}</h2>
         <p className="mt-1 text-[13px] text-ink-300">{template.tagline}</p>
@@ -450,12 +453,13 @@ export function Debrief({ onReplay, onExit }: { onReplay: () => void; onExit: ()
   const xpGained = useGame((s) => s.xpGained)
   const xpNote = useGame((s) => s.xpNote)
   const showTruth = useGame((s) => s.showTruth)
+  const inCert = useGame((s) => !!s.cert)
   const xp = useProfile((s) => s.xp)
   const [open, setOpen] = useState(true)
   useEffect(() => {
     setOpen(true)
   }, [score])
-  if (!score || !inst || !template) return null
+  if (!score || !inst || !template || inCert) return null
   const rank = rankOf(xp)
   const color = GRADE_COLOR[score.grade]
   const lessons = (template.lessons ?? []).map((id) => LESSONS.find((l) => l.id === id)).filter(Boolean)

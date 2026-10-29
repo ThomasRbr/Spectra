@@ -8,6 +8,7 @@ import { AcademyHome, Library, PathView, PathsList } from './Home'
 import { LessonReader } from './LessonReader'
 import { DrillRunner, PracticeHub } from './Practice'
 import { CardsReview, Certificates, ExamRunner, ExamsList } from './Assess'
+import { CertResult } from './Practical'
 
 const TABS: { kind: AcademyView['kind']; label: string; icon: string; match: AcademyView['kind'][] }[] = [
   { kind: 'home', label: 'Accueil', icon: 'House', match: ['home'] },
@@ -16,7 +17,7 @@ const TABS: { kind: AcademyView['kind']; label: string; icon: string; match: Aca
   { kind: 'practice', label: 'Entraînement', icon: 'Dumbbell', match: ['practice', 'drill'] },
   { kind: 'cards', label: 'Révisions', icon: 'Layers', match: ['cards'] },
   { kind: 'exams', label: 'Examens', icon: 'FileCheck2', match: ['exams', 'exam'] },
-  { kind: 'certs', label: 'Certificats', icon: 'Award', match: ['certs'] },
+  { kind: 'certs', label: 'Certificats', icon: 'Award', match: ['certs', 'certResult'] },
 ]
 
 export function AcademyApp() {
@@ -61,6 +62,7 @@ export function AcademyApp() {
         {view.kind === 'exams' && <ExamsList />}
         {view.kind === 'exam' && <ExamRunner id={view.id} pathId={view.pathId} />}
         {view.kind === 'certs' && <Certificates />}
+        {view.kind === 'certResult' && <CertResult id={view.id} />}
       </div>
     </div>
   )

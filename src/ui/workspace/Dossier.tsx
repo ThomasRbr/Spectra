@@ -54,6 +54,7 @@ function Objectives() {
   const score = useGame((s) => s.score)
   const hintsUsed = useGame((s) => s.hintsUsed)
   const mode = useGame((s) => s.mode)
+  const inCert = useGame((s) => !!s.cert)
   const difficulty = useGame((s) => s.template?.difficulty)
   return (
     <div className="space-y-2.5">
@@ -69,7 +70,7 @@ function Objectives() {
             </button>
           )}
           <button className="btn-primary w-full" onClick={() => useUi.getState().set({ confirmSubmit: true })}>
-            <Icon name="Send" size={15} /> Remettre le rapport
+            <Icon name="Send" size={15} /> {inCert ? 'Remettre le volet' : 'Remettre le rapport'}
           </button>
         </div>
       )}

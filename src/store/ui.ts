@@ -16,6 +16,7 @@ export type AcademyView =
   | { kind: 'exams' }
   | { kind: 'exam'; id: string; pathId?: string }
   | { kind: 'certs' }
+  | { kind: 'certResult'; id: string }
 
 export interface CorrelatorPreset {
   time: number
@@ -41,6 +42,7 @@ interface UiState {
   demix: { open: boolean; address?: string }
   requisition: { open: boolean; entityId?: string; addresses?: string[] }
   reportOpen: boolean
+  certReport: boolean
   briefingOpen: boolean
   paletteOpen: boolean
   hintOpen: boolean
@@ -86,6 +88,7 @@ export const useUi = create<UiState>()((set) => ({
   demix: { open: false },
   requisition: { open: false },
   reportOpen: false,
+  certReport: false,
   briefingOpen: false,
   paletteOpen: false,
   hintOpen: false,
