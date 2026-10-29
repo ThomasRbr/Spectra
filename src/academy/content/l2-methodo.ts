@@ -343,12 +343,20 @@ De l'exposition, les outils déduisent un **score de risque**. C'est un résumé
         headers: ['Méthode', 'Principe', 'Part illicite du 1 BTC envoyé', 'Usage'],
         rows: [
           ['Poison', 'Tout contact contamine la totalité', '100 %', 'Très conservateur ; « contamine » rapidement tout l\'écosystème'],
-          ['Haircut (prorata)', 'Chaque sortie emporte la proportion de chaque source', '25 % (0,25 BTC)', 'Méthode des outils de conformité et de SPECTRA'],
+          ['Haircut (prorata)', 'Chaque sortie emporte la proportion de chaque source', '25 % (0,25 BTC)', 'Méthode des outils de conformité ; celle du calcul d\'exposition de SPECTRA'],
           ['FIFO', 'Premier entré, premier sorti', '100 % (le BTC illicite est entré en premier)', 'Proche de certaines règles de traçabilité comptable'],
           ['LIFO', 'Dernier entré, premier sorti', '0 %', 'Rarement utilisé, favorable à l\'auteur'],
           ['TIHO (taint in, highest out)', 'La part illicite part avec les plus grosses sorties', 'Dépend des montants', 'Utile pour maximiser la récupération'],
         ],
         caption: 'Sur Bitcoin, on peut souvent suivre les UTXO exactement ; ces conventions s\'imposent surtout dans le modèle à comptes et pour les adresses à flux mélangés.',
+      },
+      {
+        type: 'callout',
+        kind: 'tip',
+        title: 'Dans l\'espace d\'enquête : l\'outil « Traçage des fonds »',
+        md: `Sélectionnez la réception de la victime (touche **R**, ou clic droit ▸ *Tracer les fonds reçus*, ou l'icône de traçage d'une sortie dans l'inspecteur de transaction), choisissez la méthode, puis lancez. L'outil suit les fonds à travers les swaps et les bridges et s'arrête sur les services identifiés. Il affiche trois résultats : les **destinations** (avec la réquisition associée), les **fonds encore détenus** sur des adresses non attribuées (pistes de gel) et ce qui n'est plus suivi (frais, seuil, profondeur).
+
+*Comparer les méthodes* montre côte à côte FIFO, LIFO, prorata et poison : si la conclusion change d'une méthode à l'autre, le rapport doit le dire. La méthode retenue et ses paramètres figurent automatiquement dans la section « Traçage des fonds » du rapport. FIFO et LIFO s'y appliquent aussi à l'intérieur d'une transaction Bitcoin (les entrées alimentent les sorties dans l'ordre).`,
       },
       {
         type: 'check',

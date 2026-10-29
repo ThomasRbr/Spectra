@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { CHAINS, usd } from '../engine/chains'
 import { attribution } from '../engine/analysis'
+import { TRACE_METHODS, findPath, traceFunds, type TraceOptions, type TraceResult, type TraceSource } from '../engine/tracing'
 import { shortAddr } from '../engine/addressgen'
 import type { World } from '../engine/world'
 import { scenarioById } from '../scenarios'
@@ -40,6 +41,20 @@ export interface ManualLink {
   txId?: string
 }
 
+/** Traçage des fonds en cours, affiché en surimpression sur le graphe. */
+export interface ActiveTrace {
+  source: TraceSource
+  opts: TraceOptions
+  result: TraceResult
+}
+
+/** Chemin trouvé entre deux adresses, surligné sur le graphe. */
+export interface PathHighlight {
+  from: string
+  to: string
+  txIds: string[]
+}
+
 export interface LogEntry {
   t: number
   text: string
@@ -66,6 +81,8 @@ interface GameState {
   objHints: string[]
   log: LogEntry[]
   links: ManualLink[]
+  trace: ActiveTrace | null
+  pathHighlight: PathHighlight | null
   minUsd: number
   showTruth: boolean
   score?: CaseScore
@@ -102,6 +119,10 @@ interface GameState {
   addLog(text: string, kind?: LogEntry['kind']): void
   addLink(l: Omit<ManualLink, 'id'>): void
   removeLink(id: string): void
+  runTrace(source: TraceSource, opts: TraceOptions): TraceResult | null
+  clearTrace(): void
+  revealTrace(): void
+  runPath(from: string, to: string): boolean
 }
 
 interface GraphSnapshot {
@@ -128,6 +149,7 @@ export interface SavedCase {
   objHints: string[]
   log: LogEntry[]
   links?: ManualLink[]
+  trace?: { source: TraceSource; opts: TraceOptions }
   /** Temps d'analyse actif (ms) au moment de la sauvegarde. */
   elapsed?: number
 }
@@ -188,6 +210,8 @@ export const useGame = create<GameState>()((set, get) => ({
   objHints: [],
   log: [],
   links: [],
+  trace: null,
+  pathHighlight: null,
   minUsd: 0,
   showTruth: false,
   focus: null,
@@ -208,6 +232,7 @@ export const useGame = create<GameState>()((set, get) => ({
       multi: [], flags: {}, notes: {}, answers: {}, hintsUsed: 0, objHints: [], score: undefined, xpGained: undefined,
       log: [{ t: Date.now(), text: `Ouverture du dossier « ${inst.title} » (graine ${seed})`, kind: 'system' }],
       showTruth: false, focus: null, layoutTick: 0, minUsd: 0, links: [], history: [], xpNote: undefined,
+      trace: null, pathHighlight: null,
     })
   },
 
@@ -234,12 +259,16 @@ export const useGame = create<GameState>()((set, get) => ({
     }
     // Le chronomètre reprend là où il s'était arrêté (le temps hors application ne compte pas)
     const startedAt = Date.now() - (saved.elapsed ?? 0)
+    const st = saved.trace
+    const trace = st && w.txs.has(st.source.txId) && w.addresses.has(st.source.address)
+      ? { ...st, result: traceFunds(w, st.source, st.opts) }
+      : null
     set({
       template, inst, seed: saved.seed, mode: saved.mode, coverage: saved.coverage, startedAt, history: [], xpNote: undefined,
       finishedAt: undefined, addrPos, txPos, revealed, flags, notes, answers,
       hintsUsed: saved.hintsUsed, objHints: saved.objHints, log: saved.log, selection: null, multi: [], score: undefined,
       links: (saved.links ?? []).filter((l) => inst.world.addresses.has(l.source) && inst.world.addresses.has(l.target)),
-      showTruth: false, focus: null, layoutTick: 0,
+      showTruth: false, focus: null, layoutTick: 0, trace, pathHighlight: null,
     })
     return true
   },
@@ -547,6 +576,47 @@ export const useGame = create<GameState>()((set, get) => ({
     set((s) => ({ links: s.links.filter((l) => l.id !== id) }))
   },
 
+  runTrace(source, opts) {
+    const s = get()
+    if (!s.inst) return null
+    const w = s.inst.world
+    const result = traceFunds(w, source, opts)
+    set({ trace: { source, opts, result } })
+    const ends = result.endpoints.slice(0, 3).map((e) => e.entity.name).join(', ')
+    get().addLog(
+      `Traçage ${TRACE_METHODS[opts.method].short} depuis ${label(w, source.address)} : ${fmtUsd0(result.sourceUsd)} suivis` +
+        (ends ? `, destinations ${ends}` : '') +
+        (result.stillHeld.length ? `, ${result.stillHeld.length} adresse(s) détiennent encore des fonds` : ''),
+      'tool',
+    )
+    return result
+  },
+
+  clearTrace() {
+    set({ trace: null, pathHighlight: null })
+  },
+
+  revealTrace() {
+    const t = get().trace
+    if (!t) return
+    revealMany(t.result.path, 'flux tracé', 'Flux tracé affiché dans le graphe')
+  },
+
+  runPath(from, to) {
+    const s = get()
+    if (!s.inst) return false
+    const w = s.inst.world
+    const p = findPath(w, from, to, 10)
+    if (!p) {
+      useUi.getState().notify(`Aucun chemin de ${label(w, from)} vers ${label(w, to)} (10 sauts au plus, dans l'ordre chronologique).`)
+      get().addLog(`Recherche de chemin ${label(w, from)} → ${label(w, to)} : aucun résultat`, 'tool')
+      return false
+    }
+    set({ pathHighlight: { from, to, txIds: p.txIds } })
+    revealMany(p.txIds, 'chemin', `Chemin trouvé ${label(w, from)} → ${label(w, to)} : ${p.addresses.length - 1} saut(s)`)
+    return true
+  },
+
   addLog(text, kind = 'system') {
     set((s) => ({ log: [...s.log, { t: Date.now(), text, kind }].slice(-400) }))
   },
@@ -558,12 +628,31 @@ function snapshot(label: string) {
   useGame.setState({ history: [...s.history, snap].slice(-60) })
 }
 
+const MAX_REVEAL = 220
+
+/** Révèle plusieurs transactions en une seule étape d'annulation et une seule ligne de journal. */
+function revealMany(txIds: string[], undoLabel: string, logText: string) {
+  const g = useGame.getState()
+  const todo = txIds.filter((id) => !g.revealed[id])
+  if (todo.length > MAX_REVEAL) useUi.getState().notify(`Flux très étendu : seules les ${MAX_REVEAL} premières transactions sont affichées.`)
+  snapshot(undoLabel)
+  const before = useGame.getState().history.length
+  const logBefore = useGame.getState().log.length
+  for (const id of todo.slice(0, MAX_REVEAL)) useGame.getState().revealTx(id, true)
+  useGame.getState().relayout()
+  useGame.setState((st) => ({ history: st.history.slice(0, before), log: st.log.slice(0, logBefore) }))
+  useGame.getState().addLog(logText, 'graph')
+}
+
+const fmtUsd0 = (v: number) => `${Math.round(v).toLocaleString('fr-FR')} $`
+
 function currentSave(s: GameState): SavedCase | null {
   if (!s.inst || !s.template || s.score) return null
   return {
     templateId: s.template.id, seed: s.seed, mode: s.mode, coverage: s.coverage, startedAt: s.startedAt,
     addrPos: s.addrPos, txPos: s.txPos, revealed: s.revealed, flags: s.flags, notes: s.notes, answers: s.answers,
     hintsUsed: s.hintsUsed, objHints: s.objHints, log: s.log, links: s.links, elapsed: Date.now() - s.startedAt,
+    trace: s.trace ? { source: s.trace.source, opts: s.trace.opts } : undefined,
   }
 }
 

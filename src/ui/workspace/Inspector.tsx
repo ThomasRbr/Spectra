@@ -9,6 +9,7 @@ import { useUi } from '../../store/ui'
 import { aKey, tKey } from '../../lib/graph'
 import { ChainBadge, CopyButton, Empty, EntityChip, EntityIcon, Icon, Logo, RiskGauge, Stat, Tabs, fmtTime } from '../common'
 import { entityLogo } from '../logos'
+import { FundingPanel, TracePanel, openTracer } from './Tracer'
 
 export function Inspector() {
   const selection = useGame((s) => s.selection)
@@ -56,7 +57,7 @@ export function AddrLine({ w, id, right, compact }: { w: World; id: string; righ
 
 // ── Adresse ──────────────────────────────────────────────────────────────
 
-type ATab = 'txs' | 'exposure' | 'cluster' | 'entity' | 'notes'
+type ATab = 'txs' | 'exposure' | 'cluster' | 'entity' | 'trace' | 'funding' | 'notes'
 
 function AddressInspector({ w, id }: { w: World; id: string }) {
   const [tab, setTab] = useState<ATab>('txs')
@@ -132,6 +133,8 @@ function AddressInspector({ w, id }: { w: World; id: string }) {
             { id: 'exposure', label: 'Exposition', icon: 'Radar' },
             { id: 'cluster', label: 'Cluster', icon: 'Network' },
             { id: 'entity', label: 'Entité', icon: 'Building2' },
+            { id: 'trace', label: 'Traçage', icon: 'Route' },
+            { id: 'funding', label: 'Financement', icon: 'Sprout' },
             { id: 'notes', label: 'Notes', icon: 'StickyNote' },
           ]}
         />
@@ -141,6 +144,8 @@ function AddressInspector({ w, id }: { w: World; id: string }) {
         {tab === 'exposure' && <ExposurePanel w={w} id={id} />}
         {tab === 'cluster' && (isUtxo ? <ClusterPanel w={w} id={id} /> : <Empty icon="Network" title="Pas de clustering par entrées communes" sub="Sur le modèle à comptes, chaque adresse est un compte. Pistes de rattachement : financeur du gas, dépôts vers une même adresse d'exchange, interactions répétées, horaires." />)}
         {tab === 'entity' && <EntityPanel w={w} id={id} />}
+        {tab === 'trace' && <TracePanel w={w} id={id} />}
+        {tab === 'funding' && <FundingPanel w={w} id={id} />}
         {tab === 'notes' && <NotesPanel id={id} />}
       </div>
     </div>
@@ -591,6 +596,12 @@ function TxInspector({ w, id }: { w: World; id: string }) {
                       <AddrLine w={w} id={o.address} compact right={
                         <span className="flex items-center gap-1.5">
                           <span className="font-mono text-[11px] text-ink-200">{fmtAsset(o.value, native)}</span>
+                          <button title="Tracer ces fonds" className="text-ink-400 hover:text-teal-300" onClick={(e) => {
+                            e.stopPropagation()
+                            openTracer({ address: o.address, txId: tx.id })
+                          }}>
+                            <Icon name="Route" size={12} />
+                          </button>
                           {spent ? (
                             <button title="Transaction de dépense" className="text-ink-400 hover:text-accent" onClick={(e) => {
                               e.stopPropagation()
@@ -648,6 +659,9 @@ function TxInspector({ w, id }: { w: World; id: string }) {
                     <span className="font-mono text-[12px] font-semibold" style={{ color: '#e2e8f0' }}>{fmtAsset(t.value, t.asset)}</span>
                     <span className="text-[10.5px] text-ink-400">{fmtUsd(usd(t.asset, t.value))}</span>
                     {t.asset !== native && <span className="chip bg-emerald-500/10 text-emerald-300">{CHAINS[tx.chain].tokenStandard}</span>}
+                    <button title="Tracer ces fonds" className="ml-auto text-ink-400 hover:text-teal-300" onClick={() => openTracer({ address: t.to, txId: tx.id, asset: t.asset, from: t.from })}>
+                      <Icon name="Route" size={12} />
+                    </button>
                   </div>
                   <AddrLine w={w} id={t.to} compact />
                 </div>

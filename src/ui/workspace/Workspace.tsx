@@ -9,6 +9,7 @@ import { GraphCanvas, fitGraph } from './GraphCanvas'
 import { Inspector } from './Inspector'
 import { Dossier } from './Dossier'
 import { Timeline } from './Timeline'
+import { TracerModal, findPathFromSelection, openTracerFromSelection } from './Tracer'
 import { Briefing, ConfirmSubmit, Correlator, Debrief, HintModal, ReportModal, RequisitionModal, SearchPalette, ShortcutsModal } from './Tools'
 
 function useClock(startedAt: number, stopped?: number) {
@@ -65,6 +66,8 @@ export function Workspace() {
       if (e.key === '[') ui.set({ leftOpen: !ui.leftOpen })
       if (e.key === ']') ui.set({ rightOpen: !ui.rightOpen })
       if (e.key === '?') ui.set({ shortcutsOpen: true })
+      if (e.key === 'r' || e.key === 'R') openTracerFromSelection()
+      if (e.key === 'p' || e.key === 'P') findPathFromSelection()
       if (e.key === 'c' || e.key === 'C') {
         const sel = useGame.getState().selection
         const w = useGame.getState().inst?.world
@@ -125,6 +128,7 @@ export function Workspace() {
             const tx = sel?.kind === 'tx' ? inst.world.tx(sel.id) : undefined
             useUi.getState().set({ correlator: { open: true, preset: tx ? { time: tx.time, usd: Math.round(inst.world.txUsd(tx)), excludeTx: tx.id } : { time: inst.world.t0, usd: 1000 } } })
           }} />
+          <TopBtn icon="Route" label="Traçage" kbd="R" onClick={openTracerFromSelection} />
           <TopBtn icon="FileText" label="Ordre de mission" onClick={() => useUi.getState().set({ briefingOpen: true })} />
           <TopBtn icon="PanelLeft" label="Dossier" kbd="[" active={leftOpen} onClick={() => useUi.getState().set({ leftOpen: !leftOpen })} />
           <TopBtn icon="PanelBottom" label="Frise" kbd="T" active={timelineOpen} onClick={() => useUi.getState().set({ timelineOpen: !timelineOpen })} />
@@ -161,6 +165,7 @@ export function Workspace() {
 
       <Briefing />
       <Correlator />
+      <TracerModal />
       <SearchPalette />
       <RequisitionModal />
       <HintModal />

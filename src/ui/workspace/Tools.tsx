@@ -3,6 +3,7 @@ import type { Core } from 'cytoscape'
 import { CHAINS, fmtAsset, fmtUsd, type ChainId, type AssetId } from '../../engine/chains'
 import { CATEGORY } from '../../engine/entities'
 import { attribution, correlate } from '../../engine/analysis'
+import { TRACE_METHODS } from '../../engine/tracing'
 import { shortAddr } from '../../engine/addressgen'
 import { useGame, FLAG_META } from '../../store/game'
 import type { World } from '../../engine/world'
@@ -569,6 +570,16 @@ export function ReportModal() {
       }
       return `<tr><td>${i + 1}</td><td>${esc(o.prompt)}</td><td>${shown}</td></tr>`
     }).join('')
+    const tr = g.trace
+    const amounts = (m: Partial<Record<AssetId, number>>) => Object.entries(m).filter(([, v]) => (v ?? 0) > 0).map(([a, v]) => fmtAsset(v!, a as AssetId)).join(' + ')
+    const share = (v: number) => (tr && tr.result.sourceUsd > 0 ? `${Math.round((v / tr.result.sourceUsd) * 100)} %` : '—')
+    const traceHtml = tr
+      ? `<div class="box">Source : fonds reçus par <span class="mono">${w.get(tr.source.address).addr}</span> dans la transaction <span class="mono">${w.tx(tr.source.txId).hash}</span>, soit ${amounts(tr.result.sourceAmounts)} (${fmtUsd(tr.result.sourceUsd)}).<br>
+Méthode d'attribution : <b>${TRACE_METHODS[tr.opts.method].label}</b>. ${esc(TRACE_METHODS[tr.opts.method].help)}<br>
+Paramètres : ${tr.opts.maxHops ?? 10} sauts au plus, seuil de suivi ${fmtUsd(tr.opts.minUsd ?? 10)}, arrêt sur les services identifiés : ${tr.opts.stopAtServices === false ? 'non' : 'oui'}${tr.opts.until ? `, situation au ${new Date(tr.opts.until * 1000).toLocaleString('fr-FR')}` : ''}. Les montants attribués dépendent de la méthode retenue et ne préjugent pas de l'appréciation du magistrat.</div>
+<table><tr><th>Destination</th><th>Montant</th><th>Part</th><th>Adresses d'entrée</th></tr>${tr.result.endpoints.map((e) => `<tr><td>${esc(e.entity.name)}</td><td>${amounts(e.amounts)} (${fmtUsd(e.usd)})</td><td>${share(e.usd)}</td><td class="mono">${e.addresses.map((a) => w.get(a).addr).join('<br>')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Aucun service identifié atteint.</td></tr>'}</table>
+${tr.result.stillHeld.length ? `<table><tr><th>Fonds encore détenus (non attribués)</th><th>Montant</th><th>Part</th></tr>${tr.result.stillHeld.slice(0, 20).map((n) => `<tr><td class="mono">${w.get(n.id).addr}</td><td>${amounts(n.held)} (${fmtUsd(n.heldUsd)})</td><td>${share(n.heldUsd)}</td></tr>`).join('')}</table>` : ''}`
+      : '<div class="muted">Aucun traçage des fonds réalisé.</div>'
     const journal = g.log.map((l) => `<li><span class="muted">${new Date(l.t).toLocaleString('fr-FR')}</span> — ${esc(l.text)}</li>`).join('')
     const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Rapport d'analyse — ${esc(g.inst!.title)}</title>
 <style>
@@ -586,9 +597,10 @@ table{width:100%;border-collapse:collapse;margin-top:8px}td,th{border:1px solid 
 <h2>1. Contexte</h2><div>${esc(g.inst!.briefing).replace(/\n\n/g, '<br><br>')}</div>
 <h2>2. Méthodologie</h2><div class="box">Analyse réalisée à partir des données publiques des registres concernés (${g.template!.chains.map((c) => CHAINS[c].name).join(', ')}). Heuristiques employées : suivi des flux, détection du rendu (type d'adresse, montants ronds, adresses neuves), regroupement par entrées communes (hors CoinJoin), attribution par base de données, corrélation montant/temps. Ces heuristiques sont probabilistes ; les rattachements présentés constituent des hypothèses d'enquête à corroborer (réquisitions, éléments techniques, auditions).</div>
 <h2>3. Conclusions</h2><table><tr><th>#</th><th>Question</th><th>Constatation</th></tr>${answers}</table>
-<h2>4. Adresses d'intérêt</h2>${rows ? `<table><tr><th>Qualification</th><th>Adresse</th><th>Réseau</th><th>Attribution</th><th>Observations</th></tr>${rows}</table>` : '<div class="muted">Aucune adresse marquée.</div>'}
-<h2>5. Graphe des flux</h2>${png ? `<img src="${png}">` : '<div class="muted">Graphe indisponible.</div>'}
-<h2>6. Journal des opérations d'analyse</h2><ul>${journal}</ul>
+<h2>4. Traçage des fonds</h2>${traceHtml}
+<h2>5. Adresses d'intérêt</h2>${rows ? `<table><tr><th>Qualification</th><th>Adresse</th><th>Réseau</th><th>Attribution</th><th>Observations</th></tr>${rows}</table>` : '<div class="muted">Aucune adresse marquée.</div>'}
+<h2>6. Graphe des flux</h2>${png ? `<img src="${png}">` : '<div class="muted">Graphe indisponible.</div>'}
+<h2>7. Journal des opérations d'analyse</h2><ul>${journal}</ul>
 </body></html>`
     // Nouvel onglet si possible, sinon téléchargement du fichier HTML
     const win = window.open('', '_blank')
@@ -627,6 +639,8 @@ const SHORTCUTS: [string, string][] = [
   ['O  /  I', 'Déplier les sorties (out) / entrées (in) de l\'adresse sélectionnée'],
   ['Ctrl Z', 'Annuler la dernière opération sur le graphe'],
   ['C', 'Corréler à partir de la transaction sélectionnée'],
+  ['R', 'Tracer les fonds reçus par l\'adresse ou la transaction sélectionnée'],
+  ['P', 'Chercher un chemin entre les deux adresses sélectionnées'],
   ['F', 'Ajuster la vue au graphe'],
   ['L', 'Réorganiser le graphe de gauche à droite'],
   ['T', 'Afficher / masquer la frise chronologique'],

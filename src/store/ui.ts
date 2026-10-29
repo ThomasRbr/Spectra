@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { ChainId } from '../engine/chains'
+import type { TraceSource } from '../engine/tracing'
 
 export type Page = 'dashboard' | 'missions' | 'academy' | 'glossary' | 'profile' | 'workspace'
 
@@ -35,6 +36,7 @@ interface UiState {
   shortcutsOpen: boolean
   leftTab: 'objectives' | 'evidence' | 'journal' | 'flags'
   correlator: { open: boolean; preset?: CorrelatorPreset }
+  tracer: { open: boolean; preset?: TraceSource }
   requisition: { open: boolean; entityId?: string; addresses?: string[] }
   reportOpen: boolean
   briefingOpen: boolean
@@ -77,6 +79,7 @@ export const useUi = create<UiState>()((set) => ({
   shortcutsOpen: false,
   leftTab: 'objectives',
   correlator: { open: false },
+  tracer: { open: false },
   requisition: { open: false },
   reportOpen: false,
   briefingOpen: false,

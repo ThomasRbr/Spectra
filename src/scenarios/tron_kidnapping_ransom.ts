@@ -290,7 +290,7 @@ export const tronKidnappingRansom: ScenarioTemplate = {
           id: 'o2', type: 'address', points: 15,
           prompt: `À H+${hNow}, quelle adresse détient encore des USDT issus de la rançon ?`,
           answer: [S1],
-          hint: 'Ouvrez chacune des quatre adresses alimentées par la collecte et regardez leur solde actuel, actif par actif (USDT ≠ TRX).',
+          hint: 'Ouvrez chacune des quatre adresses alimentées par la collecte et regardez leur solde actuel, actif par actif (USDT ≠ TRX). Plus rapide : tracez les USDT reçus par l\'adresse de collecte (touche R) et lisez « Fonds encore détenus ».',
           explanation: `Des quatre adresses servies par la collecte, ${A(w, S1)} n'a fait aucun mouvement : elle détient toujours ${amt(frozen, 'USDT')}. ${A(w, S3)} et ${A(w, S4)} sont vides (fonds déposés chez ${nameA} et ${nameB}). ${A(w, S2)} détient encore ${amt(trxKept, 'TRX')}, mais ce sont des TRX issus d'un swap SunSwap : l'émetteur de l'USDT n'a aucune prise sur eux.`,
         },
         {

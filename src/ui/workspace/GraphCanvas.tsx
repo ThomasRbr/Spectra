@@ -11,6 +11,8 @@ import { useUi } from '../../store/ui'
 import { aKey, computeEdges, extraLinks, idOf, isAKey, tKey } from '../../lib/graph'
 import { Icon } from '../common'
 import { entityLogo } from '../logos'
+import { findPathFromSelection, openTracer, openTracerFromSelection } from './Tracer'
+import { TRACE_METHODS } from '../../engine/tracing'
 
 /** Cadre tout le graphe sans zoomer exagérément quand il y a peu de nœuds. */
 export function fitGraph(cy: Core, duration = 300) {
@@ -34,6 +36,11 @@ function iconUri(name: string, color: string): string {
     iconCache.set(k, v)
   }
   return v
+}
+
+function sharePct(v: number, of: number): string {
+  const p = (v / Math.max(1, of)) * 100
+  return p > 0 && p < 1 ? '< 1 %' : `${Math.round(p)} %`
 }
 
 function compact(v: number): string {
@@ -94,6 +101,8 @@ const STYLE: cytoscape.Stylesheet[] = [
     style: { 'line-style': 'dashed', 'line-dash-pattern': [3, 4], 'line-color': '#fbbf24', 'target-arrow-color': '#fbbf24', width: 2.2, color: '#fde68a', opacity: 0.95 } as never,
   },
   { selector: 'edge:selected', style: { 'line-color': '#22d3ee', 'target-arrow-color': '#22d3ee', opacity: 1, color: '#fff' } },
+  { selector: 'edge.traced', style: { 'line-color': '#2dd4bf', 'target-arrow-color': '#2dd4bf', opacity: 1, 'line-style': 'solid', 'z-index': 9, width: 'data(wt)' } as never },
+  { selector: 'node.tracednode', style: { 'underlay-color': '#2dd4bf', 'underlay-opacity': 0.45, 'underlay-padding': 7 } as never },
   { selector: 'edge.truth', style: { 'line-color': '#fbbf24', 'target-arrow-color': '#fbbf24', opacity: 1, 'line-style': 'solid', 'z-index': 10, width: 'data(wt)' } as never },
   { selector: 'node.truthnode', style: { 'underlay-color': '#fbbf24', 'underlay-opacity': 0.5, 'underlay-padding': 8 } as never },
   { selector: '.dim', style: { opacity: 0.12 } },
@@ -120,6 +129,8 @@ export function GraphCanvas() {
   const revealed = useGame((s) => s.revealed)
   const flags = useGame((s) => s.flags)
   const showTruth = useGame((s) => s.showTruth)
+  const trace = useGame((s) => s.trace)
+  const pathHl = useGame((s) => s.pathHighlight)
   const focus = useGame((s) => s.focus)
   const selection = useGame((s) => s.selection)
   const layoutTick = useGame((s) => s.layoutTick)
@@ -203,6 +214,10 @@ export function GraphCanvas() {
     if (!cy || !w || !inst) return
     const truthTx = new Set(showTruth ? inst.truth.path : [])
     const truthAddr = new Set(showTruth ? inst.truth.addresses : [])
+    // Surimpression du traçage en cours et du chemin trouvé
+    const traced = trace?.result
+    const tracedTx = new Set([...(traced ? [...traced.byTx].filter(([, v]) => v > 0).map(([k]) => k) : []), ...(pathHl?.txIds ?? [])])
+    const tracedAddr = (id: string) => (traced?.byAddress.get(id)?.receivedUsd ?? 0) > 0
     const seeds = new Set(inst.seeds)
     const wanted = new Set<string>()
     const wasEmpty = cy.nodes().empty()
@@ -219,7 +234,11 @@ export function GraphCanvas() {
         const logo = entityLogo(at.entity?.id)
         const flag = flags[id] as Flag | undefined
         const name = at.label ?? (a.contract ? a.label ?? a.contract.name : null)
-        const label = name ? `${name}\n${shortAddr(a.addr, 5)}` : shortAddr(a.addr, 6)
+        const tn = traced?.byAddress.get(id)
+        const taint = tn && tn.receivedUsd > 0
+          ? `\n▸ ${tn.heldUsd > 0 ? 'détient' : 'reçu'} ${fmtUsd(tn.heldUsd > 0 ? tn.heldUsd : tn.receivedUsd)} · ${sharePct(tn.heldUsd > 0 ? tn.heldUsd : tn.receivedUsd, traced!.sourceUsd)}`
+          : ''
+        const label = (name ? `${name}\n${shortAddr(a.addr, 5)}` : shortAddr(a.addr, 6)) + taint
         const data = {
           id: key, kind: 'addr', label, color, icon: logo ?? iconUri(iconName, color), logo: !!logo || undefined, size: at.entity ? 50 : 42,
           flag: flag ?? undefined, flagColor: flag ? FLAG_META[flag].color : undefined, seed: seeds.has(id) || undefined,
@@ -233,6 +252,7 @@ export function GraphCanvas() {
           if (Math.abs(cur.x - p.x) > 0.5 || Math.abs(cur.y - p.y) > 0.5) el.position({ ...p })
         }
         cy.getElementById(key).toggleClass('truthnode', truthAddr.has(id))
+        cy.getElementById(key).toggleClass('tracednode', tracedAddr(id))
       }
       for (const [id, p] of Object.entries(txPos)) {
         const key = tKey(id)
@@ -248,6 +268,7 @@ export function GraphCanvas() {
           const cur = el.position()
           if (Math.abs(cur.x - p.x) > 0.5 || Math.abs(cur.y - p.y) > 0.5) el.position({ ...p })
         }
+        cy.getElementById(key).toggleClass('tracednode', tracedTx.has(id))
       }
       for (const e of edges) {
         wanted.add(e.id)
@@ -260,6 +281,7 @@ export function GraphCanvas() {
         if (el.empty()) cy.add({ group: 'edges', data })
         else el.data(data)
         cy.getElementById(e.id).toggleClass('truth', e.txIds.some((t) => truthTx.has(t)))
+        cy.getElementById(e.id).toggleClass('traced', e.txIds.some((t) => tracedTx.has(t)))
       }
       for (const x of xlinks) {
         wanted.add(x.id)
@@ -267,6 +289,7 @@ export function GraphCanvas() {
         const el = cy.getElementById(x.id)
         if (el.empty()) cy.add({ group: 'edges', data })
         else el.data(data)
+        cy.getElementById(x.id).toggleClass('traced', x.txIds.some((t) => tracedTx.has(t)))
       }
       cy.elements().forEach((el) => {
         if (!wanted.has(el.id())) el.remove()
@@ -297,7 +320,7 @@ export function GraphCanvas() {
         cy.center(cy.nodes())
       })
     }
-  }, [w, inst, addrPos, txPos, edges, xlinks, flags, showTruth])
+  }, [w, inst, addrPos, txPos, edges, xlinks, flags, showTruth, trace, pathHl])
 
   // Animation après réorganisation
   useEffect(() => {
@@ -404,7 +427,7 @@ export function GraphCanvas() {
         </select>
       </div>
 
-      {(timeRange || minUsd > 0 || coverage === 'partial') && (
+      {(timeRange || minUsd > 0 || coverage === 'partial' || trace || pathHl) && (
         <div className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-1.5 rounded-xl panel px-2 py-1 text-[11px] shadow-panel">
           <Icon name="ListFilter" size={12} className="text-accent" />
           {timeRange && (
@@ -415,6 +438,19 @@ export function GraphCanvas() {
           {minUsd > 0 && (
             <button className="chip bg-accent/15 text-accent hover:bg-accent/25" title="Retirer le filtre de montant" onClick={() => useGame.getState().setMinUsd(0)}>
               ≥ {fmtUsd(minUsd)} <Icon name="X" size={10} />
+            </button>
+          )}
+          {trace && (
+            <span className="chip bg-teal-400/15 text-teal-200">
+              <button className="hover:text-white" title="Ouvrir le traçage" onClick={() => useUi.getState().set({ tracer: { open: true } })}>
+                <Icon name="Route" size={10} className="mr-1 inline" />Traçage {TRACE_METHODS[trace.opts.method].short} · {fmtUsd(trace.result.sourceUsd)}
+              </button>
+              <button title="Effacer le traçage" onClick={() => useGame.getState().clearTrace()}><Icon name="X" size={10} /></button>
+            </span>
+          )}
+          {pathHl && !trace && (
+            <button className="chip bg-teal-400/15 text-teal-200 hover:bg-teal-400/25" title="Effacer le chemin surligné" onClick={() => useGame.getState().clearTrace()}>
+              Chemin surligné <Icon name="X" size={10} />
             </button>
           )}
           {coverage === 'partial' && <span className="chip bg-orange-500/15 text-orange-300" title="Une partie des adresses de dépôt n'est pas étiquetée dans ce mode">Attribution partielle</span>}
@@ -519,6 +555,8 @@ function NodeMenu({ menu, onClose }: { menu: Menu; onClose: () => void }) {
           <div className="truncate px-2.5 pb-1.5 pt-1 font-mono text-[11px] text-ink-300">{shortAddr(w.get(id).addr, 10)}</div>
           {item('ArrowUpRight', 'Déplier les sorties', () => g.expand(id, 'out'))}
           {item('ArrowDownLeft', 'Déplier les entrées', () => g.expand(id, 'in'))}
+          {item('Route', 'Tracer les fonds reçus', () => openTracer({ address: id }), '#2dd4bf')}
+          {g.multi.length === 2 && g.multi.includes(id) && item('Waypoints', 'Chemin entre les 2 adresses sélectionnées', findPathFromSelection, '#2dd4bf')}
           {CHAINS[w.get(id).chain].model === 'utxo' && item('Network', 'Ajouter le cluster', () => {
             const members = clusterOf(w, id).filter((m) => m !== id).slice(0, 25)
             members.forEach((m) => useGame.getState().addAddress(m, menu.key, 1))
@@ -535,6 +573,10 @@ function NodeMenu({ menu, onClose }: { menu: Menu; onClose: () => void }) {
         <>
           <div className="truncate px-2.5 pb-1.5 pt-1 font-mono text-[11px] text-ink-300">{shortAddr(w.tx(id).hash, 10)}</div>
           {item('Maximize2', 'Afficher toutes les entrées/sorties', () => g.revealTx(id, true))}
+          {item('Route', 'Tracer depuis cette transaction', () => {
+            g.select({ kind: 'tx', id })
+            openTracerFromSelection()
+          }, '#2dd4bf')}
           {item('Copy', 'Copier le hash', () => navigator.clipboard?.writeText(w.tx(id).hash).catch(() => undefined))}
           {item('Trash2', 'Retirer du graphe', () => g.removeNode(menu.key))}
         </>
