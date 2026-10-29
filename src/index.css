@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-ink-950 text-ink-100 font-sans antialiased;
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  overflow: hidden;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.3);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1f2b47 transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #1f2b47;
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@layer components {
+  .panel {
+    @apply bg-ink-900/80 border border-ink-700/70 backdrop-blur-xl;
+  }
+  .panel-solid {
+    @apply bg-ink-900 border border-ink-700/70;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150 select-none disabled:opacity-40 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-ink-950 hover:bg-cyan-300 shadow-glow;
+  }
+  .btn-ghost {
+    @apply btn text-ink-200 hover:bg-ink-700/70 hover:text-white;
+  }
+  .btn-outline {
+    @apply btn border border-ink-600 text-ink-100 hover:border-accent/70 hover:text-white hover:bg-ink-800;
+  }
+  .btn-danger {
+    @apply btn bg-rose-500/90 text-white hover:bg-rose-400;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-4 whitespace-nowrap;
+  }
+  .input {
+    @apply w-full rounded-lg bg-ink-950/70 border border-ink-600 px-3 py-1.5 text-sm text-ink-100 placeholder:text-ink-400 outline-none focus:border-accent/80 focus:ring-2 focus:ring-accent/20;
+  }
+  .label {
+    @apply text-[11px] uppercase tracking-[0.12em] text-ink-300 font-semibold;
+  }
+  .mono {
+    @apply font-mono;
+  }
+  .kbd {
+    @apply inline-flex items-center rounded border border-ink-500 bg-ink-800 px-1.5 text-[10px] font-mono text-ink-200;
+  }
+}
+
+.grid-bg {
+  background-color: #05070d;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(122, 136, 168, 0.13) 1px, transparent 0),
+    radial-gradient(ellipse at 20% 0%, rgba(34, 211, 238, 0.07), transparent 50%),
+    radial-gradient(ellipse at 90% 100%, rgba(167, 139, 250, 0.07), transparent 50%);
+  background-size: 26px 26px, 100% 100%, 100% 100%;
+}
+
+.glow-text {
+  text-shadow: 0 0 24px rgba(34, 211, 238, 0.45);
+}
+
+.hero-gradient {
+  background:
+    radial-gradient(ellipse 80% 60% at 10% 0%, rgba(34, 211, 238, 0.18), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 100% 20%, rgba(167, 139, 250, 0.16), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, rgba(244, 114, 182, 0.08), transparent 60%);
+}
+
+.prose-spectra p {
+  @apply text-ink-200 leading-relaxed mb-3;
+}
+.prose-spectra ul {
+  @apply list-disc pl-5 mb-3 space-y-1 text-ink-200;
+}
+.prose-spectra ol {
+  @apply list-decimal pl-5 mb-3 space-y-1 text-ink-200;
+}
+.prose-spectra strong {
+  @apply text-white font-semibold;
+}
+.prose-spectra code {
+  @apply font-mono text-[0.85em] bg-ink-800 border border-ink-600 rounded px-1 py-px text-cyan-200;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+.animate-dash {
+  animation: dash 1s linear infinite;
+}

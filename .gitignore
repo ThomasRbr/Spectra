@@ -1,0 +1,10 @@
+# Dépendances et builds
+node_modules/
+dist/
+
+# Outils locaux
+.claude/
+*.log
+.DS_Store
+Thumbs.db
+.vscode/

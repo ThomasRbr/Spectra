@@ -1,0 +1,31 @@
+# SPECTRA — Crypto Tracing Lab
+
+Plateforme d'entraînement au traçage de crypto-actifs, inspirée des outils d'analyse professionnels. Tout fonctionne en local, hors ligne : aucune donnée ne quitte le poste.
+
+## Lancer
+
+- Windows : double-cliquez sur `Lancer SPECTRA.bat` (il installe les dépendances au premier lancement).
+- Sinon : `npm install` puis `npm run dev`, et ouvrez http://localhost:5173.
+- Version autonome : `npm run build` produit le dossier `dist/`, à servir avec `npm run preview`.
+
+## Ce qu'il y a dedans
+
+- **Moteur de blockchain simulée** (`src/engine/`) : Bitcoin, Litecoin, Ethereum, BNB Chain, Tron, XRP, Solana, Monero. Modèle UTXO réel (entrées, sorties, rendu, frais), modèle à comptes avec jetons (USDT, USDC, DAI, WBTC), exchanges avec adresses de dépôt et balayage, échangeurs instantanés, mixeurs, CoinJoin, DEX, bridges, pools de confidentialité.
+- **Outils d'analyse** (`src/engine/analysis.ts`) : regroupement d'adresses par entrées communes, détection du rendu avec la justification de chaque heuristique, détection des CoinJoin, attribution, exposition au risque sur 3 sauts, score de risque, corrélateur montant/temps.
+- **Scénarios** (`src/scenarios/`) : générés de façon procédurale à partir d'une graine. La même graine donne la même affaire, ce qui permet de comparer ses résultats entre collègues ; le défi du jour en est un exemple.
+- **Interface d'enquête** : graphe interactif (infobulles, annuler avec Ctrl Z, liens inter-chaînes pour les bridges et les corrélations), inspecteur d'adresse et de transaction, pièces du dossier (adresses cliquables), frise chronologique filtrable, journal, marquages, objectifs corrigés automatiquement, débriefing avec le flux réel, rapport d'analyse imprimable, modèle de réquisition. Touche « ? » pour la liste des raccourcis.
+- **Académie** (`src/academy/`) : 52 leçons du niveau 0 (débutant absolu) au niveau 5 (expert), réparties en 9 filières ; contenu en blocs (schémas de flux, tableaux, études de cas, vérifications intégrées), 18 simulateurs interactifs, 361 questions de quiz, 524 fiches en répétition espacée, 14 exercices générés à l'infini, 12 examens chronométrés, 8 parcours certifiants (dont le grand cursus complet) et des certificats imprimables. Accès guidé (parcours) ou libre (bibliothèque).
+
+## Ajouter un scénario
+
+1. Créez un fichier dans `src/scenarios/` sur le modèle de `s01_first_trace.ts`.
+2. Enregistrez-le dans `pack_btc.ts` ou `pack_account.ts`.
+3. Vérifiez-le avec `npx tsx scripts/check-scenarios.ts <id>`.
+
+## Ajouter ou modifier une leçon
+
+Le plan officiel est dans `src/academy/model.ts` (`CURRICULUM`). Le contenu est dans `src/academy/content/` ; vérifiez avec `npx tsx scripts/check-academy.ts`. Attention : certains fichiers mélangent l'ordre des réponses à l'export, l'index `answer` désigne toujours l'option telle qu'écrite dans le source.
+
+## Avertissement
+
+Les entités (exchanges, mixeurs, etc.) sont fictives. Les modèles de réquisition et les contenus juridiques sont pédagogiques : vérifiez toujours les textes en vigueur et les trames de votre service.
