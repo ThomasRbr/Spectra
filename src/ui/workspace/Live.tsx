@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
-import { fmtUsd, usd, type AssetId } from '../../engine/chains'
+import { fmtAsset, fmtUsd, usd, type AssetId } from '../../engine/chains'
+import { freezeOption } from '../../engine/freeze'
 import type { World } from '../../engine/world'
 import { useGame } from '../../store/game'
+import { useUi } from '../../store/ui'
 import { Empty, Icon, fmtTime } from '../common'
 import { AddrLine } from './Inspector'
 
@@ -44,6 +46,36 @@ export function WatchButton({ id }: { id: string }) {
   )
 }
 
+/** Bouton « Demander un gel » (mode temps réel). */
+export function FreezeButton({ w, id }: { w: World; id: string }) {
+  const live = useGame((s) => !!s.live)
+  const req = useGame((s) => s.freezes.find((f) => f.address === id && f.status !== 'late'))
+  const clock = useGame((s) => s.live?.now)
+  const opt = useMemo(() => (live ? freezeOption(w, id) : null), [w, id, live, clock])
+  if (!live || !opt) return null
+  if (req) {
+    return (
+      <div className={`col-span-2 rounded-lg border px-2 py-1 text-center text-[11px] ${req.status === 'effective' ? 'border-sky-400/40 bg-sky-400/10 text-sky-100' : 'border-ink-600 text-ink-200'}`}>
+        <Icon name="Snowflake" size={12} className="mr-1 inline" />
+        {req.status === 'effective' ? `Gelé par ${req.authority} : ${fmtUsd(req.frozenUsd)}` : `Gel demandé à ${req.authority} · effet vers ${fmtTime(req.effectiveAt)}`}
+      </div>
+    )
+  }
+  const blocked = 'reason' in opt
+  return (
+    <button
+      className={`btn-outline col-span-2 !px-2 !py-1 text-xs ${blocked ? 'opacity-60' : '!border-sky-400/50 text-sky-100'}`}
+      title={blocked ? opt.reason : `Demande à ${opt.authority}, traitement en ${Math.round(opt.delayH)} h environ`}
+      onClick={() => {
+        const err = useGame.getState().requestFreeze(id)
+        useUi.getState().notify(err || `Demande de gel envoyée à ${(opt as { authority: string }).authority}.`)
+      }}
+    >
+      <Icon name="Snowflake" size={13} /> {blocked ? 'Gel impossible ici' : `Demander un gel (${opt.authority})`}
+    </button>
+  )
+}
+
 function balanceUsd(w: World, id: string): number {
   const b = w.summary(id).balance
   return Object.entries(b).reduce((s, [a, v]) => s + usd(a as AssetId, v ?? 0), 0)
@@ -55,6 +87,7 @@ export function WatchPanel() {
   const live = useGame((s) => s.live)
   const watch = useGame((s) => s.watch)
   const alerts = useGame((s) => s.alerts)
+  const freezes = useGame((s) => s.freezes)
   const rows = useMemo(() => (w ? watch.map((id) => ({ id, held: balanceUsd(w, id), last: w.txsOf(id).slice(-1)[0]?.time })) : []), [w, watch, live?.now])
   if (!w) return null
   return (
@@ -81,6 +114,23 @@ export function WatchPanel() {
           </div>
         )}
       </div>
+      {freezes.length > 0 && (
+        <div>
+          <div className="label mb-1.5">Demandes de gel ({freezes.length}) · {fmtUsd(freezes.reduce((s2, f) => s2 + f.frozenUsd, 0))} bloqués</div>
+          <div className="space-y-1">
+            {freezes.map((f) => (
+              <div key={f.id} className={`rounded-lg border p-1.5 ${f.status === 'effective' ? 'border-sky-400/30 bg-sky-400/[0.05]' : f.status === 'late' ? 'border-ink-700/60 opacity-70' : 'border-ink-700/60'}`}>
+                <div className="flex items-center gap-1.5 px-1.5 text-[10.5px]">
+                  <Icon name="Snowflake" size={12} className={f.status === 'effective' ? 'text-sky-300' : 'text-ink-400'} />
+                  <span className="text-ink-200">{f.authority}</span>
+                  <span className="ml-auto text-ink-400">{f.status === 'pending' ? `effet vers ${fmtTime(f.effectiveAt)}` : f.status === 'effective' ? Object.entries(f.frozen).map(([a, v]) => fmtAsset(v ?? 0, a as AssetId)).join(' + ') : 'trop tard'}</span>
+                </div>
+                <AddrLine w={w} id={f.address} compact />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {alerts.length > 0 && (
         <div>
           <div className="label mb-1.5 flex items-center justify-between">
@@ -94,6 +144,7 @@ export function WatchPanel() {
                   <Icon name={a.dir === 'out' ? 'ArrowUpRight' : 'ArrowDownLeft'} size={12} className={a.dir === 'out' ? 'text-rose-400' : 'text-emerald-400'} />
                   <span className="text-ink-300">{fmtTime(a.time)}</span>
                   <span className={`font-mono ${a.dir === 'out' ? 'text-rose-200' : 'text-emerald-200'}`}>{a.dir === 'out' ? '−' : '+'}{fmtUsd(a.usd)}</span>
+                  {freezes.some((f) => f.status === 'effective' && f.address === a.address && f.via === 'issuer' && f.effectiveAt <= a.time) && <span className="chip !py-0 bg-sky-400/15 text-sky-200" title="Dans la réalité, ce mouvement aurait été bloqué par le gel">après le gel</span>}
                   <button className="ml-auto text-ink-400 hover:text-accent" title="Ajouter la transaction au graphe" onClick={() => {
                     useGame.getState().revealTx(a.txId, true)
                     useGame.getState().select({ kind: 'tx', id: a.txId })

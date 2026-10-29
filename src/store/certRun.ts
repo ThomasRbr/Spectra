@@ -2,7 +2,7 @@
 // enchaînement des volets, remise automatique à l'expiration du temps,
 // clôture, notation et délivrance du certificat.
 import { scenarioById } from '../scenarios'
-import { PRACTICAL_CERTS, certById, gradeReport, verificationCode, EMPTY_REPORT, type CertReport, type PracticalCert } from '../lib/certs'
+import { PRACTICAL_CERTS, STRICT_ITEM, certById, gradeReport, verificationCode, EMPTY_REPORT, type CertReport, type PracticalCert } from '../lib/certs'
 import { useGame, loadSavedCase } from './game'
 import { useProfile, type CertAttempt } from './profile'
 import { useUi } from './ui'
@@ -33,6 +33,9 @@ export interface CertStatus {
   prereqs: { label: string; ok: boolean }[]
   cooldownUntil?: number
   last?: CertAttempt
+  /** Renouvellement possible : certification expirée, ou expirant dans moins de 90 jours. */
+  canRenew: boolean
+  renewBlockers: string[]
 }
 
 export function certStatus(cert: PracticalCert, now = Date.now()): CertStatus {
@@ -55,13 +58,23 @@ export function certStatus(cert: PracticalCert, now = Date.now()): CertStatus {
   if (prereqs.some((x) => !x.ok)) blockers.push('Prérequis non remplis')
   if (held) blockers.push('Certification déjà obtenue et en cours de validité')
   if (used >= cert.attempts) blockers.push(`Les ${cert.attempts} tentatives ont été utilisées`)
-  if (cooldownUntil && cooldownUntil > now && !held) blockers.push(`Nouvelle tentative possible le ${new Date(cooldownUntil).toLocaleDateString('fr-FR')}`)
-  return { cert, running, held, used, left: Math.max(0, cert.attempts - used), blockers, prereqs, cooldownUntil: cooldownUntil && cooldownUntil > now ? cooldownUntil : undefined, last }
+  const cooling = !!cooldownUntil && cooldownUntil > now
+  if (cooling && !held) blockers.push(`Nouvelle tentative possible le ${new Date(cooldownUntil!).toLocaleDateString('fr-FR')}`)
+  // Renouvellement : une certification déjà obtenue, expirée ou proche de l'expiration
+  const ever = p.certificates.find((c) => c.kind === 'practical' && c.id === cert.id)
+  const canRenew = !!ever && (ever.expires ?? Infinity) - now < 90 * DAY
+  const renewBlockers: string[] = []
+  if (running) renewBlockers.push('Un examen est déjà en cours')
+  if (cooling) renewBlockers.push(`Nouvelle tentative possible le ${new Date(cooldownUntil!).toLocaleDateString('fr-FR')}`)
+  if (used >= cert.attempts) renewBlockers.push(`Les ${cert.attempts} tentatives ont été utilisées`)
+  if (ever && !held) blockers.push('Certification expirée : passez l\'examen de renouvellement')
+  return { cert, running, held, used, left: Math.max(0, cert.attempts - used), blockers, prereqs, cooldownUntil: cooling ? cooldownUntil : undefined, last, canRenew, renewBlockers }
 }
 
 const EXAM_LABELS: Record<string, string> = {
   'exam-n1': 'Examen du niveau 1',
   'exam-n2': 'Examen du niveau 2',
+  'exam-n3': 'Examen du niveau 3',
   'exam-bitcoin': 'Certification QCM « Analyste Bitcoin »',
   'exam-comptes': 'Certification QCM « Ethereum, jetons et stablecoins »',
   'exam-interchaines': 'Certification QCM « Inter-chaînes et services »',
@@ -70,12 +83,17 @@ const EXAM_LABELS: Record<string, string> = {
 }
 const examLabel = (id: string) => EXAM_LABELS[id] ?? id
 
-export function startCertification(certId: string): boolean {
+export function startCertification(certId: string, renewal = false): boolean {
   const cert = certById(certId)
-  if (!cert || certStatus(cert).blockers.length) return false
-  const volets = cert.volets.map((v) => ({ templateId: v.pool[randomSeed() % v.pool.length], seed: randomSeed() }))
+  if (!cert) return false
+  const st = certStatus(cert)
+  if (renewal ? !st.canRenew || st.renewBlockers.length : st.blockers.length) return false
+  let volets = cert.volets.map((v) => ({ templateId: v.pool[randomSeed() % v.pool.length], seed: randomSeed() }))
+  // Renouvellement : un seul volet, tiré parmi ceux de la certification, en deux fois moins de temps
+  if (renewal) volets = [volets[randomSeed() % volets.length]]
   const now = Date.now()
-  const attempt: CertAttempt = { id: `ca${now.toString(36)}`, certId, startedAt: now, deadline: now + cert.durationMin * 60000, volets, results: [], status: 'running' }
+  const minutes = renewal ? Math.round(cert.durationMin / 2) : cert.durationMin
+  const attempt: CertAttempt = { id: `ca${now.toString(36)}`, certId, startedAt: now, deadline: now + minutes * 60000, volets, results: [], status: 'running', renewal }
   useProfile.getState().startCertAttempt(attempt)
   launchVolet(attempt, 0)
   return true
@@ -84,7 +102,7 @@ export function startCertification(certId: string): boolean {
 function launchVolet(a: CertAttempt, index: number) {
   const cert = certById(a.certId)!
   const v = a.volets[index]
-  useGame.getState().start(v.templateId, v.seed, { mode: 'examen', coverage: cert.coverage, cert: { attemptId: a.id, certId: a.certId, index } })
+  useGame.getState().start(v.templateId, v.seed, { mode: 'examen', coverage: cert.coverage, live: !!cert.live, cert: { attemptId: a.id, certId: a.certId, index } })
   useUi.getState().set({ page: 'workspace', briefingOpen: true, timeRange: null, leftTab: 'evidence', certReport: false })
 }
 
@@ -115,7 +133,9 @@ export function submitVolet(report: CertReport, timedOut = false) {
   const g = useGame.getState()
   const run = g.cert
   if (!run || !g.inst || !g.template) return
-  const grade = gradeReport(g.inst, report, { traceSourceTx: g.trace?.source.txId })
+  const cert = certById(run.certId)
+  const frozenUsd = g.freezes.filter((f) => f.status === 'effective').reduce((s, f) => s + f.frozenUsd, 0)
+  const grade = gradeReport(g.inst, report, { traceSourceTx: g.trace?.source.txId, frozenUsd }, { live: !!cert?.live, strict: !!cert?.strict })
   const answers = g.answers
   g.submit()
   const score = useGame.getState().score!
@@ -162,7 +182,9 @@ export function closeAttempt(attemptId: string) {
   })
   const flagsPct = max ? Math.round((earned / max) * 100) : 0
   const reportPct = Math.round(report / a.volets.length)
-  const passed = flagsPct >= cert.passFlagsPct && reportPct >= cert.passReportPct
+  // Spécialiste et Expert : chaque volet remis doit avoir écarté tous les leurres
+  const decoysOk = !cert.strict || (a.results.length > 0 && a.results.every((r) => r.grade.items.every((i) => i.label !== STRICT_ITEM || i.earned === i.max)))
+  const passed = flagsPct >= cert.passFlagsPct && reportPct >= cert.passReportPct && decoysOk
   p.closeCertAttempt(a.id, { status: passed ? 'passed' : 'failed', flagsPct, reportPct })
   if (passed) {
     const date = Date.now()

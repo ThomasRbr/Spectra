@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { CHAINS, usd } from '../engine/chains'
 import { attribution } from '../engine/analysis'
 import { TRACE_METHODS, findPath, traceFunds, type TraceOptions, type TraceResult, type TraceSource } from '../engine/tracing'
+import { freezeOption, resolveFreeze, type FreezeRequest } from '../engine/freeze'
 import { shortAddr } from '../engine/addressgen'
 import type { World } from '../engine/world'
 import { scenarioById } from '../scenarios'
@@ -142,6 +143,8 @@ interface GameState {
   viewId: string
   viewName: string
   cert: CertRun | null
+  /** Demandes de gel (mode temps réel). */
+  freezes: FreezeRequest[]
   minUsd: number
   showTruth: boolean
   score?: CaseScore
@@ -187,6 +190,8 @@ interface GameState {
   /** Avance l'horloge du mode temps réel (jamais en arrière). */
   advanceClock(to: number): void
   toggleWatch(id: string): void
+  /** Demande de gel d'une adresse (mode temps réel) ; renvoie un message d'erreur, ou '' si la demande part. */
+  requestFreeze(id: string): string
   newView(copy: boolean): void
   switchView(id: string): void
   renameView(id: string, name: string): void
@@ -227,6 +232,7 @@ export interface SavedCase {
   viewId?: string
   viewName?: string
   cert?: CertRun
+  freezes?: FreezeRequest[]
   /** Temps d'analyse actif (ms) au moment de la sauvegarde. */
   elapsed?: number
 }
@@ -313,6 +319,7 @@ export const useGame = create<GameState>()((set, get) => ({
   viewId: 'v1',
   viewName: 'Graphe principal',
   cert: null,
+  freezes: [],
   minUsd: 0,
   showTruth: false,
   focus: null,
@@ -336,7 +343,7 @@ export const useGame = create<GameState>()((set, get) => ({
       log: [{ t: Date.now(), text: `Ouverture du dossier « ${inst.title} » (graine ${seed})${live ? ` en temps réel, horloge au ${fmtClock(live.now)}` : ''}`, kind: 'system' }],
       showTruth: false, focus: null, layoutTick: 0, minUsd: 0, links: [], history: [], xpNote: undefined,
       trace: null, pathHighlight: null, live, watch: [], alerts: [], views: [], viewId: 'v1', viewName: 'Graphe principal',
-      cert: opts.cert ?? null,
+      cert: opts.cert ?? null, freezes: [],
     })
   },
 
@@ -377,7 +384,7 @@ export const useGame = create<GameState>()((set, get) => ({
       showTruth: false, focus: null, layoutTick: 0, trace, pathHighlight: null,
       live, watch: (saved.watch ?? []).filter((a) => w.addresses.has(a)), alerts: (saved.alerts ?? []).filter((a) => w.txs.has(a.txId)),
       views: (saved.views ?? []).map((v) => cleanView(w, v)), viewId: saved.viewId ?? 'v1', viewName: saved.viewName ?? 'Graphe principal',
-      cert: saved.cert ?? null,
+      cert: saved.cert ?? null, freezes: (saved.freezes ?? []).filter((f) => w.addresses.has(f.address)),
     })
     return true
   },
@@ -750,17 +757,48 @@ export const useGame = create<GameState>()((set, get) => ({
         if (tx.time <= from || tx.time > now) continue
         const out = w.flowOut(tx, id).reduce((a, f) => a + usd(f.asset, f.value), 0)
         const inn = w.flowIn(tx, id).reduce((a, f) => a + usd(f.asset, f.value), 0)
-        alerts.push({ id: `${tx.id}|${id}`, time: tx.time, address: id, txId: tx.id, dir: out > inn ? 'out' : 'in', usd: Math.abs(out - inn) || Math.max(out, inn) })
+        alerts.push({ id: `${tx.id}|${id}`, time: tx.time, address: id, txId: tx.id, dir: out >= inn ? 'out' : 'in', usd: Math.max(out, inn) })
       }
     }
     alerts.sort((a, b) => a.time - b.time)
     const trace = s.trace ? { ...s.trace, result: traceFunds(w, s.trace.source, s.trace.opts) } : null
-    set({ live: { ...s.live, now }, alerts: [...s.alerts, ...alerts].slice(-300), trace })
+    // Gels arrivés à échéance
+    const resolved: FreezeRequest[] = []
+    const freezes = s.freezes.map((f) => {
+      if (f.status !== 'pending' || f.effectiveAt > now) return f
+      const done = resolveFreeze(w, f)
+      resolved.push(done)
+      return done
+    })
+    set({ live: { ...s.live, now }, alerts: [...s.alerts, ...alerts].slice(-300), trace, freezes })
+    for (const f of resolved) {
+      const msg = f.status === 'effective'
+        ? `Gel effectif par ${f.authority} sur ${label(w, f.address)} : ${fmtUsd0(f.frozenUsd)} bloqués`
+        : `Gel trop tard par ${f.authority} sur ${label(w, f.address)} : les fonds étaient déjà partis`
+      get().addLog(msg, 'tool')
+      useUi.getState().notify(f.status === 'effective' ? `🧊 ${msg}` : `⏱ ${msg}`)
+    }
     get().addLog(`Horloge avancée au ${fmtClock(now)}${alerts.length ? ` : ${alerts.length} mouvement(s) sur les adresses surveillées` : ''}`, 'tool')
     if (alerts.length) {
       const a = alerts[alerts.length - 1]
       useUi.getState().notify(`⚠ ${label(w, a.address)} ${a.dir === 'out' ? 'envoie' : 'reçoit'} ${fmtUsd0(a.usd)}${alerts.length > 1 ? ` (+ ${alerts.length - 1} autre(s) mouvement(s))` : ''}`)
     } else if (now === s.live.end) useUi.getState().notify('Fin des faits connus : plus aucune transaction après cette date.')
+  },
+
+  requestFreeze(id) {
+    const s = get()
+    if (!s.inst || !s.live) return 'La demande de gel s\'utilise en mode temps réel.'
+    if (s.freezes.some((f) => f.address === id && f.status !== 'late')) return 'Une demande de gel existe déjà pour cette adresse.'
+    const w = s.inst.world
+    const opt = freezeOption(w, id)
+    if ('reason' in opt) return opt.reason
+    const req: FreezeRequest = {
+      id: `fz${Date.now().toString(36)}${s.freezes.length}`, address: id, via: opt.via, authority: opt.authority, assets: opt.assets,
+      requestedAt: s.live.now, effectiveAt: Math.round(s.live.now + opt.delayH * 3600), status: 'pending', frozen: {}, frozenUsd: 0,
+    }
+    set({ freezes: [...s.freezes, req], watch: s.watch.includes(id) ? s.watch : [...s.watch, id] })
+    get().addLog(`Demande de gel adressée à ${opt.authority} pour ${label(w, id)} (effet attendu vers ${fmtClock(req.effectiveAt)})`, 'tool')
+    return ''
   },
 
   toggleWatch(id) {
@@ -911,7 +949,7 @@ function currentSave(s: GameState): SavedCase | null {
     hintsUsed: s.hintsUsed, objHints: s.objHints, log: s.log, links: s.links, elapsed: Date.now() - s.startedAt,
     trace: s.trace ? { source: s.trace.source, opts: s.trace.opts } : undefined,
     live: s.live ?? undefined, watch: s.watch, alerts: s.alerts, views: s.views, viewId: s.viewId, viewName: s.viewName,
-    cert: s.cert ?? undefined,
+    cert: s.cert ?? undefined, freezes: s.freezes,
   }
 }
 

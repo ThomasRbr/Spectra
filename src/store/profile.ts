@@ -84,6 +84,8 @@ export interface CertAttempt {
   volets: { templateId: string; seed: number }[]
   results: VoletResult[]
   status: 'running' | 'passed' | 'failed'
+  /** Examen de renouvellement (un seul volet, durée réduite). */
+  renewal?: boolean
   finishedAt?: number
   flagsPct?: number
   reportPct?: number

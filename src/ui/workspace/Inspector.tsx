@@ -12,7 +12,7 @@ import { entityLogo } from '../logos'
 import { FundingPanel, TracePanel, openTracer } from './Tracer'
 import { DepositPanel, FingerprintCard, SwapMatchPanel, WalletUsage } from './Heuristics'
 import { instantSwapDeposit } from '../../engine/heuristics'
-import { WatchButton } from './Live'
+import { FreezeButton, WatchButton } from './Live'
 import { CoinjoinDemixCard, openDemix } from './Demix'
 import { BalanceChart } from './Synthesis'
 
@@ -109,6 +109,7 @@ function AddressInspector({ w, id }: { w: World; id: string }) {
           </button>
           <FlagMenu id={id} />
           <WatchButton id={id} />
+          <FreezeButton w={w} id={id} />
         </div>
         {risk.reasons.length > 0 && (
           <div className="mt-2.5 space-y-0.5">

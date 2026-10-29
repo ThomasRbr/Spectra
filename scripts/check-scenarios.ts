@@ -3,7 +3,7 @@
 // Un chemin de fichier vérifie les scénarios qu'il exporte, même non enregistrés.
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { SCENARIOS } from '../src/scenarios/index'
+import { ALL_SCENARIOS as SCENARIOS } from '../src/scenarios/index'
 import type { ScenarioTemplate } from '../src/scenarios/types'
 
 const arg = process.argv[2]

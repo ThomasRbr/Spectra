@@ -46,6 +46,12 @@ export interface PracticalCert {
   validityYears: number
   /** Certification annoncée mais pas encore ouverte. */
   soon?: boolean
+  /** Parcours principal (niveaux 1 à 4) ou certification spécialisée. */
+  track: 'principal' | 'specialise'
+  /** Volets joués en temps réel : les gels obtenus comptent dans le rapport. */
+  live?: boolean
+  /** Tous les leurres doivent être écartés (aucune attribution erronée à confiance forte). */
+  strict?: boolean
 }
 
 export const PRACTICAL_CERTS: PracticalCert[] = [
@@ -69,6 +75,7 @@ export const PRACTICAL_CERTS: PracticalCert[] = [
     attempts: 3,
     cooldownDays: 7,
     validityYears: 2,
+    track: 'principal',
   },
   {
     id: 'pc-enqueteur',
@@ -92,6 +99,7 @@ export const PRACTICAL_CERTS: PracticalCert[] = [
     attempts: 3,
     cooldownDays: 7,
     validityYears: 2,
+    track: 'principal',
   },
   {
     id: 'pc-specialiste',
@@ -99,11 +107,15 @@ export const PRACTICAL_CERTS: PracticalCert[] = [
     title: 'Spécialiste inter-chaînes et confidentialité',
     tier: 3,
     difficulty: 'difficile',
-    description: 'Chain hopping, CoinJoin et pools de confidentialité, avec des leurres glissés dans l\'affaire.',
-    skills: ['Démixage', 'Corrélation d\'échangeurs', 'Écarter les leurres'],
+    description: 'Une affaire d\'examen qui enchaîne CoinJoin, échangeur instantané et Tornado Cash, avec un leurre à chaque étape, puis deux volets de confidentialité et d\'inter-chaînes. Tous les leurres doivent être écartés.',
+    skills: ['Démixage', 'Corrélation d\'échangeurs', 'Écarter les leurres', 'Attribution partielle'],
     examPrereqs: ['exam-interchaines', 'exam-confidentialite'],
     certPrereq: 'pc-enqueteur',
-    volets: [],
+    volets: [
+      { title: 'Affaire d\'examen : le labyrinthe', pool: ['cert-specialiste'] },
+      { title: 'Volet confidentialité', pool: ['coinjoin-demix', 'centralized-mixer', 'monero-wall'] },
+      { title: 'Volet inter-chaînes', pool: ['chain-hopping', 'eth-account-takeover', 'defi-exploit'] },
+    ],
     coverage: 'partial',
     durationMin: 480,
     passFlagsPct: 75,
@@ -111,7 +123,8 @@ export const PRACTICAL_CERTS: PracticalCert[] = [
     attempts: 3,
     cooldownDays: 7,
     validityYears: 2,
-    soon: true,
+    track: 'principal',
+    strict: true,
   },
   {
     id: 'pc-expert',
@@ -119,11 +132,14 @@ export const PRACTICAL_CERTS: PracticalCert[] = [
     title: 'Expert analyse blockchain',
     tier: 4,
     difficulty: 'extreme',
-    description: 'Une grande affaire sur quatre chaînes, en temps réel : chaque gel obtenu avant que les fonds ne bougent rapporte des points.',
-    skills: ['Temps réel et gel', 'Comparaison des méthodes', 'Rapport contradictoire'],
+    description: 'Une rançon sur quatre chaînes, jouée en temps réel : il faut reconstituer le parcours et obtenir les gels avant que les fonds ne repartent. Un second front s\'ouvre en parallèle.',
+    skills: ['Temps réel et gel', 'Quatre chaînes', 'Comparaison des méthodes', 'Rapport contradictoire'],
     examPrereqs: ['exam-procedure'],
     certPrereq: 'pc-specialiste',
-    volets: [],
+    volets: [
+      { title: 'Affaire d\'examen : quatre chaînes', pool: ['cert-expert'] },
+      { title: 'Second front', pool: ['exchange-hack', 'ransomware-raas', 'darknet-vendor'] },
+    ],
     coverage: 'partial',
     durationMin: 2880,
     passFlagsPct: 80,
@@ -131,7 +147,56 @@ export const PRACTICAL_CERTS: PracticalCert[] = [
     attempts: 3,
     cooldownDays: 7,
     validityYears: 2,
-    soon: true,
+    track: 'principal',
+    live: true,
+    strict: true,
+  },
+  {
+    id: 'pc-conformite',
+    code: 'SPX-ACS',
+    title: 'Analyste conformité et sanctions',
+    tier: 2,
+    difficulty: 'moyen',
+    description: 'Mesurer l\'exposition d\'un portefeuille à des entités sanctionnées ou à risque, séparer le légitime de l\'illicite et rédiger un avis de conformité étayé.',
+    skills: ['Exposition et risque', 'Sanctions', 'Typologies', 'Avis motivé'],
+    examPrereqs: ['exam-n3'],
+    certPrereq: 'pc-associe',
+    volets: [
+      { title: 'Volet sanctions', pool: ['tron-sanctions-garantex'] },
+      { title: 'Volet financement et escroquerie', pool: ['donation-funding', 'pig-butchering-tron', 'address-poisoning'] },
+    ],
+    coverage: 'full',
+    durationMin: 180,
+    passFlagsPct: 75,
+    passReportPct: 70,
+    attempts: 3,
+    cooldownDays: 7,
+    validityYears: 2,
+    track: 'specialise',
+  },
+  {
+    id: 'pc-incident',
+    code: 'SPX-RIC',
+    title: 'Réponse à incident',
+    tier: 3,
+    difficulty: 'difficile',
+    description: 'Un piratage ou une rançon en cours, en temps réel : identifier les fonds encore gelables et obtenir les gels plus vite que les fonds ne bougent.',
+    skills: ['Temps réel', 'Gel', 'Surveillance d\'adresses', 'Priorisation'],
+    examPrereqs: ['exam-n3'],
+    certPrereq: 'pc-enqueteur',
+    volets: [
+      { title: 'Incident principal', pool: ['exchange-hack', 'cert-expert'] },
+      { title: 'Second incident', pool: ['tron-kidnapping-ransom', 'eth-account-takeover'] },
+    ],
+    coverage: 'full',
+    durationMin: 360,
+    passFlagsPct: 70,
+    passReportPct: 70,
+    attempts: 3,
+    cooldownDays: 7,
+    validityYears: 2,
+    track: 'specialise',
+    live: true,
   },
 ]
 
@@ -171,7 +236,17 @@ export interface ReportGrade {
 /** Ce que l'enquêteur a fait dans l'affaire, utile à la notation. */
 export interface CaseWork {
   traceSourceTx?: string
+  /** Montant bloqué par les gels obtenus (mode temps réel). */
+  frozenUsd?: number
 }
+
+export interface GradeOptions {
+  live?: boolean
+  strict?: boolean
+}
+
+export const STRICT_ITEM = 'Leurres écartés : aucune attribution erronée'
+export const FREEZE_ITEM = 'Gels obtenus à temps'
 
 /** Source de référence de l'affaire : le plus gros versement vers une adresse clé, parmi les premières transactions du flux réel. */
 function referenceTrace(inst: ScenarioInstance): TraceResult | null {
@@ -190,6 +265,11 @@ function referenceTrace(inst: ScenarioInstance): TraceResult | null {
   return best ? traceFunds(w, { txId: best.txId, address: best.address }, { method: 'haircut' }) : null
 }
 
+/** Valeur (USD) des fonds de référence de l'affaire. */
+export function referenceSourceUsd(inst: ScenarioInstance): number {
+  return referenceTrace(inst)?.sourceUsd ?? 0
+}
+
 /** Adresses non attribuées qui détiennent encore une part significative (2 % au moins) des fonds de l'affaire. */
 export function heldReference(inst: ScenarioInstance): string[] {
   const ref = referenceTrace(inst)
@@ -198,9 +278,10 @@ export function heldReference(inst: ScenarioInstance): string[] {
 
 /** Services que le rapport doit viser : réponses des objectifs « entité », sinon services atteints par le flux réel. */
 export function expectedEntities(inst: ScenarioInstance): string[] {
-  const fromObjectives = inst.objectives.flatMap((o) => (o.type === 'entity' ? o.answer : []))
-  if (fromObjectives.length) return [...new Set(fromObjectives)]
   const w = inst.world
+  // Seuls les services qui répondent aux réquisitions comptent (pas un DEX, par exemple)
+  const fromObjectives = inst.objectives.flatMap((o) => (o.type === 'entity' ? o.answer : [])).filter((e) => w.entities.get(e)?.compliance)
+  if (fromObjectives.length) return [...new Set(fromObjectives)]
   const out = new Set<string>()
   for (const a of inst.truth.addresses) {
     const e = attribution(w, a).entity ?? (w.get(a).entityId ? w.entities.get(w.get(a).entityId!) : undefined)
@@ -214,7 +295,7 @@ const mentions = (text: string, w: World, ids: string[]) => ids.some((id) => {
   return !!a && text.includes(a.slice(0, 8))
 })
 
-export function gradeReport(inst: ScenarioInstance, report: CertReport, work: CaseWork): ReportGrade {
+export function gradeReport(inst: ScenarioInstance, report: CertReport, work: CaseWork, opts: GradeOptions = {}): ReportGrade {
   const w = inst.world
   const items: RubricItem[] = []
   const truthTx = new Set(inst.truth.path)
@@ -262,7 +343,9 @@ export function gradeReport(inst: ScenarioInstance, report: CertReport, work: Ca
   // 5. Réquisitions
   const expected = expectedEntities(inst)
   const hit = report.requisitions.find((r) => expected.includes(r.entityId))
-  const depositHit = hit?.addresses.some((a) => w.get(a).entityId === hit.entityId && w.get(a).tags.includes('deposit'))
+  // Émetteur de stablecoin : on lui désigne l'adresse qui détient les jetons, pas une adresse de dépôt
+  const issuer = !!hit && w.entities.get(hit.entityId)?.category === 'token_issuer'
+  const depositHit = hit?.addresses.some((a) => (issuer ? truthAddr.has(a) : w.get(a).entityId === hit.entityId && w.get(a).tags.includes('deposit')))
   const anyOwn = hit?.addresses.some((a) => w.get(a).entityId === hit.entityId)
   items.push({
     label: 'Réquisition au bon service, sur la bonne adresse',
@@ -271,7 +354,7 @@ export function gradeReport(inst: ScenarioInstance, report: CertReport, work: Ca
     detail: !expected.length
       ? 'Aucun service attendu dans cette affaire.'
       : hit
-        ? depositHit ? 'Bon service, adresse de dépôt du client citée.' : anyOwn ? 'Bon service, mais l\'adresse citée n\'est pas l\'adresse de dépôt du client.' : 'Bon service, sans adresse lui appartenant.'
+        ? depositHit ? (issuer ? 'Bon émetteur, adresse détentrice des jetons citée.' : 'Bon service, adresse de dépôt du client citée.') : anyOwn ? 'Bon service, mais l\'adresse citée n\'est pas l\'adresse de dépôt du client.' : 'Bon service, sans adresse lui appartenant.'
         : `Service attendu non réquisitionné (${expected.map((e) => w.entities.get(e)?.name ?? e).join(', ')}).`,
   })
   if (!expected.length) items[items.length - 1].earned = report.requisitions.length ? 10 : 20
@@ -287,6 +370,33 @@ export function gradeReport(inst: ScenarioInstance, report: CertReport, work: Ca
       ? heldGiven.length ? `${heldGiven.length} adresse(s) détenant encore des fonds signalée(s).` : `Des fonds restaient sur ${heldTruth.size} adresse(s) non signalée(s).`
       : report.noHeld ? 'Absence de fonds encore détenus correctement indiquée.' : 'Aucun fonds significatif ne restait : il fallait l\'indiquer.',
   })
+
+  // 7. Temps réel : gels obtenus avant la dissipation
+  if (opts.live) {
+    const ref = referenceTrace(inst)
+    const target = Math.max(1, (ref?.sourceUsd ?? 0) * 0.3)
+    const frozen = work.frozenUsd ?? 0
+    items.push({
+      label: FREEZE_ITEM,
+      max: 20,
+      earned: Math.round(Math.min(1, frozen / target) * 20),
+      detail: frozen > 0 ? `${Math.round(frozen).toLocaleString('fr-FR')} $ bloqués, pour un objectif de ${Math.round(target).toLocaleString('fr-FR')} $ (30 % des fonds tracés).` : 'Aucun gel obtenu avant que les fonds ne repartent.',
+    })
+  }
+
+  // 8. Leurres : aucune attribution erronée à confiance forte, aucune réquisition à côté
+  if (opts.strict) {
+    const wrongAttr = report.attributions.filter((a) => a.confidence === 'forte' && !truthAddr.has(a.address))
+    const wrongReq = report.requisitions.filter((rq) => expected.length && !expected.includes(rq.entityId))
+    items.push({
+      label: STRICT_ITEM,
+      max: 10,
+      earned: wrongAttr.length || wrongReq.length ? 0 : 10,
+      detail: wrongAttr.length || wrongReq.length
+        ? `${wrongAttr.length} attribution(s) à confiance forte sur une adresse étrangère au flux, ${wrongReq.length} réquisition(s) vers un service non concerné.`
+        : 'Aucun leurre retenu.',
+    })
+  }
 
   const earned = items.reduce((s, i) => s + i.earned, 0)
   const max = items.reduce((s, i) => s + i.max, 0)

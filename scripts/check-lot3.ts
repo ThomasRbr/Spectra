@@ -3,7 +3,7 @@
 // par les objectifs doivent ressortir. Temps réel : rien de postérieur à
 // l'horloge n'est visible, et le traçage reste conservatif à mi-parcours.
 // Usage : npx tsx scripts/check-lot3.ts [idScenario]
-import { SCENARIOS } from '../src/scenarios/index'
+import { ALL_SCENARIOS as SCENARIOS } from '../src/scenarios/index'
 import { demixCoinjoin, demixPool, poolDeposits } from '../src/engine/demix'
 import { detectCoinjoin } from '../src/engine/analysis'
 import { traceFunds } from '../src/engine/tracing'

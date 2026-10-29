@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { shortAddr } from '../../engine/addressgen'
-import { CERT_DIFFICULTY, PRACTICAL_CERTS, certById, verificationCode, type PracticalCert } from '../../lib/certs'
+import { CERT_DIFFICULTY, PRACTICAL_CERTS, STRICT_ITEM, certById, verificationCode, type PracticalCert } from '../../lib/certs'
 import { evaluate } from '../../lib/scoring'
 import { scenarioById } from '../../scenarios'
 import type { Objective, ScenarioInstance } from '../../scenarios/types'
@@ -16,7 +16,7 @@ const fmtDate = (t: number) => new Date(t).toLocaleDateString('fr-FR')
 
 export function PracticalCerts() {
   useProfile((s) => s.certAttempts.length + s.certificates.length + Object.keys(s.exams).length)
-  const [confirm, setConfirm] = useState<PracticalCert | null>(null)
+  const [confirm, setConfirm] = useState<{ cert: PracticalCert; renewal: boolean } | null>(null)
   return (
     <div>
       <div className="label text-amber-300">Certifications pratiques</div>
@@ -24,16 +24,21 @@ export function PracticalCerts() {
       <p className="mt-1 max-w-3xl text-[13px] leading-relaxed text-ink-300">
         Un examen sur des affaires inconnues, tirées au sort, sans indices et en temps limité. Pour réussir, il faut retrouver les éléments demandés (adresses, transactions, montants, services) et remettre un rapport structuré pour chaque volet, noté selon une grille. Trois tentatives, sept jours d'attente après un échec, validité de deux ans.
       </p>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        {PRACTICAL_CERTS.map((c) => <CertCard key={c.id} cert={c} onStart={() => setConfirm(c)} />)}
+      <div className="label mb-2 mt-5">Parcours principal · quatre niveaux</div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {PRACTICAL_CERTS.filter((c) => c.track === 'principal').map((c) => <CertCard key={c.id} cert={c} onStart={(renewal) => setConfirm({ cert: c, renewal })} />)}
       </div>
-      <StartModal cert={confirm} onClose={() => setConfirm(null)} />
+      <div className="label mb-2 mt-6">Certifications spécialisées · par métier</div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {PRACTICAL_CERTS.filter((c) => c.track === 'specialise').map((c) => <CertCard key={c.id} cert={c} onStart={(renewal) => setConfirm({ cert: c, renewal })} />)}
+      </div>
+      <StartModal cert={confirm?.cert ?? null} renewal={!!confirm?.renewal} onClose={() => setConfirm(null)} />
       <VerifyBox />
     </div>
   )
 }
 
-function CertCard({ cert, onStart }: { cert: PracticalCert; onStart: () => void }) {
+function CertCard({ cert, onStart }: { cert: PracticalCert; onStart: (renewal: boolean) => void }) {
   const st = certStatus(cert)
   const d = CERT_DIFFICULTY[cert.difficulty]
   return (
@@ -46,6 +51,8 @@ function CertCard({ cert, onStart }: { cert: PracticalCert; onStart: () => void 
             <span className="chip !py-0" style={{ background: `${d.color}1c`, color: d.color }}>{d.label}</span>
             <span className="font-mono text-ink-400">{cert.code}</span>
             {cert.soon && <span className="chip !py-0 bg-ink-700 text-ink-300">Bientôt</span>}
+            {cert.live && <span className="chip !py-0 bg-rose-500/15 text-rose-300">Temps réel</span>}
+            {cert.strict && <span className="chip !py-0 bg-violet-500/15 text-violet-200">Leurres</span>}
             {st.held && <span className="chip !py-0 bg-emerald-500/15 text-emerald-300">Obtenue · valide jusqu'au {fmtDate(st.held.expires!)}</span>}
           </div>
         </div>
@@ -70,7 +77,10 @@ function CertCard({ cert, onStart }: { cert: PracticalCert; onStart: () => void 
             {st.running ? (
               <button className="btn-primary !py-1.5 text-[12.5px]" onClick={() => resumeCertification(st.running!.id)}><Icon name="Play" size={14} /> Reprendre l'examen</button>
             ) : (
-              <button className="btn-primary !py-1.5 text-[12.5px]" disabled={st.blockers.length > 0} onClick={onStart}><Icon name="Play" size={14} /> Commencer l'examen</button>
+              <button className="btn-primary !py-1.5 text-[12.5px]" disabled={st.blockers.length > 0} onClick={() => onStart(false)}><Icon name="Play" size={14} /> Commencer l'examen</button>
+            )}
+            {!st.running && st.canRenew && (
+              <button className="btn-outline !py-1.5 text-[12.5px]" disabled={st.renewBlockers.length > 0} title={st.renewBlockers.join(' · ')} onClick={() => onStart(true)}><Icon name="RefreshCw" size={13} /> Renouveler</button>
             )}
             {st.last && st.last.status !== 'running' && (
               <button className="btn-ghost !py-1.5 text-[12px]" onClick={() => useUi.getState().openAcademy({ kind: 'certResult', id: st.last!.id })}><Icon name="ClipboardList" size={13} /> Dernier résultat</button>
@@ -84,13 +94,17 @@ function CertCard({ cert, onStart }: { cert: PracticalCert; onStart: () => void 
   )
 }
 
-function StartModal({ cert, onClose }: { cert: PracticalCert | null; onClose: () => void }) {
+function StartModal({ cert, renewal, onClose }: { cert: PracticalCert | null; renewal: boolean; onClose: () => void }) {
   const [ok, setOk] = useState(false)
   if (!cert) return null
   return (
-    <Modal open={!!cert} onClose={onClose} title={`Commencer : ${cert.title}`} icon="Award" width="max-w-xl">
+    <Modal open={!!cert} onClose={onClose} title={`${renewal ? 'Renouveler' : 'Commencer'} : ${cert.title}`} icon="Award" width="max-w-xl">
       <ul className="space-y-1.5 text-[12.5px] leading-relaxed text-ink-200">
-        <li className="flex gap-2"><Icon name="Timer" size={14} className="mt-0.5 shrink-0 text-amber-300" /> {fmtDur(cert.durationMin)} pour {cert.volets.length} volets. Le chronomètre tourne dès maintenant, même si vous quittez l'espace d'enquête.</li>
+        {renewal
+          ? <li className="flex gap-2"><Icon name="RefreshCw" size={14} className="mt-0.5 shrink-0 text-amber-300" /> Examen de renouvellement : un seul volet tiré parmi ceux de la certification, en {fmtDur(Math.round(cert.durationMin / 2))}. Mêmes seuils ; une réussite prolonge la validité de {cert.validityYears} ans.</li>
+          : <li className="flex gap-2"><Icon name="Timer" size={14} className="mt-0.5 shrink-0 text-amber-300" /> {fmtDur(cert.durationMin)} pour {cert.volets.length} volets. Le chronomètre tourne dès maintenant, même si vous quittez l'espace d'enquête.</li>}
+        {cert.live && <li className="flex gap-2"><Icon name="Snowflake" size={14} className="mt-0.5 shrink-0 text-amber-300" /> Volets en temps réel : avancez l'horloge, surveillez, et demandez les gels (bouton de l'inspecteur). Les montants bloqués à temps comptent dans le rapport.</li>}
+        {cert.strict && <li className="flex gap-2"><Icon name="ShieldAlert" size={14} className="mt-0.5 shrink-0 text-amber-300" /> Leurres : une attribution à confiance forte sur une adresse étrangère au flux, ou une réquisition vers un service non concerné, fait échouer l'examen quel que soit le score.</li>}
         <li className="flex gap-2"><Icon name="Dices" size={14} className="mt-0.5 shrink-0 text-amber-300" /> Chaque volet est une affaire tirée au sort, avec une graine secrète. Mode examen : aucun indice{cert.coverage === 'partial' ? ', attribution partielle (60 % des adresses de dépôt non étiquetées)' : ''}.</li>
         <li className="flex gap-2"><Icon name="FileCheck" size={14} className="mt-0.5 shrink-0 text-amber-300" /> À chaque volet : répondre aux objectifs, puis remplir le rapport structuré. Un volet remis est clos.</li>
         <li className="flex gap-2"><Icon name="Target" size={14} className="mt-0.5 shrink-0 text-amber-300" /> Réussite : au moins {cert.passFlagsPct} % des points des objectifs et {cert.passReportPct} % au rapport, sur l'ensemble des volets.</li>
@@ -104,7 +118,7 @@ function StartModal({ cert, onClose }: { cert: PracticalCert | null; onClose: ()
         <button className="btn-primary" disabled={!ok} onClick={() => {
           onClose()
           setOk(false)
-          startCertification(cert.id)
+          startCertification(cert.id, renewal)
         }}><Icon name="Play" size={14} /> Démarrer</button>
       </div>
     </Modal>
@@ -140,7 +154,7 @@ export function CertResult({ id }: { id: string }) {
           <div className="flex-1">
             <div className="text-[11px] uppercase tracking-[0.18em] text-ink-400">{cert.code} · {CERT_DIFFICULTY[cert.difficulty].label}</div>
             <div className="text-[20px] font-bold text-white">{cert.title} : {passed ? 'réussie' : 'non obtenue'}</div>
-            <div className="text-[12.5px] text-ink-300">Tentative du {new Date(attempt.startedAt).toLocaleString('fr-FR')} · {attempt.results.length}/{attempt.volets.length} volet(s) remis</div>
+            <div className="text-[12.5px] text-ink-300">{attempt.renewal ? 'Renouvellement' : 'Tentative'} du {new Date(attempt.startedAt).toLocaleString('fr-FR')} · {attempt.results.length}/{attempt.volets.length} volet(s) remis</div>
           </div>
           <Gauge label="Éléments trouvés" value={attempt.flagsPct ?? 0} min={cert.passFlagsPct} />
           <Gauge label="Rapport" value={attempt.reportPct ?? 0} min={cert.passReportPct} />
@@ -150,6 +164,9 @@ export function CertResult({ id }: { id: string }) {
             <span>Code de vérification : <span className="font-mono text-white">{certificate.code}</span> · valide jusqu'au {fmtDate(certificate.expires!)}</span>
             <button className="btn-primary ml-auto !py-1.5 text-[12.5px]" onClick={() => printPractical(certificate, p.name, p.unit)}><Icon name="Printer" size={14} /> Imprimer le certificat</button>
           </div>
+        )}
+        {!passed && cert.strict && attempt.results.some((r) => r.grade.items.some((i) => i.label === STRICT_ITEM && i.earned < i.max)) && (
+          <div className="mt-3 rounded-lg border border-violet-400/30 bg-violet-400/[0.06] p-2.5 text-[12.5px] text-violet-100"><Icon name="ShieldAlert" size={13} className="mr-1 inline" /> Un leurre a été retenu dans au moins un volet (attribution erronée à confiance forte ou réquisition à côté) : condition éliminatoire à ce niveau.</div>
         )}
         {!passed && <div className="mt-3 text-[12.5px] text-ink-300">{certStatus(cert).left > 0 ? `Nouvelle tentative possible après ${cert.cooldownDays} jours, sur de nouvelles affaires. Revoyez ci-dessous ce qui a manqué.` : 'Toutes les tentatives ont été utilisées.'}</div>}
       </div>

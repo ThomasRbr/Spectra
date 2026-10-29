@@ -2,7 +2,7 @@
 // montants, absence de valeurs aberrantes, cohérence entre méthodes, et
 // présence de l'exchange attendu parmi les destinations.
 // Usage : npx tsx scripts/check-tracing.ts [idScenario]
-import { SCENARIOS } from '../src/scenarios/index'
+import { ALL_SCENARIOS as SCENARIOS } from '../src/scenarios/index'
 import { findPath, fundingTree, traceFunds, type TraceMethod } from '../src/engine/tracing'
 import type { World } from '../src/engine/world'
 import { usd } from '../src/engine/chains'

@@ -96,6 +96,8 @@ export interface ScenarioInstance {
 
 export interface ScenarioTemplate {
   id: string
+  /** Affaire réservée aux examens de certification (absente de la liste des missions). */
+  certOnly?: boolean
   title: string
   tagline: string
   description: string

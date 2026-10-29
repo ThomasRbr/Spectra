@@ -2,7 +2,7 @@
 // empreinte de portefeuille (analyse de rendu), adresses de dépôt sur les
 // modèles à comptes, rapprochement des échangeurs instantanés, peel chains.
 // Usage : npx tsx scripts/check-heuristics.ts [idScenario]
-import { SCENARIOS } from '../src/scenarios/index'
+import { ALL_SCENARIOS as SCENARIOS } from '../src/scenarios/index'
 import { changeAnalysis, detectCoinjoin, txFingerprint } from '../src/engine/analysis'
 import { depositAnalysis, followPeelChain, instantSwapDeposit, matchInstantSwap } from '../src/engine/heuristics'
 import { CHAINS } from '../src/engine/chains'
