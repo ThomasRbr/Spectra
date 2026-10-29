@@ -6,7 +6,7 @@ import { genAddress, shortAddr } from '../../engine/addressgen'
 import type { DrillDef, DrillItem, FlowEdge, FlowNode } from '../model'
 import { dayTime, de, frDate, frMax, mkChoice, rngFor } from './util'
 
-const EXCHANGES = ['Binova', 'Kaizen Exchange', 'Nordex', 'Coinvault', 'Huobex', 'Helvetix']
+const EXCHANGES = ['Binance', 'OKX', 'Bitstamp', 'Coinhouse', 'Huobex', 'SwissBorg']
 
 // ── Natif ou jeton ? ─────────────────────────────────────────────────────────
 

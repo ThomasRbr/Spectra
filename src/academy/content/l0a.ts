@@ -2,7 +2,8 @@ import type { Lesson } from '../model'
 
 // Niveau 0 — Débutant absolu (1/2) : monnaie numérique, cryptographie,
 // blockchain, clés et portefeuilles.
-// Les entités citées (Coinvault, Binova, Nordex, Kaizen, Huobex…) sont FICTIVES.
+// Les entités citées sont réelles (Coinhouse, Binance, Bitstamp, OKX…), sauf Huobex,
+// SatsDesk OTC, AuroraTrade, OrbitCasino, CardHub, Lendora et ArcBridge (fictifs). Les flux sont simulés.
 
 export const LESSONS_L0A: Lesson[] = [
   // ══════════════════════════════════════════════════════════════════════
@@ -130,7 +131,7 @@ Si un tricheur modifie sa copie, elle ne correspond plus à celle des autres : i
 Deux situations très différentes coexistent :
 
 - **Je garde moi-même ma clé** dans une application ou un petit appareil : personne d'autre ne peut bouger mes fonds, mais si je perds la clé, tout est perdu, et si on me la vole, tout est volé.
-- **Je confie mes fonds à une plateforme** (un exchange comme Coinvault) : comme à la banque, je vois un solde dans mon espace client, mais c'est la plateforme qui détient les clés.
+- **Je confie mes fonds à une plateforme** (un exchange comme Coinhouse) : comme à la banque, je vois un solde dans mon espace client, mais c'est la plateforme qui détient les clés.
 
 Cette distinction est capitale pour l'enquête : une plateforme connaît ses clients et répond aux réquisitions ; une clé conservée par un particulier ne « répond » à personne.`,
       },
@@ -138,9 +139,9 @@ Cette distinction est capitale pour l'enquête : une plateforme connaît ses cli
         type: 'flow',
         nodes: [
           { id: 'v', label: 'Victime', kind: 'victim', sub: 'Compte bancaire' },
-          { id: 'cv', label: 'Coinvault', kind: 'exchange', sub: 'Exchange régulé (France)' },
+          { id: 'cv', label: 'Coinhouse', kind: 'exchange', sub: 'Exchange régulé (France)' },
           { id: 'w', label: 'Adresse « sécurisée »', kind: 'suspect', sub: 'bc1qx7m2…8sdkfm' },
-          { id: 'b', label: 'Binova', kind: 'exchange', sub: 'Dépôt d\'un client' },
+          { id: 'b', label: 'Binance', kind: 'exchange', sub: 'Dépôt d\'un client' },
         ],
         edges: [
           { from: 'v', to: 'cv', label: 'Virement SEPA 15 000 €' },
@@ -180,14 +181,14 @@ Beaucoup d'auteurs l'ignorent. Beaucoup de victimes aussi : elles pensent souven
       {
         type: 'case',
         title: 'Cas : le faux conseiller bancaire',
-        md: `**Les faits.** Mme D., 68 ans, reçoit l'appel d'un « conseiller fraude » de sa banque. Il lui explique que son épargne est menacée et qu'il faut la « mettre à l'abri en bitcoins ». Guidée par téléphone, elle ouvre un compte chez **Coinvault**, y vire 15 000 €, achète 0,35 BTC et les envoie à une adresse dictée par l'escroc.
+        md: `**Les faits.** Mme D., 68 ans, reçoit l'appel d'un « conseiller fraude » de sa banque. Il lui explique que son épargne est menacée et qu'il faut la « mettre à l'abri en bitcoins ». Guidée par téléphone, elle ouvre un compte chez **Coinhouse**, y vire 15 000 €, achète 0,35 BTC et les envoie à une adresse dictée par l'escroc.
 
 **Ce que l'enquêteur obtient.**
 
-- Le relevé bancaire : le virement vers Coinvault (point d'entrée).
-- Une réquisition à Coinvault : le compte de Mme D., l'achat, et surtout le **retrait** de 0,35 BTC avec son **identifiant de transaction** et l'adresse de destination.
-- Sur la blockchain, sans aucune réquisition : l'adresse de destination renvoie 0,349 BTC deux heures plus tard vers une adresse de dépôt **Binova**.
-- Une réquisition à Binova (via son portail dédié aux forces de l'ordre) : l'identité du titulaire du compte, ses connexions, ses retraits.
+- Le relevé bancaire : le virement vers Coinhouse (point d'entrée).
+- Une réquisition à Coinhouse : le compte de Mme D., l'achat, et surtout le **retrait** de 0,35 BTC avec son **identifiant de transaction** et l'adresse de destination.
+- Sur la blockchain, sans aucune réquisition : l'adresse de destination renvoie 0,349 BTC deux heures plus tard vers une adresse de dépôt **Binance**.
+- Une réquisition à Binance (via son portail dédié aux forces de l'ordre) : l'identité du titulaire du compte, ses connexions, ses retraits.
 
 En quelques actes, on passe d'une victime à un compte identifié. C'est l'objet de toute l'Académie.`,
       },
@@ -269,7 +270,7 @@ Les infractions poursuivies restent celles du droit commun : escroquerie, abus d
         explain: 'L\'actif natif paie les frais de sa chaîne. Un jeton est géré par un smart contract : l\'USDT, par exemple, existe sur Ethereum, Tron et d\'autres chaînes.',
       },
       {
-        q: 'Une victime a acheté ses bitcoins sur Coinvault puis les a envoyés à l\'escroc. Que peut fournir Coinvault sur réquisition ?',
+        q: 'Une victime a acheté ses bitcoins sur Coinhouse puis les a envoyés à l\'escroc. Que peut fournir Coinhouse sur réquisition ?',
         options: [
           'L\'identité de l\'escroc',
           'Le compte de la victime, l\'achat, et le retrait avec l\'identifiant de transaction et l\'adresse de destination',
@@ -277,7 +278,7 @@ Les infractions poursuivies restent celles du droit commun : escroquerie, abus d
           'Rien, la blockchain est anonyme',
         ],
         answer: 1,
-        explain: 'Coinvault connaît sa cliente (la victime) et le retrait qu\'elle a effectué. Il ne connaît pas l\'escroc, sauf si celui-ci est aussi son client. Le retrait fournit le point d\'ancrage sur la blockchain.',
+        explain: 'Coinhouse connaît sa cliente (la victime) et le retrait qu\'elle a effectué. Il ne connaît pas l\'escroc, sauf si celui-ci est aussi son client. Le retrait fournit le point d\'ancrage sur la blockchain.',
       },
       {
         q: 'Un stablecoin comme l\'USDT est…',
@@ -770,7 +771,7 @@ Les sources d'attribution, de la plus solide à la plus fragile :
         type: 'callout',
         kind: 'law',
         title: 'Formuler une attribution en procédure',
-        md: `Ne présentez jamais une étiquette issue d'un outil ou d'un explorateur comme un fait établi. Écrivez par exemple : « l'outil X attribue cette adresse à la plateforme Binova (attribution non vérifiée à ce stade ; réquisition en cours) ». La réponse du prestataire, elle, constitue une pièce de procédure.`,
+        md: `Ne présentez jamais une étiquette issue d'un outil ou d'un explorateur comme un fait établi. Écrivez par exemple : « l'outil X attribue cette adresse à la plateforme Binance (attribution non vérifiée à ce stade ; réquisition en cours) ». La réponse du prestataire, elle, constitue une pièce de procédure.`,
       },
       {
         type: 'widget',
@@ -866,10 +867,10 @@ L'explorateur montre que cette adresse a reçu des fonds de **14 adresses diffé
         explain: 'Les règles de Bitcoin tolèrent un écart (notamment jusqu\'à environ deux heures en avance). Pour une chronologie fine, croisez avec d\'autres éléments et privilégiez la hauteur de bloc comme référence.',
       },
       {
-        q: 'Un explorateur affiche l\'étiquette « Binova Deposit » sur une adresse. Comment le rédiger en procédure ?',
+        q: 'Un explorateur affiche l\'étiquette « Binance Deposit » sur une adresse. Comment le rédiger en procédure ?',
         options: [
-          '« L\'adresse appartient à Binova »',
-          '« Selon l\'explorateur X, l\'adresse serait une adresse de dépôt Binova (attribution non vérifiée ; réquisition en cours) »',
+          '« L\'adresse appartient à Binance »',
+          '« Selon l\'explorateur X, l\'adresse serait une adresse de dépôt Binance (attribution non vérifiée ; réquisition en cours) »',
           'Ne pas le mentionner',
           '« L\'adresse appartient au suspect »',
         ],
@@ -1024,7 +1025,7 @@ Certains utilisateurs ajoutent une **passphrase** facultative (parfois appelée 
         type: 'table',
         headers: ['Type', 'Description', 'Ce que l\'enquêteur peut chercher'],
         rows: [
-          ['Compte d\'exchange', 'Solde tenu par la plateforme (Coinvault, Binova…)', 'Réquisition : identité, KYC, IP, historique, gel'],
+          ['Compte d\'exchange', 'Solde tenu par la plateforme (Coinhouse, Binance…)', 'Réquisition : identité, KYC, IP, historique, gel'],
           ['Application mobile', 'Portefeuille logiciel sur smartphone', 'Exploitation du téléphone : application, sauvegardes, captures'],
           ['Extension de navigateur', 'Portefeuille intégré au navigateur, très utilisé sur Ethereum', 'Exploitation de l\'ordinateur : profil de navigateur, fichiers de coffre chiffrés'],
           ['Portefeuille matériel', 'Petit appareil (format clé USB) qui garde la clé hors ligne', 'Saisie de l\'appareil ; code PIN ; seed souvent notée à part'],

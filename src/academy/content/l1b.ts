@@ -2,8 +2,8 @@ import type { Lesson } from '../model'
 
 // Niveau 1 — Initié (2/2) : stablecoins, Tron et l'USDT-TRC20, exchanges,
 // méthode de suivi des flux.
-// Les entités citées (Coinvault, Binova, Nordex, Kaizen, Huobex, HelioSwap,
-// SatsDesk OTC, AuroraTrade…) sont FICTIVES.
+// Les entités citées sont réelles (Coinhouse, Binance, Bitstamp, OKX, SunSwap…), sauf Huobex,
+// SatsDesk OTC, AuroraTrade, OrbitCasino, CardHub, Lendora et ArcBridge (fictifs). Les flux sont simulés.
 
 export const LESSONS_L1B: Lesson[] = [
   // ══════════════════════════════════════════════════════════════════════
@@ -92,10 +92,10 @@ Un même stablecoin existe souvent sur **plusieurs chaînes** (Ethereum, Tron, B
       },
       {
         type: 'check',
-        q: 'Une victime a acheté ses USDT chez Coinvault. L\'émetteur de l\'USDT connaît-il son identité ?',
+        q: 'Une victime a acheté ses USDT chez Coinhouse. L\'émetteur de l\'USDT connaît-il son identité ?',
         options: [
           'Oui, l\'émetteur identifie tous les détenteurs',
-          'Non : l\'émetteur ne connaît que ses clients directs ; c\'est Coinvault qui connaît la victime',
+          'Non : l\'émetteur ne connaît que ses clients directs ; c\'est Coinhouse qui connaît la victime',
           'Oui, grâce à la travel rule',
           'Oui, s\'il a gelé l\'adresse',
         ],
@@ -409,14 +409,14 @@ Tronscan affiche l'adresse qui a activé un compte : relevez-la systématiquemen
       {
         type: 'flow',
         nodes: [
-          { id: 'v', label: 'Victime', kind: 'victim', sub: 'Achat chez Coinvault' },
+          { id: 'v', label: 'Victime', kind: 'victim', sub: 'Achat chez Coinhouse' },
           { id: 'c', label: 'Adresse de collecte', kind: 'suspect', sub: 'Fournie par AuroraTrade' },
           { id: 'k', label: 'Consolidation', kind: 'suspect', sub: 'Dizaines de victimes' },
           { id: 'i1', label: 'Intermédiaire A', kind: 'wallet', sub: 'Énergie déléguée par k' },
           { id: 'i2', label: 'Intermédiaire B', kind: 'wallet' },
-          { id: 'kz', label: 'Kaizen Exchange', kind: 'deposit', sub: 'Adresse de dépôt' },
+          { id: 'kz', label: 'OKX', kind: 'deposit', sub: 'Adresse de dépôt' },
           { id: 'otc', label: 'SatsDesk OTC', kind: 'service' },
-          { id: 'dex', label: 'HelioSwap', kind: 'dex', sub: 'USDT → TRX' },
+          { id: 'dex', label: 'SunSwap', kind: 'dex', sub: 'USDT → TRX' },
         ],
         edges: [
           { from: 'v', to: 'c', label: '12 000 USDT' },
@@ -458,9 +458,9 @@ Tronscan affiche l'adresse qui a activé un compte : relevez-la systématiquemen
 
 - \`TJx2…Q9wa\` a été **activée** par \`TNs8…4kPz\`, qui a aussi activé **onze** autres adresses de collecte, toutes alimentées en énergie par le même compte.
 - Les collectes convergent vers \`TBw1…mD7c\` (consolidation), qui détient **312 000 USDT** au moment de l'analyse.
-- La consolidation fractionne vers des intermédiaires (lots de 20 000 à 50 000 USDT), qui déposent chez **Kaizen Exchange** et envoient à **SatsDesk OTC**.
+- La consolidation fractionne vers des intermédiaires (lots de 20 000 à 50 000 USDT), qui déposent chez **OKX** et envoient à **SatsDesk OTC**.
 
-Actions : demande de gel de \`TBw1…mD7c\` à l'émetteur de l'USDT ; demande de gel et réquisition à Kaizen Exchange avec les hash de dépôt ; signalement des onze adresses de collecte pour rapprochement. Le compte activateur \`TNs8…4kPz\` a lui-même été activé par un **retrait d'un exchange** : nouvelle réquisition, qui pourrait désigner un opérateur du réseau.`,
+Actions : demande de gel de \`TBw1…mD7c\` à l'émetteur de l'USDT ; demande de gel et réquisition à OKX avec les hash de dépôt ; signalement des onze adresses de collecte pour rapprochement. Le compte activateur \`TNs8…4kPz\` a lui-même été activé par un **retrait d'un exchange** : nouvelle réquisition, qui pourrait désigner un opérateur du réseau.`,
       },
       { type: 'heading', text: 'Le levier du gel' },
       {
@@ -611,7 +611,7 @@ Bonnes pratiques :
         type: 'text',
         md: `Presque toutes les traces passent, à un moment, par un **exchange centralisé**. C'est le lieu où les euros deviennent des crypto-actifs, et inversement ; c'est aussi le lieu où l'identité du client est connue. Encore faut-il désigner la **bonne adresse** et la **bonne opération** dans la réquisition.
 
-Un exchange (Coinvault, Binova, Nordex dans les exercices) détient les clés pour le compte de ses clients et tient une **comptabilité interne**. Les achats, ventes et transferts entre clients d'un même exchange se font **hors chaîne** : ils sont invisibles sur la blockchain.`,
+Un exchange (Coinhouse, Binance, Bitstamp dans les exercices) détient les clés pour le compte de ses clients et tient une **comptabilité interne**. Les achats, ventes et transferts entre clients d'un même exchange se font **hors chaîne** : ils sont invisibles sur la blockchain.`,
       },
       { type: 'heading', text: 'L\'architecture d\'un exchange custodial' },
       {
@@ -642,10 +642,10 @@ Un exchange (Coinvault, Binova, Nordex dans les exercices) détient les clés po
         type: 'flow',
         nodes: [
           { id: 'v', label: 'Fonds de la victime', kind: 'suspect', sub: 'Adresse de l\'auteur' },
-          { id: 'd', label: '0xd41c…88a0', kind: 'deposit', sub: 'Adresse de dépôt Binova' },
-          { id: 'g', label: 'Binova : gas', kind: 'service', sub: 'Gas top-up' },
-          { id: 'h', label: 'Binova : hot wallet 14', kind: 'hot' },
-          { id: 'c', label: 'Binova : cold wallet', kind: 'exchange', sub: 'Réserve' },
+          { id: 'd', label: '0xd41c…88a0', kind: 'deposit', sub: 'Adresse de dépôt Binance' },
+          { id: 'g', label: 'Binance : gas', kind: 'service', sub: 'Gas top-up' },
+          { id: 'h', label: 'Binance : hot wallet 14', kind: 'hot' },
+          { id: 'c', label: 'Binance : cold wallet', kind: 'exchange', sub: 'Réserve' },
         ],
         edges: [
           { from: 'v', to: 'd', label: '4 800 USDT' },
@@ -657,8 +657,8 @@ Un exchange (Coinvault, Binova, Nordex dans les exercices) détient les clés po
       },
       {
         type: 'check',
-        q: 'Une adresse reçoit 3 200 USDT de l\'auteur, puis un petit montant d\'ETH d\'une adresse « Coinvault : gas », puis transfère les USDT vers le hot wallet Coinvault. Qu\'est-ce que cette adresse ?',
-        options: ['Le hot wallet de Coinvault', 'Une adresse de dépôt d\'un client Coinvault', 'Le cold wallet', 'Un portefeuille personnel de l\'auteur'],
+        q: 'Une adresse reçoit 3 200 USDT de l\'auteur, puis un petit montant d\'ETH d\'une adresse « Coinhouse : gas », puis transfère les USDT vers le hot wallet Coinhouse. Qu\'est-ce que cette adresse ?',
+        options: ['Le hot wallet de Coinhouse', 'Une adresse de dépôt d\'un client Coinhouse', 'Le cold wallet', 'Un portefeuille personnel de l\'auteur'],
         answer: 1,
         explain: 'Gas top-up puis balayage vers le hot wallet : signature d\'une adresse de dépôt attribuée à un client, identifiable par réquisition.',
       },
@@ -735,10 +735,10 @@ Conséquences : l'adresse seule ne désigne personne ; il faut transmettre **le 
       },
       {
         type: 'case',
-        title: 'Cas : du dépôt Binova au compte bancaire',
-        md: `Les 4 800 USDT d'une victime arrivent sur \`0xd41c…88a0\`, qui reçoit ensuite un gas top-up puis balaie vers le hot wallet 14 de **Binova**.
+        title: 'Cas : du dépôt Binance au compte bancaire',
+        md: `Les 4 800 USDT d'une victime arrivent sur \`0xd41c…88a0\`, qui reçoit ensuite un gas top-up puis balaie vers le hot wallet 14 de **Binance**.
 
-Réquisition via le portail de Binova, désignant : Ethereum, USDT (contrat officiel), adresse de dépôt \`0xd41c…88a0\`, hash du dépôt \`0x5a7e…c3d1\`, 4 800 USDT, 12/02 à 16:47 UTC.
+Réquisition via le portail de Binance, désignant : Ethereum, USDT (contrat officiel), adresse de dépôt \`0xd41c…88a0\`, hash du dépôt \`0x5a7e…c3d1\`, 4 800 USDT, 12/02 à 16:47 UTC.
 
 Réponse (onze jours plus tard) : compte ouvert au nom de M. K., pièce d'identité étrangère, connexions depuis des IP françaises et un VPN ; les USDT ont été convertis en euros et retirés vers un **IBAN** ouvert dans un établissement de paiement en ligne. Nouvelle réquisition bancaire, et la piste quitte la blockchain pour rejoindre une enquête financière classique.`,
       },
@@ -973,7 +973,7 @@ Le choix dépend de l'objectif : pour **identifier**, on privilégie la branche 
         type: 'table',
         headers: ['Fin de branche', 'Constat à écrire', 'Suite'],
         rows: [
-          ['Dépôt chez un exchange identifié', '« Fonds déposés sur une adresse de dépôt attribuée à Binova (hash…) »', 'Réquisition, gel du compte'],
+          ['Dépôt chez un exchange identifié', '« Fonds déposés sur une adresse de dépôt attribuée à Binance (hash…) »', 'Réquisition, gel du compte'],
           ['Fonds au repos sur une adresse de l\'auteur', '« Solde de X USDT constaté le … à … UTC »', 'Demande de gel, surveillance, saisie'],
           ['Mixeur, pool de confidentialité', '« Fonds entrés dans le service Y (hash…) »', 'Analyse spécialisée (niveaux 3-4)'],
           ['Bridge ou échangeur', '« Fonds transférés vers la chaîne Z via W »', 'Poursuivre sur la chaîne d\'arrivée'],
@@ -989,12 +989,12 @@ Le choix dépend de l'objectif : pour **identifier**, on privilégie la branche 
       {
         type: 'flow',
         nodes: [
-          { id: 'v', label: 'Victime', kind: 'victim', sub: 'Coinvault' },
+          { id: 'v', label: 'Victime', kind: 'victim', sub: 'Coinhouse' },
           { id: 'a', label: 'bc1qx7m2…8sdkfm', kind: 'suspect', sub: 'Collecte' },
           { id: 'b', label: 'bc1q4ld0…r7c2wq', kind: 'wallet', sub: 'Passe-plat' },
           { id: 'c', label: 'Rendu', kind: 'wallet', sub: 'bc1qm9…2fq7xs' },
-          { id: 'd', label: 'Dépôt Nordex', kind: 'deposit' },
-          { id: 'e', label: 'Ocelot Swap', kind: 'service', sub: 'BTC → USDT (Tron)' },
+          { id: 'd', label: 'Dépôt Bitstamp', kind: 'deposit' },
+          { id: 'e', label: 'ChangeNOW', kind: 'service', sub: 'BTC → USDT (Tron)' },
           { id: 'f', label: 'TBw1…mD7c', kind: 'suspect', sub: 'Solde au repos' },
         ],
         edges: [
@@ -1005,18 +1005,18 @@ Le choix dépend de l'objectif : pour **identifier**, on privilégie la branche 
           { from: 'c', to: 'e', label: '0,1498 BTC' },
           { from: 'e', to: 'f', label: '8 950 USDT' },
         ],
-        caption: 'Deux fins de branche exploitables : un dépôt Nordex (réquisition) et un solde d\'USDT au repos sur Tron (gel).',
+        caption: 'Deux fins de branche exploitables : un dépôt Bitstamp (réquisition) et un solde d\'USDT au repos sur Tron (gel).',
       },
       { type: 'heading', text: 'Le journal de traçage' },
       {
         type: 'table',
         headers: ['Saut', 'Date (UTC)', 'Hash', 'De → Vers', 'Montant', 'Nature de la destination', 'Justification'],
         rows: [
-          ['0', '14/10 08:41', '`4e1f…a9c2`', 'Coinvault → bc1qx7m2…', '0,35 BTC', 'Collecte (auteur)', 'Retrait de la victime (réponse Coinvault)'],
+          ['0', '14/10 08:41', '`4e1f…a9c2`', 'Coinhouse → bc1qx7m2…', '0,35 BTC', 'Collecte (auteur)', 'Retrait de la victime (réponse Coinhouse)'],
           ['1', '14/10 10:12', '`7b0c…e15f`', 'bc1qx7m2… → bc1q4ld0…', '0,3499 BTC', 'Passe-plat', 'Transfert intégral, 1 entrée → 1 sortie'],
-          ['2', '14/10 13:55', '`c92a…04d8`', 'bc1q4ld0… → dépôt Nordex', '0,20 BTC', 'Dépôt d\'exchange (outil, non vérifié)', 'Montant rond, type différent ; balayage observé'],
+          ['2', '14/10 13:55', '`c92a…04d8`', 'bc1q4ld0… → dépôt Bitstamp', '0,20 BTC', 'Dépôt d\'exchange (outil, non vérifié)', 'Montant rond, type différent ; balayage observé'],
           ['2b', '14/10 13:55', '`c92a…04d8`', 'bc1q4ld0… → bc1qm9…', '0,14988 BTC', 'Rendu probable', 'Même type que l\'entrée, adresse neuve'],
-          ['3', '15/10 07:20', '`e4f1…9a3b`', 'bc1qm9… → Ocelot Swap', '0,1498 BTC', 'Échangeur instantané', 'Étiquette outil + adresse de dépôt du service'],
+          ['3', '15/10 07:20', '`e4f1…9a3b`', 'bc1qm9… → ChangeNOW', '0,1498 BTC', 'Échangeur instantané', 'Étiquette outil + adresse de dépôt du service'],
         ],
         caption: 'Chaque ligne doit pouvoir être vérifiée par un tiers. La colonne « justification » distingue fait, indice et hypothèse.',
       },
@@ -1025,13 +1025,13 @@ Le choix dépend de l'objectif : pour **identifier**, on privilégie la branche 
         title: 'Cas : faux conseiller bancaire, de bout en bout',
         md: `**Cadrage.** Objectif double : identifier le bénéficiaire et geler ce qui peut l'être.
 
-**Ancrage.** Réponse de Coinvault : retrait de 0,35 BTC du compte de la victime, hash \`4e1f…a9c2\`, vers \`bc1qx7m2…8sdkfm\`.
+**Ancrage.** Réponse de Coinhouse : retrait de 0,35 BTC du compte de la victime, hash \`4e1f…a9c2\`, vers \`bc1qx7m2…8sdkfm\`.
 
-**Suivi.** Saut 1 : passe-plat. Saut 2 : division en 0,20 BTC (paiement probable vers une adresse que l'outil attribue à **Nordex**, confirmée par l'observation d'un balayage vers un hot wallet du service) et 0,14988 BTC (rendu probable). Saut 3 : le rendu part chez **Ocelot Swap**, échangé contre 8 950 USDT envoyés sur Tron à \`TBw1…mD7c\`, où ils sont encore au repos.
+**Suivi.** Saut 1 : passe-plat. Saut 2 : division en 0,20 BTC (paiement probable vers une adresse que l'outil attribue à **Bitstamp**, confirmée par l'observation d'un balayage vers un hot wallet du service) et 0,14988 BTC (rendu probable). Saut 3 : le rendu part chez **ChangeNOW**, échangé contre 8 950 USDT envoyés sur Tron à \`TBw1…mD7c\`, où ils sont encore au repos.
 
-**Fins de branche.** (1) Dépôt Nordex : demande de données et de gel au prestataire européen, DEE si nécessaire. (2) Solde Tron : demande de gel à l'émetteur de l'USDT. (3) Ocelot Swap : demande de l'adresse IP et des données de la commande à partir du hash de dépôt.
+**Fins de branche.** (1) Dépôt Bitstamp : demande de données et de gel au prestataire européen, DEE si nécessaire. (2) Solde Tron : demande de gel à l'émetteur de l'USDT. (3) ChangeNOW : demande de l'adresse IP et des données de la commande à partir du hash de dépôt.
 
-**Restitution.** Schéma à trois branches, journal de traçage, exports hachés, synthèse distinguant ce qui est établi (flux on-chain, réponse de Coinvault) de ce qui est probable (rendu, attribution Nordex en attente de confirmation).`,
+**Restitution.** Schéma à trois branches, journal de traçage, exports hachés, synthèse distinguant ce qui est établi (flux on-chain, réponse de Coinhouse) de ce qui est probable (rendu, attribution Bitstamp en attente de confirmation).`,
       },
       {
         type: 'check',

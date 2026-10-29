@@ -49,7 +49,7 @@ Chaque typologie a un **mode opératoire**, une **signature on-chain** et des **
           { title: 'Contact', md: 'Application de rencontre, réseau social, ou faux « mauvais numéro » sur une messagerie. Le profil est soigné et rassurant.' },
           { title: 'Mise en confiance', md: 'Des semaines d\'échanges quotidiens, sans aucune demande d\'argent. Le contact évoque ses succès en investissement.' },
           { title: 'Fausse plateforme', md: 'Présentation d\'une plateforme (AuroraTrade dans les exercices) : site ou application crédible, graphiques, gains fictifs affichés, petit retrait autorisé au début pour rassurer.' },
-          { title: 'Versements croissants', md: 'La victime achète des crypto-actifs sur un exchange régulé (Coinvault) et les **retire** vers l\'adresse fournie par la plateforme, croyant alimenter son compte.' },
+          { title: 'Versements croissants', md: 'La victime achète des crypto-actifs sur un exchange régulé (Coinhouse) et les **retire** vers l\'adresse fournie par la plateforme, croyant alimenter son compte.' },
           { title: 'Blocage', md: 'Au moment de retirer : « frais », « taxes », « caution anti-blanchiment »… puis disparition du contact — ou recontact par un faux service de récupération.' },
         ],
       },
@@ -57,12 +57,12 @@ Chaque typologie a un **mode opératoire**, une **signature on-chain** et des **
         type: 'flow',
         nodes: [
           { id: 'v', label: 'Victime', kind: 'victim', sub: 'virements SEPA' },
-          { id: 'cv', label: 'Coinvault', kind: 'exchange', sub: 'achat USDT, retrait' },
+          { id: 'cv', label: 'Coinhouse', kind: 'exchange', sub: 'achat USDT, retrait' },
           { id: 'col', label: 'TXr4…m9Qd', kind: 'suspect', sub: 'adresse de collecte « AuroraTrade »' },
           { id: 'others', label: '37 autres victimes', kind: 'victim' },
           { id: 'cons', label: 'TFq8…2kLp', kind: 'wallet', sub: 'consolidation' },
           { id: 'otc', label: 'SatsDesk OTC', kind: 'service', sub: 'USDT ↔ espèces' },
-          { id: 'kz', label: 'Kaizen Exchange', kind: 'deposit', sub: 'adresse de dépôt' },
+          { id: 'kz', label: 'OKX', kind: 'deposit', sub: 'adresse de dépôt' },
         ],
         edges: [
           { from: 'v', to: 'cv', label: '64 000 €' },
@@ -78,7 +78,7 @@ Chaque typologie a un **mode opératoire**, une **signature on-chain** et des **
         type: 'callout',
         kind: 'field',
         title: 'Sur le terrain : l\'exchange de la victime',
-        md: `La victime a souvent perdu ou mal noté les adresses et les montants. Son **propre exchange** (Coinvault ici) détient l'historique exact : adresses de retrait, txid, montants, horodatages. Une réquisition à ce service, dès le dépôt de plainte, fournit le point de départ fiable de la trace. Ces escroqueries sont souvent opérées à une échelle industrielle, depuis des centres d'Asie du Sud-Est où travaillent parfois des personnes elles-mêmes victimes de traite.`,
+        md: `La victime a souvent perdu ou mal noté les adresses et les montants. Son **propre exchange** (Coinhouse ici) détient l'historique exact : adresses de retrait, txid, montants, horodatages. Une réquisition à ce service, dès le dépôt de plainte, fournit le point de départ fiable de la trace. Ces escroqueries sont souvent opérées à une échelle industrielle, depuis des centres d'Asie du Sud-Est où travaillent parfois des personnes elles-mêmes victimes de traite.`,
       },
       { type: 'heading', text: 'Faux conseillers, usurpations et recouvrement' },
       {
@@ -120,7 +120,7 @@ L'adresse figurant dans le message permet de **compter les payeurs**, de mesurer
         title: 'Cas — la campagne du 9 avril',
         md: `Entre le 9 et le 14 avril 2026, onze plaintes sont déposées pour un même courriel de chantage. Quatre adresses Bitcoin différentes y figurent. L'analyse montre que ces quatre adresses sont co-dépensées le 16 avril dans une même transaction (CIOH) : une seule campagne, un seul portefeuille.
 
-Les quatre adresses ont reçu **63 paiements** (et non onze) pour un total de 2,91 BTC, de montants proches de l'équivalent de 1 200 €. Les fonds consolidés partent ensuite en trois pelures vers Binova et Ocelot Swap. Une seule procédure regroupe les plaintes, et 52 victimes non plaignantes peuvent être recherchées via les exchanges d'où proviennent leurs paiements.`,
+Les quatre adresses ont reçu **63 paiements** (et non onze) pour un total de 2,91 BTC, de montants proches de l'équivalent de 1 200 €. Les fonds consolidés partent ensuite en trois pelures vers Binance et ChangeNOW. Une seule procédure regroupe les plaintes, et 52 victimes non plaignantes peuvent être recherchées via les exchanges d'où proviennent leurs paiements.`,
       },
       { type: 'heading', text: 'Drainers, hameçonnage, SIM swap et empoisonnement d\'adresse' },
       {

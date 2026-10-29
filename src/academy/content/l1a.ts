@@ -2,7 +2,8 @@ import type { Lesson } from '../model'
 
 // Niveau 1 — Initié (1/2) : UTXO, frais et mempool, modèle à comptes,
 // jetons ERC-20.
-// Les entités citées (Coinvault, Binova, Nordex, OmniSwap…) sont FICTIVES.
+// Les entités citées sont réelles (Coinhouse, Binance, Bitstamp, Uniswap…), sauf Huobex,
+// SatsDesk OTC, AuroraTrade, OrbitCasino, CardHub, Lendora et ArcBridge (fictifs). Les flux sont simulés.
 
 export const LESSONS_L1A: Lesson[] = [
   // ══════════════════════════════════════════════════════════════════════
@@ -136,7 +137,7 @@ Autres apports :
           ['1-2 entrées → 2 sorties', 'Paiement simple avec rendu', 'Un particulier paie un vendeur'],
           ['N entrées → 1 sortie', 'Consolidation ou balayage (sweep)', 'Un exchange rapatrie ses adresses de dépôt vers son hot wallet'],
           ['1 entrée → N sorties (dizaines, centaines)', 'Paiement groupé (batching)', 'Retraits d\'exchange, paiements d\'un pool de minage'],
-          ['N entrées → N sorties de montants égaux', 'CoinJoin (transaction collaborative de confidentialité)', 'Coordinateur Whirl Coordinator (niveau 4)'],
+          ['N entrées → N sorties de montants égaux', 'CoinJoin (transaction collaborative de confidentialité)', 'Coordinateur zkSNACKs (niveau 4)'],
           ['Aucune entrée réelle', 'Transaction coinbase : création monétaire', 'Première transaction de chaque bloc, au profit d\'un mineur ou d\'un pool'],
           ['1 entrée → 1 sortie', 'Transfert intégral (« vider » une adresse)', 'Passage d\'une adresse intermédiaire à la suivante'],
         ],
@@ -168,7 +169,7 @@ Autres apports :
 - **Sorties** : 0,19 BTC vers \`3Fq7…uK2d\` (P2SH) et 0,01397 BTC vers \`bc1qm9…2fq7xs\` (P2WPKH, adresse neuve) ;
 - **Frais** : 0,2041 − 0,19 − 0,01397 = **0,00013 BTC** (13 000 sats).
 
-Lecture : la sortie de 0,19 BTC, montant rond et de type différent des entrées, est probablement le **paiement** ; la sortie de 0,01397 BTC, de même type que les entrées et vers une adresse jamais vue, est probablement le **rendu**. L'analyse ultérieure montre que \`3Fq7…uK2d\` est une adresse de dépôt **Nordex** : réquisition (via la voie adaptée à un prestataire d'un autre État membre) avec le txid et la sortie concernée.`,
+Lecture : la sortie de 0,19 BTC, montant rond et de type différent des entrées, est probablement le **paiement** ; la sortie de 0,01397 BTC, de même type que les entrées et vers une adresse jamais vue, est probablement le **rendu**. L'analyse ultérieure montre que \`3Fq7…uK2d\` est une adresse de dépôt **Bitstamp** : réquisition (via la voie adaptée à un prestataire d'un autre État membre) avec le txid et la sortie concernée.`,
       },
       { type: 'heading', text: 'Erreurs fréquentes' },
       {
@@ -607,7 +608,7 @@ L'**EVM** (*Ethereum Virtual Machine*) est la machine virtuelle qui exécute les
         rows: [
           ['Contrôle', 'Une clé privée', 'Son code ; aucune clé privée'],
           ['Peut initier une transaction', 'Oui', 'Non : il agit seulement quand on l\'appelle'],
-          ['Exemples', 'Portefeuille d\'un particulier, adresse de dépôt d\'exchange, adresse d\'un escroc', 'Jeton USDT, DEX OmniSwap, bridge ArcBridge, multisignature, pool Cyclone Cash'],
+          ['Exemples', 'Portefeuille d\'un particulier, adresse de dépôt d\'exchange, adresse d\'un escroc', 'Jeton USDT, DEX Uniswap, bridge ArcBridge, multisignature, pool Tornado Cash'],
           ['Repérage sur un explorateur', 'Pas d\'onglet « Contract »', 'Onglet « Contract », code éventuellement vérifié, déployeur indiqué'],
           ['Intérêt d\'enquête', 'Qui détient la clé ?', 'Qui l\'a déployé ? Que fait son code ? Qui l\'appelle ?'],
         ],
@@ -672,7 +673,7 @@ Conséquence capitale : **pour déplacer des USDT, il faut de l'ETH**. Une adres
           { id: 'v', label: 'Victime', kind: 'victim' },
           { id: 'a', label: '0x7a3f…c41e', kind: 'suspect', sub: 'Reçoit 18 000 USDT, 0 ETH' },
           { id: 'f', label: '0x2b90…e7d4', kind: 'wallet', sub: 'Envoie 0,004 ETH' },
-          { id: 'x', label: 'Binova', kind: 'exchange', sub: 'Retrait d\'ETH vers 0x2b90…' },
+          { id: 'x', label: 'Binance', kind: 'exchange', sub: 'Retrait d\'ETH vers 0x2b90…' },
           { id: 'n', label: 'Adresse suivante', kind: 'unknown' },
         ],
         edges: [
@@ -681,7 +682,7 @@ Conséquence capitale : **pour déplacer des USDT, il faut de l'ETH**. Une adres
           { from: 'f', to: 'a', label: '0,004 ETH (gaz)' },
           { from: 'a', to: 'n', label: '18 000 USDT' },
         ],
-        caption: 'Qui a financé le gaz ? Ici, une adresse elle-même alimentée par un retrait Binova : une piste d\'identification par réquisition.',
+        caption: 'Qui a financé le gaz ? Ici, une adresse elle-même alimentée par un retrait Binance : une piste d\'identification par réquisition.',
       },
       {
         type: 'callout',
@@ -720,11 +721,11 @@ Le comportement de gaz (pourboire fixé manuellement, limite de gaz inhabituelle
         md: `Mme P., déjà victime d'une escroquerie, paie **2,1 ETH** de « frais de dossier » à un prétendu cabinet de récupération, vers \`0x7a3f…c41e\`.
 
 - **Page de l'adresse** : nonce = 4 (adresse peu utilisée), première activité dix jours avant les faits.
-- **First funder** : 0,01 ETH reçus depuis \`0x2b90…e7d4\`, elle-même alimentée par un **retrait Binova**.
-- **Sorties** : 2,099 ETH envoyés vers \`0xd41c…88a0\` deux heures plus tard ; cette adresse reçoit ensuite 0,0011 ETH de « gas top-up » depuis une adresse étiquetée hot wallet Binova, puis transfère tout vers ce hot wallet : signature d'une **adresse de dépôt Binova**.
+- **First funder** : 0,01 ETH reçus depuis \`0x2b90…e7d4\`, elle-même alimentée par un **retrait Binance**.
+- **Sorties** : 2,099 ETH envoyés vers \`0xd41c…88a0\` deux heures plus tard ; cette adresse reçoit ensuite 0,0011 ETH de « gas top-up » depuis une adresse étiquetée hot wallet Binance, puis transfère tout vers ce hot wallet : signature d'une **adresse de dépôt Binance**.
 - **Autres chaînes** : \`0x7a3f…c41e\` est aussi active sur BNB Smart Chain, où elle a reçu des BNB de trois autres victimes.
 
-Deux réquisitions à Binova (le retrait vers le first funder ; le compte titulaire de l'adresse de dépôt) et un rapprochement de procédures.`,
+Deux réquisitions à Binance (le retrait vers le first funder ; le compte titulaire de l'adresse de dépôt) et un rapprochement de procédures.`,
       },
       {
         type: 'check',

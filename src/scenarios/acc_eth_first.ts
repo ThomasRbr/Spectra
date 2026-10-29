@@ -23,15 +23,15 @@ export const accEthFirst: ScenarioTemplate = {
     const g = victimP.g
     const city = fakeCity(r)
 
-    const cv = exchange(w, 'coinvault', 'eth')
-    const destKey = r.pick(['binova', 'nordex', 'kaizen'] as const)
+    const cv = exchange(w, 'coinhouse', 'eth')
+    const destKey = r.pick(['binance', 'bitstamp', 'okx'] as const)
     const dest = exchange(w, destKey, 'eth')
 
     const victimE = w.customEntity({ name: victimName, category: 'victim' })
     const victim = w.addr('eth', { entity: victimE })
     const suspect = w.customEntity({ name: '« Crypto Recovery Experts » (inconnu)', category: 'suspect' })
 
-    // Historique antérieur de la victime (achats anciens sur Coinvault)
+    // Historique antérieur de la victime (achats anciens sur Coinhouse)
     cv.withdraw(victim, roundAsset('ETH', r.float(0.05, 0.3)), w.at(-r.int(60, 200) * 24))
     cv.withdraw(victim, roundAsset('ETH', r.float(0.05, 0.2)), w.at(-r.int(20, 50) * 24))
 
@@ -89,7 +89,7 @@ export const accEthFirst: ScenarioTemplate = {
           id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: w.at(4 * 24), author: victimName,
           body:
             `« J'ai trouvé ce cabinet après avoir laissé un commentaire sur un forum de victimes. Un certain "Maître Laurent" m'a écrit le jour même.\n\n` +
-            `J'ai payé ${amt(feeEth, 'ETH')} de frais de dossier le ${fmtDate(t1.time)}, puis ${amt(usdtAmt, 'USDT')} de caution le ${fmtDate(t2.time)}, depuis mon portefeuille personnel alimenté par Coinvault.\n\n` +
+            `J'ai payé ${amt(feeEth, 'ETH')} de frais de dossier le ${fmtDate(t1.time)}, puis ${amt(usdtAmt, 'USDT')} de caution le ${fmtDate(t2.time)}, depuis mon portefeuille personnel alimenté par Coinhouse.\n\n` +
             `Mon adresse Ethereum : ${A(w, victim)}\n` +
             `Transaction de la caution USDT : ${t2.hash} »`,
         },

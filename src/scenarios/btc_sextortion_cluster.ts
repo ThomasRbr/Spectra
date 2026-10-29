@@ -24,9 +24,9 @@ export const btcSextortionCluster: ScenarioTemplate = {
     const victimName = fakeName(r)
     const city = fakeCity(r)
 
-    const cv = exchange(w, 'coinvault', 'btc')
-    const nordex = exchange(w, 'nordex', 'btc')
-    const outKey = r.pick(['huobex', 'kaizen', 'binova'] as const)
+    const cv = exchange(w, 'coinhouse', 'btc')
+    const bitstamp = exchange(w, 'bitstamp', 'btc')
+    const outKey = r.pick(['huobex', 'okx', 'binance'] as const)
     const out = exchange(w, outKey, 'btc')
 
     const scammer = w.customEntity({ name: 'Campagne de sextorsion « Webcam »', category: 'scam' })
@@ -39,15 +39,15 @@ export const btcSextortionCluster: ScenarioTemplate = {
     // ── Paiements des victimes ───────────────────────────────────────────────
     const payments: { tx: Tx; addr: string; value: number }[] = []
     const demand = () => roundAsset('BTC', fromUsd('BTC', r.pick([800, 950, 1000, 1200, 1250, 1500, 1800, 2000]) * r.float(0.985, 1.015)))
-    const pay = (target: string, t: number, via: 'cv' | 'nordex' | string): Tx => {
+    const pay = (target: string, t: number, via: 'cv' | 'bitstamp' | string): Tx => {
       const v = demand()
       if (via === 'cv') return cv.withdraw(target, v, t)
-      if (via === 'nordex') return nordex.withdraw(target, v, t)
+      if (via === 'bitstamp') return bitstamp.withdraw(target, v, t)
       return w.utxoTx({ time: t, from: [via], to: [{ address: target, value: v }] })
     }
     const k = r.int(0, n - 1) // adresse reçue par la victime
     // Plan des paiements, exécuté ensuite dans l'ordre chronologique
-    type Plan = { t: number; target: string; via: 'cv' | 'nordex' | 'person' | 'shared'; plaint?: boolean }
+    type Plan = { t: number; target: string; via: 'cv' | 'bitstamp' | 'person' | 'shared'; plaint?: boolean }
     const plan: Plan[] = []
     for (let i = 0; i < n; i++) {
       const np = r.int(3, 7)
@@ -57,7 +57,7 @@ export const btcSextortionCluster: ScenarioTemplate = {
           continue
         }
         const roll = r.next()
-        plan.push({ t: w.at(-r.float(2, 20) * 24), target: camp[i], via: roll < 0.45 ? 'cv' : roll < 0.65 ? 'nordex' : 'person' })
+        plan.push({ t: w.at(-r.float(2, 20) * 24), target: camp[i], via: roll < 0.45 ? 'cv' : roll < 0.65 ? 'bitstamp' : 'person' })
       }
     }
     // Une même victime paie la campagne et la campagne leurre
@@ -115,7 +115,7 @@ export const btcSextortionCluster: ScenarioTemplate = {
 
     // ── Bruit ────────────────────────────────────────────────────────────────
     cv.noise(14, w.at(-22 * 24), w.at(6 * 24))
-    nordex.noise(8, w.at(-22 * 24), w.at(6 * 24))
+    bitstamp.noise(8, w.at(-22 * 24), w.at(6 * 24))
     out.noise(12, w.at(-3 * 24), w.at(10 * 24))
 
     const total = r8(payments.reduce((s, p) => s + p.value, 0))
@@ -130,7 +130,7 @@ export const btcSextortionCluster: ScenarioTemplate = {
       world: w,
       title: `Sextorsion de masse — ${city}`,
       briefing:
-        `${victimName} (${city}) a reçu un courriel affirmant que sa webcam avait été piratée et menaçant de diffuser une vidéo intime à ses contacts. Sous le coup de la panique, la victime a payé la somme exigée en bitcoins depuis son compte Coinvault.\n\n` +
+        `${victimName} (${city}) a reçu un courriel affirmant que sa webcam avait été piratée et menaçant de diffuser une vidéo intime à ses contacts. Sous le coup de la panique, la victime a payé la somme exigée en bitcoins depuis son compte Coinhouse.\n\n` +
         `PHAROS signale une campagne massive : des milliers de destinataires, le même texte, mais des adresses Bitcoin qui varient d'un envoi à l'autre. Ces adresses semblent n'avoir aucun lien entre elles… jusqu'à ce que l'escroc les dépense.\n\n` +
         `Objectifs : reconstituer l'ensemble des adresses de la campagne par clustering, chiffrer le montant total versé par les victimes, et identifier la plateforme de sortie.`,
       evidence: [
@@ -145,8 +145,8 @@ export const btcSextortionCluster: ScenarioTemplate = {
         {
           id: 'plainte', type: 'plainte', title: 'Déclaration de la victime', date: plaint.time + 2 * DAY, author: victimName,
           body:
-            `« J'ai acheté des bitcoins sur Coinvault et je les ai envoyés directement à l'adresse du mail, le ${fmtDate(plaint.time)}.\n` +
-            `Montant indiqué par Coinvault : ${amt(plaintValue, 'BTC')}.\n` +
+            `« J'ai acheté des bitcoins sur Coinhouse et je les ai envoyés directement à l'adresse du mail, le ${fmtDate(plaint.time)}.\n` +
+            `Montant indiqué par Coinhouse : ${amt(plaintValue, 'BTC')}.\n` +
             `Référence de transaction : ${plaint.hash} »`,
         },
         {
@@ -171,7 +171,7 @@ export const btcSextortionCluster: ScenarioTemplate = {
           prompt: 'Quel montant total (en BTC) les victimes ont-elles versé sur ces adresses ?',
           answer: total,
           hint: 'Additionnez les montants reçus par chaque adresse du cluster (avant regroupement).',
-          explanation: `${nPay} paiements pour un total de ${amt(total, 'BTC')}. Chaque paiement correspond potentiellement à une victime à identifier, notamment par réquisition aux plateformes d'où proviennent les fonds (Coinvault, Nordex…).`,
+          explanation: `${nPay} paiements pour un total de ${amt(total, 'BTC')}. Chaque paiement correspond potentiellement à une victime à identifier, notamment par réquisition aux plateformes d'où proviennent les fonds (Coinhouse, Bitstamp…).`,
         },
         {
           id: 'o3', type: 'entity', points: 20,
@@ -202,12 +202,12 @@ export const btcSextortionCluster: ScenarioTemplate = {
         path: [...payments.map((p) => p.tx.id), c1.id, c2.id, cashTx.id, sweep.id],
         addresses: [...camp, consol, deposit, rest],
         debrief:
-          `1. La campagne utilise ${n} adresses de réception (${kind === 'p2pkh' ? 'Legacy' : 'SegWit'}), réparties entre les envois. Les victimes y versent ${nPay} paiements, souvent directement depuis Coinvault ou Nordex.\n` +
+          `1. La campagne utilise ${n} adresses de réception (${kind === 'p2pkh' ? 'Legacy' : 'SegWit'}), réparties entre les envois. Les victimes y versent ${nPay} paiements, souvent directement depuis Coinhouse ou Bitstamp.\n` +
           `2. Regroupement n°1 (${fmtDate(c1.time, false)}) : ${g1.length + 1} adresses en entrée, dont une seule UTXO de ${A(w, bridgeAddr).slice(0, 14)}….\n` +
           `3. Regroupement n°2 : le reste de cette même adresse avec ${g2.length} autres. Elle relie les deux groupes : le cluster contient les ${n} adresses.\n` +
           `4. Les deux regroupements alimentent ${A(w, consol)}, qui envoie ${amt(depValue, 'BTC')} vers ${exName} et garde le reste en rendu.\n` +
           `5. L'adresse leurre signalée par PHAROS appartient à une autre campagne qui réutilise le même texte : elle n'est jamais co-dépensée avec le cluster.\n\n` +
-          `Leçon : l'heuristique des entrées communes (CIOH) part du principe que toutes les entrées d'une transaction sont signées par le même portefeuille. C'est l'outil de base pour passer d'une adresse à un portefeuille entier, et donc d'une victime à toutes les victimes. Ses limites : CoinJoin et paiements collaboratifs (exclus ici). Réquisitions : ${exName} (titulaire du dépôt) et Coinvault/Nordex (identification des autres victimes).`,
+          `Leçon : l'heuristique des entrées communes (CIOH) part du principe que toutes les entrées d'une transaction sont signées par le même portefeuille. C'est l'outil de base pour passer d'une adresse à un portefeuille entier, et donc d'une victime à toutes les victimes. Ses limites : CoinJoin et paiements collaboratifs (exclus ici). Réquisitions : ${exName} (titulaire du dépôt) et Coinhouse/Bitstamp (identification des autres victimes).`,
       },
       hints: [
         'Ajoutez l\'adresse du courriel au graphe, puis dépliez ses sorties.',

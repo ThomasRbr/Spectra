@@ -65,7 +65,7 @@ Ce qu'il faut savoir :
         caption: `Du gel à la récupération : les jetons gelés sont détruits puis réémis vers une adresse contrôlée par l'autorité, sur décision judiciaire.`,
         nodes: [
           { id: 's', label: 'Collecteur du suspect', kind: 'suspect', sub: '74 300 USDT-TRC20' },
-          { id: 'iss', label: 'Émetteur USDT', kind: 'service', sub: 'liste noire' },
+          { id: 'iss', label: 'Tether', kind: 'service', sub: 'liste noire' },
           { id: 'mag', label: 'Décision judiciaire', kind: 'tx', sub: 'saisie' },
           { id: 'st', label: 'Portefeuille de l’autorité', kind: 'wallet', sub: 'adresse institutionnelle' },
         ],
@@ -378,7 +378,7 @@ La blockchain est un atout considérable : n'importe qui, y compris la défense 
         rows: [
           ['Constatation', 'Fait vérifiable sur la blockchain ou dans une pièce', '« Le 14/02 à 09:12:47 UTC, l’adresse A a transféré 4 800 USDT à l’adresse B (txid …). »'],
           ['Inférence', 'Conclusion tirée d’heuristiques, avec ses limites', '« L’adresse C est probablement le rendu de la transaction T (adresse neuve, même type de script, entrée superflue). Confiance : élevée. »'],
-          ['Attribution', 'Rattachement à une entité, avec sa source et sa date', '« Selon l’outil X (consulté le 03/03), B est une adresse de dépôt de Binova ; confirmé par la réponse de Binova du 12/03. »'],
+          ['Attribution', 'Rattachement à une entité, avec sa source et sa date', '« Selon l’outil X (consulté le 03/03), B est une adresse de dépôt de Binance ; confirmé par la réponse de Binance du 12/03. »'],
         ],
       },
       {
@@ -412,11 +412,11 @@ La blockchain est un atout considérable : n'importe qui, y compris la défense 
         type: 'compare',
         left: {
           title: 'À éviter',
-          md: `« Les fonds de la victime ont été blanchis par le suspect via un mixeur puis récupérés sur son compte Binova. »`,
+          md: `« Les fonds de la victime ont été blanchis par le suspect via un mixeur puis récupérés sur son compte Binance. »`,
         },
         right: {
           title: 'À préférer',
-          md: `« Le 12/03 à 08:41 UTC, 3,2 BTC ont été déposés sur une adresse attribuée par l'outil X (v. 4.2, consulté le 20/03) au mixeur Nebula (txid …) — **établi**. Trois versements issus de ce mixeur, totalisant 3,13 BTC, ont été regroupés le 14/03 vers un dépôt Binova (txid …) — **inférence, confiance élevée**. Le titulaire de ce compte est M. X selon la réponse de Binova du 28/03 — **établi**. »`,
+          md: `« Le 12/03 à 08:41 UTC, 3,2 BTC ont été déposés sur une adresse attribuée par l'outil X (v. 4.2, consulté le 20/03) au mixeur Nebula (txid …) — **établi**. Trois versements issus de ce mixeur, totalisant 3,13 BTC, ont été regroupés le 14/03 vers un dépôt Binance (txid …) — **inférence, confiance élevée**. Le titulaire de ce compte est M. X selon la réponse de Binance du 28/03 — **établi**. »`,
         },
       },
       { type: 'heading', text: 'Montants tracés : annoncer sa méthode' },
@@ -456,9 +456,9 @@ Exemple : une adresse reçoit 10 000 USDT de la victime, puis 30 000 USDT d'autr
           { id: 'v', label: 'Victime', kind: 'victim', sub: '3 virements' },
           { id: 'c', label: 'Collecteur', kind: 'suspect', sub: 'bc1q…8fz' },
           { id: 'p', label: '14 sauts de peel chain', kind: 'unknown', sub: 'détail en annexe 3' },
-          { id: 'oc', label: 'Ocelot Swap', kind: 'exchange', sub: 'échangeur' },
+          { id: 'oc', label: 'ChangeNOW', kind: 'exchange', sub: 'échangeur' },
           { id: 'e', label: '0x2d9a…', kind: 'wallet', sub: 'Ethereum' },
-          { id: 'k', label: 'Dépôt Kaizen', kind: 'deposit', sub: 'titulaire identifié' },
+          { id: 'k', label: 'Dépôt OKX', kind: 'deposit', sub: 'titulaire identifié' },
         ],
         edges: [
           { from: 'v', to: 'c', label: '04–11/05 · 1,94 BTC' },
@@ -501,9 +501,9 @@ Exemple : une adresse reçoit 10 000 USDT de la victime, puis 30 000 USDT d'autr
       {
         type: 'case',
         title: 'Extrait de rapport — un saut inter-chaînes',
-        md: `**Constatation 7** (établi). Le 12/05 à 14:02:31 UTC (bloc Bitcoin 846 112), l'adresse bc1q…8fz a transféré 0,8215 BTC à l'adresse bc1q…d4k (txid 7c1e…), balayée le même jour à 14:21 UTC vers une adresse attribuée par l'outil X (v. 4.2, consulté le 15/05) au hot wallet de l'échangeur Ocelot Swap.
+        md: `**Constatation 7** (établi). Le 12/05 à 14:02:31 UTC (bloc Bitcoin 846 112), l'adresse bc1q…8fz a transféré 0,8215 BTC à l'adresse bc1q…d4k (txid 7c1e…), balayée le même jour à 14:21 UTC vers une adresse attribuée par l'outil X (v. 4.2, consulté le 15/05) au hot wallet de l'échangeur ChangeNOW.
 
-**Inférence 3** (confiance élevée). Parmi les 214 sorties du hot wallet ETH d'Ocelot Swap entre 14:09 et 15:00 UTC, une seule (19,61 ETH à 14:17 UTC vers 0x2d9a…e410, txid 0x8b02…) est compatible avec le montant attendu (19,40 à 19,70 ETH, cours de référence Y à 14:00 UTC, commission de 0,5 à 2 %). L'adresse 0x2d9a…e410, sans historique antérieur, a déposé 40 minutes plus tard la totalité dans ArcBridge. Hypothèse alternative examinée : versement à un autre client d'Ocelot de même montant ; écartée faute de second candidat. Confirmation demandée à Ocelot Swap le 15/05 (réponse en attente).`,
+**Inférence 3** (confiance élevée). Parmi les 214 sorties du hot wallet ETH de ChangeNOW entre 14:09 et 15:00 UTC, une seule (19,61 ETH à 14:17 UTC vers 0x2d9a…e410, txid 0x8b02…) est compatible avec le montant attendu (19,40 à 19,70 ETH, cours de référence Y à 14:00 UTC, commission de 0,5 à 2 %). L'adresse 0x2d9a…e410, sans historique antérieur, a déposé 40 minutes plus tard la totalité dans ArcBridge. Hypothèse alternative examinée : versement à un autre client de ChangeNOW de même montant ; écartée faute de second candidat. Confirmation demandée à ChangeNOW le 15/05 (réponse en attente).`,
       },
       {
         type: 'callout',
@@ -565,7 +565,7 @@ Exemple : une adresse reçoit 10 000 USDT de la victime, puis 30 000 USDT d'autr
         explain: `Identifiants, outils versionnés et exports empreintés permettent à un tiers de refaire l'analyse.`,
       },
       {
-        q: `« Selon l'outil X (consulté le 03/03), B est une adresse de dépôt de Binova. » De quelle nature relève cette phrase ?`,
+        q: `« Selon l'outil X (consulté le 03/03), B est une adresse de dépôt de Binance. » De quelle nature relève cette phrase ?`,
         options: ['Constatation on-chain', 'Inférence par heuristique', 'Attribution (avec sa source)', 'Conclusion juridique'],
         answer: 2,
         explain: `C'est le rattachement d'une adresse à une entité, fondé sur une source tierce : une attribution, à confirmer idéalement par réquisition.`,

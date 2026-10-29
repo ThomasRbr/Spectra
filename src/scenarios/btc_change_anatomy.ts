@@ -33,16 +33,16 @@ export const btcChangeAnatomy: ScenarioTemplate = {
     const otherKinds = (['p2pkh', 'p2sh', 'p2wpkh', 'p2tr'] as AddrKind[]).filter((k) => k !== K)
     const victimKind: AddrKind = r.pick(['p2pkh', 'p2sh'] as const)
 
-    const cv = exchange(w, 'coinvault', 'btc')
-    const binova = exchange(w, 'binova', 'btc')
-    const nordex = exchange(w, 'nordex', 'btc')
+    const cv = exchange(w, 'coinhouse', 'btc')
+    const binance = exchange(w, 'binance', 'btc')
+    const bitstamp = exchange(w, 'bitstamp', 'btc')
 
     const victimE = w.customEntity({ name: victimName, category: 'victim' })
     const suspect = w.customEntity({ name: 'Faux vendeur « AutoPrestige »', category: 'suspect' })
     const muleE = w.customEntity({ name: 'Complice (non identifié)', category: 'individual' })
     const thirdE = w.customEntity({ name: 'Bénéficiaire inconnu', category: 'individual' })
 
-    // ── Victime : portefeuille ancien, alimenté depuis Coinvault ─────────────
+    // ── Victime : portefeuille ancien, alimenté depuis Coinhouse ─────────────
     const victim = w.addr('btc', { entity: victimE, kind: victimKind })
     const price = roundCoin(w, 0.22, 0.6, 0.01)
     const buyT = w.at(-2 * 24 - r.int(2, 20))
@@ -61,14 +61,14 @@ export const btcChangeAnatomy: ScenarioTemplate = {
     const s1 = w.addr('btc', { entity: suspect, kind: K })
     const txA = w.utxoTx({ time: w.at(r.float(3, 9)), from: [s0], to: [{ address: mule, value: r8(payA) }], change: s1, fee: sat(r.int(1500, 6000)) })
 
-    // ── TX B : dépôt rond sur Binova (type différent, adresse étiquetée) ────
+    // ── TX B : dépôt rond sur Binance (type différent, adresse étiquetée) ────
     const depKind = r.pick(otherKinds)
-    const depB = w.addr('btc', { entity: binova.entity, label: `${binova.entity.name} — Adresse de dépôt`, tags: ['deposit'], kind: depKind })
+    const depB = w.addr('btc', { entity: binance.entity, label: `${binance.entity.name} — Adresse de dépôt`, tags: ['deposit'], kind: depKind })
     const balB = w.unspentValue(s1)
     const payB = r8(Math.floor((balB * r.float(0.55, 0.72)) * 100) / 100)
     const s2 = w.addr('btc', { entity: suspect, kind: K })
     const txB = w.utxoTx({ time: w.at(r.float(14, 30)), from: [s1], to: [{ address: depB, value: payB }], change: s2, fee: sat(r.int(1800, 7000)) })
-    const sweepB = binova.sweep([depB], txB.time + r.int(1, 8) * HOUR)[0]
+    const sweepB = binance.sweep([depB], txB.time + r.int(1, 8) * HOUR)[0]
 
     // ── TX C : paiement non rond, même type, rendu vers l'adresse d'entrée ──
     const third = w.addr('btc', { entity: thirdE, kind: K })
@@ -83,18 +83,18 @@ export const btcChangeAnatomy: ScenarioTemplate = {
     const sx = w.addr('btc', { entity: suspect, kind: K })
     const txPay2 = w.utxoTx({ time: w.at(r.float(55, 70)), from: [victim2], to: [{ address: sx, value: price2 }], fee: sat(r.int(1400, 5000)) })
 
-    // ── TX D : deux entrées (s2 + sx), dépôt rond sur Nordex, rendu neuf ────
+    // ── TX D : deux entrées (s2 + sx), dépôt rond sur Bitstamp, rendu neuf ────
     const depKindD = r.pick(otherKinds)
-    const depD = w.addr('btc', { entity: nordex.entity, label: `${nordex.entity.name} — Adresse de dépôt`, tags: ['deposit'], kind: depKindD })
+    const depD = w.addr('btc', { entity: bitstamp.entity, label: `${bitstamp.entity.name} — Adresse de dépôt`, tags: ['deposit'], kind: depKindD })
     const balD = w.unspentValue(s2) + w.unspentValue(sx)
     const payD = r8(Math.floor(balD * r.float(0.62, 0.8) * 100) / 100)
     const s3 = w.addr('btc', { entity: suspect, kind: K })
     const txD = w.utxoTx({ time: w.at(r.float(80, 110)), from: [s2, sx], to: [{ address: depD, value: payD }], change: s3, spendAll: true, fee: sat(r.int(2600, 9800)) })
-    const sweepD = nordex.sweep([depD], txD.time + r.int(1, 10) * HOUR)[0]
+    const sweepD = bitstamp.sweep([depD], txD.time + r.int(1, 10) * HOUR)[0]
 
     // ── Bruit de fond ────────────────────────────────────────────────────────
-    binova.noise(12, w.at(-3 * 24), w.at(6 * 24))
-    nordex.noise(10, w.at(-2 * 24), w.at(7 * 24))
+    binance.noise(12, w.at(-3 * 24), w.at(6 * 24))
+    bitstamp.noise(10, w.at(-2 * 24), w.at(7 * 24))
     cv.noise(8, buyT - 3 * DAY, w.at(4 * 24))
     // Le complice dépense plus tard ses fonds (impasse pour l'enquêteur)
     w.utxoTx({ time: w.at(r.float(30, 90)), from: [mule], to: [{ address: w.addr('btc'), value: r8(w.unspentValue(mule) * r.float(0.3, 0.6)) }] })
@@ -153,7 +153,7 @@ export const btcChangeAnatomy: ScenarioTemplate = {
           prompt: 'Le rendu est ensuite utilisé pour un dépôt sur une plateforme. Quelle est l\'adresse de rendu de cette transaction ?',
           answer: [s2],
           hint: 'Ici, le paiement est plus gros que le rendu : ne vous fiez pas à la taille des sorties.',
-          explanation: `${amt(payB, 'BTC')} partent vers une adresse de dépôt ${binova.entity.name} (montant rond, type différent, attribuée à un exchange). Le rendu de ${amt(changeB, 'BTC')} est plus petit que le paiement : la taille d'une sortie n'est pas un critère.`,
+          explanation: `${amt(payB, 'BTC')} partent vers une adresse de dépôt ${binance.entity.name} (montant rond, type différent, attribuée à un exchange). Le rendu de ${amt(changeB, 'BTC')} est plus petit que le paiement : la taille d'une sortie n'est pas un critère.`,
         },
         {
           id: 'o3', type: 'choice', points: 20,
@@ -188,11 +188,11 @@ export const btcChangeAnatomy: ScenarioTemplate = {
         debrief:
           `1. La victime paie ${amt(price, 'BTC')} vers ${A(w, s0)}. Sa propre transaction a déjà un rendu : celui-ci revient vers une adresse neuve de type ${kindLabel[victimKind]}, comme son adresse d'origine.\n` +
           `2. TX A — l'escroc paie ${amt(payA, 'BTC')} (rond, ${kindLabel[muleKind]}) à un complice ; le rendu ${amt(changeA, 'BTC')} part vers ${A(w, s1)} (neuve, ${kindLabel[K]}, non ronde).\n` +
-          `3. TX B — dépôt rond de ${amt(payB, 'BTC')} sur ${binova.entity.name} ; rendu ${amt(changeB, 'BTC')} vers ${A(w, s2)}, plus petit que le paiement.\n` +
+          `3. TX B — dépôt rond de ${amt(payB, 'BTC')} sur ${binance.entity.name} ; rendu ${amt(changeB, 'BTC')} vers ${A(w, s2)}, plus petit que le paiement.\n` +
           `4. TX C — paiement non rond de ${amt(payC, 'BTC')} vers une adresse du même type : seule la réutilisation de ${A(w, s2).slice(0, 14)}… en sortie trahit le rendu.\n` +
           `5. Une seconde victime paie ${amt(price2, 'BTC')} vers ${A(w, sx)}, autre adresse du même portefeuille.\n` +
-          `6. TX D — l'escroc dépense ensemble ${A(w, s2).slice(0, 12)}… et ${A(w, sx).slice(0, 12)}… (entrées communes ⇒ même propriétaire), dépose ${amt(payD, 'BTC')} sur ${nordex.entity.name} et conserve ${amt(remaining, 'BTC')} sur ${A(w, s3)}. Frais : ${amt(feeD, 'BTC')}.\n\n` +
-          `Leçon : aucune heuristique n'est infaillible seule. On les combine (type d'adresse, montant rond, adresse neuve, réutilisation, attribution) et on vérifie la cohérence sur plusieurs sauts. Les deux adresses de dépôt (${binova.entity.name}, ${nordex.entity.name}) font l'objet de réquisitions ; le reliquat est placé sous surveillance.`,
+          `6. TX D — l'escroc dépense ensemble ${A(w, s2).slice(0, 12)}… et ${A(w, sx).slice(0, 12)}… (entrées communes ⇒ même propriétaire), dépose ${amt(payD, 'BTC')} sur ${bitstamp.entity.name} et conserve ${amt(remaining, 'BTC')} sur ${A(w, s3)}. Frais : ${amt(feeD, 'BTC')}.\n\n` +
+          `Leçon : aucune heuristique n'est infaillible seule. On les combine (type d'adresse, montant rond, adresse neuve, réutilisation, attribution) et on vérifie la cohérence sur plusieurs sauts. Les deux adresses de dépôt (${binance.entity.name}, ${bitstamp.entity.name}) font l'objet de réquisitions ; le reliquat est placé sous surveillance.`,
       },
       hints: [
         'Ouvrez la transaction de la victime : repérez d\'abord quelle sortie est le paiement et laquelle est son propre rendu.',

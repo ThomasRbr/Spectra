@@ -12,7 +12,7 @@ export const btcDarknetVendor: ScenarioTemplate = {
   title: 'Le vendeur d\'Obsidian',
   tagline: 'Séquestre darknet, profil PGP, P2P, swap vers Litecoin… et une erreur de KYC.',
   description:
-    'Un vendeur de stupéfiants opère sur Obsidian Market. À partir d\'un achat sous pseudonyme et de son profil public sur un forum, reconstituez son portefeuille, chiffrez ses revenus de séquestre, suivez ses sorties (P2P, échangeur instantané vers Litecoin, exchange régulé) et bâtissez la stratégie de réquisition.',
+    'Un vendeur de stupéfiants opère sur Hydra Market. À partir d\'un achat sous pseudonyme et de son profil public sur un forum, reconstituez son portefeuille, chiffrez ses revenus de séquestre, suivez ses sorties (P2P, échangeur instantané vers Litecoin, exchange régulé) et bâtissez la stratégie de réquisition.',
   difficulty: 4,
   chains: ['btc', 'ltc'],
   skills: ['osint', 'cioh', 'crosschain', 'exchange_id', 'requisition', 'typologies'],
@@ -24,21 +24,21 @@ export const btcDarknetVendor: ScenarioTemplate = {
     const handle = fakeHandle(r)
     const city = fakeCity(r)
 
-    const obs = w.entity('obsidian')
-    const escrow = w.addr('btc', { entity: obs, label: 'Obsidian Market — Séquestre', tags: ['liquid', 'hot'], kind: 'p2wpkh' })
+    const obs = w.entity('hydra')
+    const escrow = w.addr('btc', { entity: obs, label: 'Hydra Market — Séquestre', tags: ['liquid', 'hot'], kind: 'p2wpkh' })
     const vendor = w.customEntity({ name: `Vendeur « ${handle} »`, category: 'suspect' })
     const police = w.customEntity({ name: 'Portefeuille d\'enquête (achat sous pseudonyme)', category: 'individual' })
-    const cv = exchange(w, 'coinvault', 'btc')
-    const ls = w.entity('localsats')
-    const lsEscrow = w.addr('btc', { entity: ls, label: 'LocalSats — Séquestre multisig', tags: ['liquid'] })
-    const swp = swapper(w, 'ocelot')
+    const cv = exchange(w, 'coinhouse', 'btc')
+    const ls = w.entity('hodlhodl')
+    const lsEscrow = w.addr('btc', { entity: ls, label: 'Hodl Hodl — Séquestre multisig', tags: ['liquid'] })
+    const swp = swapper(w, 'changenow')
     const MARKET_FEE = 0.04
 
     // ── Achat sous pseudonyme ────────────────────────────────────────────────
     const policeAddr = w.addr('btc', { entity: police, kind: 'p2wpkh' })
     const buyValue = roundUsdAmount(w, 'BTC', 250, 600)
     cv.withdraw(policeAddr, r8(buyValue + r.float(0.0005, 0.002)), w.at(-27 * 24))
-    const obsDeposit = w.addr('btc', { entity: obs, label: 'Obsidian Market — Adresse de dépôt', tags: ['deposit'] })
+    const obsDeposit = w.addr('btc', { entity: obs, label: 'Hydra Market — Adresse de dépôt', tags: ['deposit'] })
     const buyTx = w.utxoTx({ time: w.at(-25 * 24 + r.float(-6, 6)), from: [policeAddr], to: [{ address: obsDeposit, value: buyValue }] })
     const buySweepT = buyTx.time + r.int(1200, 4 * 3600)
 
@@ -90,11 +90,11 @@ export const btcDarknetVendor: ScenarioTemplate = {
     const lastCons = consTxs[consTxs.length - 1]
 
     // ── Sorties ──────────────────────────────────────────────────────────────
-    // 1. LocalSats (vente P2P contre espèces / virement)
+    // 1. Hodl Hodl (vente P2P contre espèces / virement)
     const v2 = w.addr('btc', { entity: vendor, kind: 'p2wpkh' })
     const lsValue = r8(Math.floor(w.unspentValue(main) * r.float(0.15, 0.25) * 1000) / 1000)
     const lsTx = w.utxoTx({ time: lastCons.time + r.float(1, 3) * DAY, from: [main], to: [{ address: lsEscrow, value: lsValue }], change: v2, spendAll: true })
-    // 2. Ocelot Swap BTC → LTC
+    // 2. ChangeNOW BTC → LTC
     const v3 = w.addr('btc', { entity: vendor, kind: 'p2wpkh' })
     const ltcAddr = w.addr('ltc', { entity: vendor, kind: 'p2wpkh' })
     const swapValue = r8(Math.floor(w.unspentValue(v2) * r.float(0.3, 0.42) * 10000) / 10000)
@@ -112,7 +112,7 @@ export const btcDarknetVendor: ScenarioTemplate = {
     for (let i = 0; i < r.int(3, 5); i++) decoy(swapT - r.int(5, 90) * 60)
     const order = swp.order({ from: v2, value: swapValue, time: swapT, toChain: 'ltc', recipient: ltcAddr, change: v3, decoys: 0, delayMin: [8, 40], feePct: r.float(0.006, 0.02) })
     for (let i = 0; i < r.int(4, 7); i++) decoy(swapT + r.int(42, 180) * 60)
-    // 3. Coinvault — l'erreur de KYC
+    // 3. Coinhouse — l'erreur de KYC
     const v4 = w.addr('btc', { entity: vendor, kind: 'p2wpkh' })
     const cvValue = r8(Math.floor(w.unspentValue(v3) * r.float(0.4, 0.6) * 1000) / 1000)
     const cvRes = cv.receive(v3, cvValue, order.depositTx.time + r.float(2, 5) * DAY, { change: v4 })
@@ -134,7 +134,7 @@ export const btcDarknetVendor: ScenarioTemplate = {
       world: w,
       title: `Opération Obsidienne — ${city}`,
       briefing:
-        `Dans le cadre d'une information judiciaire ouverte à ${city}, la section de recherches enquête sur « ${handle} », vendeur de cocaïne et de MDMA actif sur Obsidian Market et livrant par voie postale dans toute la France.\n\n` +
+        `Dans le cadre d'une information judiciaire ouverte à ${city}, la section de recherches enquête sur « ${handle} », vendeur de cocaïne et de MDMA actif sur Hydra Market et livrant par voie postale dans toute la France.\n\n` +
         `Sur Obsidian, l'acheteur paie sur une adresse de dépôt de la plateforme ; les fonds restent sur un portefeuille de séquestre (escrow) jusqu'à la confirmation de réception, puis sont libérés au vendeur, moins la commission du marché. Un achat sous pseudonyme a été réalisé, et le vendeur entretient un profil public sur un forum spécialisé.\n\n` +
         `Objectifs : reconstituer le portefeuille du vendeur, chiffrer les libérations de séquestre reçues, suivre ses sorties (y compris vers une autre blockchain) et déterminer la meilleure stratégie de réquisition.`,
       evidence: [
@@ -153,7 +153,7 @@ export const btcDarknetVendor: ScenarioTemplate = {
         {
           id: 'pv', type: 'pv', title: 'PV d\'achat sous pseudonyme', date: buyTx.time + 6 * DAY, author: 'Enquêteur sous pseudonyme',
           body:
-            `Commande passée auprès de ${handle} sur Obsidian Market : 5 g de cocaïne.\n` +
+            `Commande passée auprès de ${handle} sur Hydra Market : 5 g de cocaïne.\n` +
             `Paiement de ${amt(buyValue, 'BTC')} sur l'adresse de dépôt fournie par la plateforme : ${A(w, obsDeposit)}\n` +
             `Transaction : ${buyTx.hash} — ${fmtDate(buyTx.time)}\n` +
             `Colis reçu, réception confirmée sur la plateforme le ${fmtDate(ucRelease.tx.time - r.int(1, 5) * HOUR)} (libération du séquestre au vendeur).\n` +
@@ -186,15 +186,15 @@ export const btcDarknetVendor: ScenarioTemplate = {
         {
           id: 'o3', type: 'entity', points: 15,
           prompt: 'Sur quelle plateforme régulée le vendeur a-t-il commis une erreur de KYC ?',
-          answer: ['coinvault'],
-          explanation: `${amt(cvValue, 'BTC')} sont déposés sur une adresse de dépôt Coinvault, plateforme française agréée qui applique un KYC renforcé : le compte est rattaché à une identité vérifiée.`,
+          answer: ['coinhouse'],
+          explanation: `${amt(cvValue, 'BTC')} sont déposés sur une adresse de dépôt Coinhouse, plateforme française agréée qui applique un KYC renforcé : le compte est rattaché à une identité vérifiée.`,
         },
         {
           id: 'o4', type: 'address', points: 20,
           prompt: 'Le vendeur a converti une partie de ses BTC en Litecoin via un échangeur instantané. Quelle adresse LTC a reçu le paiement ?',
           answer: [ltcAddr],
-          hint: 'Outil de corrélation : chaîne LTC, émetteur Ocelot Swap, à partir de l\'heure du dépôt BTC, montant en USD du dépôt (moins 1 à 2 % de commission).',
-          explanation: `Dépôt de ${amt(swapValue, 'BTC')} chez Ocelot Swap, puis ${amt(order.payoutValue, 'LTC')} payés quelques minutes plus tard depuis le hot wallet LTC d'Ocelot vers ${A(w, ltcAddr)}. Les autres paiements d'Ocelot dans la fenêtre s'écartent de plus de 5 % en valeur. Une réquisition à Ocelot, avec le hash du dépôt, permettra de confirmer.`,
+          hint: 'Outil de corrélation : chaîne LTC, émetteur ChangeNOW, à partir de l\'heure du dépôt BTC, montant en USD du dépôt (moins 1 à 2 % de commission).',
+          explanation: `Dépôt de ${amt(swapValue, 'BTC')} chez ChangeNOW, puis ${amt(order.payoutValue, 'LTC')} payés quelques minutes plus tard depuis le hot wallet LTC de ChangeNOW vers ${A(w, ltcAddr)}. Les autres paiements de ChangeNOW dans la fenêtre s'écartent de plus de 5 % en valeur. Une réquisition à ChangeNOW, avec le hash du dépôt, permettra de confirmer.`,
         },
         {
           id: 'o5', type: 'choice', points: 15,
@@ -218,7 +218,7 @@ export const btcDarknetVendor: ScenarioTemplate = {
               'Requérir uniquement la plateforme P2P, qui détient le séquestre multisignature',
               'Attendre un nouveau dépôt du vendeur avant toute démarche, pour éviter de l\'alerter',
             ]),
-          explanation: `${procedureFor(cv.entity)} KYC renforcé, délais courts, gel possible : c'est la cible prioritaire. ${procedureFor(swp.entity)} ${procedureFor(w.entity('localsats'))} Ces deux services peuvent fournir IP, adresse de destination et contreparties : utiles pour corroborer. Un marché darknet ne répond pas aux réquisitions.`,
+          explanation: `${procedureFor(cv.entity)} KYC renforcé, délais courts, gel possible : c'est la cible prioritaire. ${procedureFor(swp.entity)} ${procedureFor(w.entity('hodlhodl'))} Ces deux services peuvent fournir IP, adresse de destination et contreparties : utiles pour corroborer. Un marché darknet ne répond pas aux réquisitions.`,
         },
       ],
       truth: {
@@ -228,14 +228,14 @@ export const btcDarknetVendor: ScenarioTemplate = {
           `1. OSINT : le profil PGP de ${handle} publie l'adresse ${A(w, tips)}.\n` +
           `2. Cette adresse est dépensée lors du 2ᵉ regroupement vers ${A(w, main)} (adresse de la première libération, réutilisée), avec des adresses recevant des libérations du séquestre Obsidian : même portefeuille.\n` +
           `3. Trois regroupements successifs (chacun réutilisant l'adresse principale en entrée) soudent le cluster : ${nRel} libérations, ${amt(totalReleased, 'BTC')} au total. La libération de ${amt(ucRelease.value, 'BTC')} du ${fmtDate(ucRelease.tx.time, false)} correspond à l'achat sous pseudonyme (−${Math.round(MARKET_FEE * 100)} %).\n` +
-          `4. Sorties : ${amt(lsValue, 'BTC')} vers le séquestre LocalSats (vente P2P), puis ${amt(swapValue, 'BTC')} échangés chez Ocelot Swap contre ${amt(order.payoutValue, 'LTC')} reçus sur ${A(w, ltcAddr)}, puis ${amt(cvValue, 'BTC')} déposés chez Coinvault. Le reliquat reste sur ${A(w, v4)}.\n\n` +
+          `4. Sorties : ${amt(lsValue, 'BTC')} vers le séquestre Hodl Hodl (vente P2P), puis ${amt(swapValue, 'BTC')} échangés chez ChangeNOW contre ${amt(order.payoutValue, 'LTC')} reçus sur ${A(w, ltcAddr)}, puis ${amt(cvValue, 'BTC')} déposés chez Coinhouse. Le reliquat reste sur ${A(w, v4)}.\n\n` +
           `Leçon : face à un marché darknet, le point d'entrée est presque toujours côté vendeur (OSINT, adresse publiée, achat sous pseudonyme). Le clustering transforme une adresse en portefeuille complet, et c'est la sortie vers un prestataire régulé — ici français — qui permet l'identification.`,
       },
       hints: [
         'L\'adresse BTC du profil PGP est votre point d\'entrée : ajoutez-la au graphe.',
         'Ouvrez le panneau cluster de l\'adresse de regroupement : il liste les adresses de libération.',
         'Après les regroupements, suivez la grosse sortie de chaque transaction : trois services se succèdent.',
-        'Pour la partie Litecoin, utilisez la corrélation avec Ocelot Swap comme émetteur, sur la chaîne LTC.',
+        'Pour la partie Litecoin, utilisez la corrélation avec ChangeNOW comme émetteur, sur la chaîne LTC.',
       ],
     }
   },

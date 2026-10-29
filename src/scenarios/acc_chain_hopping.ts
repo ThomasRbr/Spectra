@@ -53,10 +53,10 @@ export const accChainHopping: ScenarioTemplate = {
     const r = w.rng
     const city = fakeCity(r)
 
-    const sw = swapper(w, 'ocelot')
+    const sw = swapper(w, 'changenow')
     const br = bridge(w, 'arcbridge')
-    const syrup = dex(w, 'syrupswap', 'bsc')
-    const destKey = r.pick(['binova', 'kaizen', 'huobex'] as const)
+    const syrup = dex(w, 'pancakeswap', 'bsc')
+    const destKey = r.pick(['binance', 'okx', 'huobex'] as const)
     const dest = exchange(w, destKey, 'bsc')
 
     const suspect = w.customEntity({ name: 'Réseau « BitFortune Capital » (inconnu)', category: 'suspect' })
@@ -74,7 +74,7 @@ export const accChainHopping: ScenarioTemplate = {
     }
     const collected = victims.reduce((s, v) => s + v.value, 0)
 
-    // Commande Ocelot Swap : BTC → ETH, payée sur une adresse neuve
+    // Commande ChangeNOW : BTC → ETH, payée sur une adresse neuve
     const e1 = w.addr('eth', { entity: suspect })
     const orderValue = roundAsset('BTC', collected * r.float(0.95, 0.985))
     const orderT = w.at(r.float(2, 10))
@@ -86,13 +86,13 @@ export const accChainHopping: ScenarioTemplate = {
     const brT = ord.payoutTx.time + r.int(40, 300) * 60
     const brRes = br.send({ from: e1, value: bridgeIn, time: brT, toChain: 'bsc', recipient: b1 })
 
-    // BNB → USDT sur SyrupSwap, puis dépôt sur l'exchange
+    // BNB → USDT sur PancakeSwap, puis dépôt sur l'exchange
     const swapT = brRes.inTx.time + r.int(10, 90) * 60
     const swp = syrup.swap({ trader: b1, assetIn: 'BNB', amountIn: roundAsset('BNB', brRes.received * r.float(0.96, 0.99)), assetOut: 'USDT', time: swapT })
     const dep = dest.receive(b1, swp.amountOut, swapT + r.int(20, 180) * 60, { asset: 'USDT' })
 
     // ── Bruit ──
-    // Autres clients d'Ocelot (BTC → ETH / Tron), étalés sur plusieurs jours
+    // Autres clients de ChangeNOW (BTC → ETH / Tron), étalés sur plusieurs jours
     for (let i = 0; i < r.int(4, 6); i++) {
       const c = w.addr('btc')
       const v = roundCoin(w, 0.02, 1.2, 0.0001)
@@ -101,7 +101,7 @@ export const accChainHopping: ScenarioTemplate = {
       const toChain = r.pick(['eth', 'eth', 'tron'] as const)
       btcOrder(w, sw, { from: c, value: v, time: tOrd, toChain, toAsset: toChain === 'tron' ? 'USDT' : undefined, recipient: w.addr(toChain), decoys: r.int(1, 3) })
     }
-    // Paiements Ocelot sur ETH à des montants proches, en dehors de la fenêtre
+    // Paiements ChangeNOW sur ETH à des montants proches, en dehors de la fenêtre
     for (let i = 0; i < 4; i++) {
       const dt = r.pick([-1, 1]) * r.float(4, 30) * HOUR
       w.transfer({ time: Math.round(ord.payoutTx.time + dt), from: sw.hot('eth'), to: w.addr('eth'), value: roundAsset('ETH', ord.payoutValue * r.float(0.97, 1.03)), asset: 'ETH', method: 'payout' })
@@ -150,10 +150,10 @@ export const accChainHopping: ScenarioTemplate = {
       objectives: [
         {
           id: 'o1', type: 'address', points: 25,
-          prompt: 'Quelle adresse Ethereum a reçu le paiement d\'Ocelot Swap correspondant au dépôt BTC des escrocs ?',
+          prompt: 'Quelle adresse Ethereum a reçu le paiement d\'ChangeNOW correspondant au dépôt BTC des escrocs ?',
           answer: [e1],
-          hint: `Corrélation : émetteur Ocelot Swap, chaîne Ethereum, à partir de l'heure du dépôt, fenêtre d'environ 1 h, tolérance de 2 à 5 % sur la valeur USD du dépôt (≈ ${Math.round(depositUsd).toLocaleString('fr-FR')} $). Parmi les candidats, lequel a une activité ultérieure ?`,
-          explanation: `Le dépôt de ${amt(orderValue, 'BTC')} (≈ ${Math.round(depositUsd).toLocaleString('fr-FR')} $) chez Ocelot est suivi, ${Math.round((ord.payoutTx.time - ord.depositTx.time) / 60)} minutes plus tard, d'un paiement de ${amt(ord.payoutValue, 'ETH')} vers ${A(w, e1)} : montant diminué de la commission (≈ ${((1 - usd('ETH', ord.payoutValue) / depositUsd) * 100).toFixed(1).replace('.', ',')} %) et délai typique d'un échangeur. Cette adresse bridge ensuite ses ETH, ce qui conforte l'hypothèse.`,
+          hint: `Corrélation : émetteur ChangeNOW, chaîne Ethereum, à partir de l'heure du dépôt, fenêtre d'environ 1 h, tolérance de 2 à 5 % sur la valeur USD du dépôt (≈ ${Math.round(depositUsd).toLocaleString('fr-FR')} $). Parmi les candidats, lequel a une activité ultérieure ?`,
+          explanation: `Le dépôt de ${amt(orderValue, 'BTC')} (≈ ${Math.round(depositUsd).toLocaleString('fr-FR')} $) chez ChangeNOW est suivi, ${Math.round((ord.payoutTx.time - ord.depositTx.time) / 60)} minutes plus tard, d'un paiement de ${amt(ord.payoutValue, 'ETH')} vers ${A(w, e1)} : montant diminué de la commission (≈ ${((1 - usd('ETH', ord.payoutValue) / depositUsd) * 100).toFixed(1).replace('.', ',')} %) et délai typique d'un échangeur. Cette adresse bridge ensuite ses ETH, ce qui conforte l'hypothèse.`,
         },
         {
           id: 'o2', type: 'address', points: 15,
@@ -167,17 +167,17 @@ export const accChainHopping: ScenarioTemplate = {
           prompt: 'Sur quel exchange les fonds ont-ils finalement été déposés ?',
           answer: [destKey],
           hint: 'Sur BSC, l\'adresse de destination échange ses BNB contre des USDT avant de les envoyer ailleurs.',
-          explanation: `Après le swap BNB → USDT sur SyrupSwap, les USDT sont déposés sur une adresse de dépôt ${dest.entity.name}.`,
+          explanation: `Après le swap BNB → USDT sur PancakeSwap, les USDT sont déposés sur une adresse de dépôt ${dest.entity.name}.`,
         },
         {
           id: 'o4', type: 'amount', points: 20, unit: 'USDT', tolerance: 0.02,
           prompt: 'Quel montant d\'USDT a été déposé sur cet exchange ?',
           answer: swp.amountOut,
-          explanation: `${amt(swp.amountOut, 'USDT')}, issus du swap de ${amt(roundAsset('BNB', swp.tx.transfers[0].value), 'BNB')} sur SyrupSwap.`,
+          explanation: `${amt(swp.amountOut, 'USDT')}, issus du swap de ${amt(roundAsset('BNB', swp.tx.transfers[0].value), 'BNB')} sur PancakeSwap.`,
         },
         {
           id: 'o5', type: 'choice', points: 20,
-          prompt: 'Que demander en priorité à Ocelot Swap ?',
+          prompt: 'Que demander en priorité à ChangeNOW ?',
           ...choice(r,
             'Les données de la commande liée au hash de dépôt (adresse de paiement, horodatages, IP)',
             [
@@ -185,7 +185,7 @@ export const accChainHopping: ScenarioTemplate = {
               'Le gel des ETH déjà versés par l\'échangeur sur l\'adresse de paiement du client',
               'La clé privée de l\'adresse de dépôt, pour reprendre la main sur les fonds',
             ]),
-          explanation: `${procedureFor(sw.entity)} Ocelot ne fait pas de KYC et ne peut rien geler une fois le paiement effectué (les ETH sont sur une adresse que le client contrôle seul). En revanche, en fournissant le hash du dépôt (${ord.depositTx.hash.slice(0, 16)}…), on peut obtenir les métadonnées de la commande : elles confirment le lien dépôt → paiement (qui n'est qu'une corrélation) et fournissent parfois une IP ou un e-mail.`,
+          explanation: `${procedureFor(sw.entity)} ChangeNOW ne fait pas de KYC et ne peut rien geler une fois le paiement effectué (les ETH sont sur une adresse que le client contrôle seul). En revanche, en fournissant le hash du dépôt (${ord.depositTx.hash.slice(0, 16)}…), on peut obtenir les métadonnées de la commande : elles confirment le lien dépôt → paiement (qui n'est qu'une corrélation) et fournissent parfois une IP ou un e-mail.`,
         },
       ],
       truth: {
@@ -193,17 +193,17 @@ export const accChainHopping: ScenarioTemplate = {
         addresses: [s0, ord.deposit, e1, b1, dep.deposit],
         debrief:
           `1. ${nV} victimes versent ${amt(collected, 'BTC')} sur ${A(w, s0)}.\n` +
-          `2. Les escrocs déposent ${amt(orderValue, 'BTC')} sur une adresse de dépôt Ocelot Swap (le reste part en rendu). Aucun lien on-chain avec la suite : Ocelot paie depuis son hot wallet ETH, mélangé aux paiements d'autres clients.\n` +
-          `3. La corrélation (émetteur Ocelot, Ethereum, fenêtre ~1 h, tolérance quelques %) fait ressortir ${amt(ord.payoutValue, 'ETH')} versés à ${A(w, e1)} ${Math.round((ord.payoutTx.time - ord.depositTx.time) / 60)} minutes après le dépôt.\n` +
+          `2. Les escrocs déposent ${amt(orderValue, 'BTC')} sur une adresse de dépôt ChangeNOW (le reste part en rendu). Aucun lien on-chain avec la suite : ChangeNOW paie depuis son hot wallet ETH, mélangé aux paiements d'autres clients.\n` +
+          `3. La corrélation (émetteur ChangeNOW, Ethereum, fenêtre ~1 h, tolérance quelques %) fait ressortir ${amt(ord.payoutValue, 'ETH')} versés à ${A(w, e1)} ${Math.round((ord.payoutTx.time - ord.depositTx.time) / 60)} minutes après le dépôt.\n` +
           `4. ${A(w, e1)} envoie ${amt(bridgeIn, 'ETH')} dans ArcBridge vers BNB Smart Chain ; le bridge verse ${amt(brRes.received, 'BNB')} à ${A(w, b1)}.\n` +
-          `5. Sur SyrupSwap, ${A(w, b1)} échange ses BNB contre ${amt(swp.amountOut, 'USDT')}, déposés sur ${dest.entity.name}.\n\n` +
+          `5. Sur PancakeSwap, ${A(w, b1)} échange ses BNB contre ${amt(swp.amountOut, 'USDT')}, déposés sur ${dest.entity.name}.\n\n` +
           `À retenir : un bridge est transparent (il publie la chaîne et le destinataire), un DEX aussi. Le maillon faible du traçage est l'échangeur instantané : le lien n'y est qu'une corrélation, à consolider par réquisition (données de commande). La réquisition finale vise ${dest.entity.name} (adresse de dépôt BSC), avec demande de gel. ${procedureFor(dest.entity)}`,
       },
       hints: [
         'Suivez les sorties de l\'adresse de collecte BTC : l\'une d\'elles est une adresse de dépôt d\'un échangeur instantané.',
-        'Dans l\'outil de corrélation, partez de l\'heure exacte du dépôt Ocelot et de sa valeur en USD ; choisissez Ethereum comme chaîne cible.',
+        'Dans l\'outil de corrélation, partez de l\'heure exacte du dépôt ChangeNOW et de sa valeur en USD ; choisissez Ethereum comme chaîne cible.',
         'Le détail d\'une transaction bridgeOut indique la chaîne et la transaction de destination : cliquez dessus pour changer de chaîne.',
-        'Sur BSC, un swap SyrupSwap convertit les BNB en USDT : suivez les USDT renvoyés par le pool.',
+        'Sur BSC, un swap PancakeSwap convertit les BNB en USDT : suivez les USDT renvoyés par le pool.',
       ],
     }
   },

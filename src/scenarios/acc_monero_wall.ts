@@ -38,10 +38,10 @@ export const accMoneroWall: ScenarioTemplate = {
     const victimName = fakeName(r)
     const handle = fakeHandle(r)
 
-    const fx = w.entity('flashx')
-    const fxDep = w.addr('btc', { entity: fx, label: 'FlashX — Adresse de dépôt', tags: ['deposit'] })
-    const fxHot = w.addr('btc', { entity: fx, label: 'FlashX — Hot Wallet BTC', tags: ['liquid', 'hot'], kind: 'p2wpkh' })
-    const destKey = r.pick(['coinvault', 'nordex', 'binova'] as const)
+    const fx = w.entity('exch')
+    const fxDep = w.addr('btc', { entity: fx, label: 'eXch — Adresse de dépôt', tags: ['deposit'] })
+    const fxHot = w.addr('btc', { entity: fx, label: 'eXch — Hot Wallet BTC', tags: ['liquid', 'hot'], kind: 'p2wpkh' })
+    const destKey = r.pick(['coinhouse', 'bitstamp', 'binance'] as const)
     const dest = exchange(w, destKey, 'btc')
     const orbit = w.entity('orbit')
     const orbitAddr = w.addr('btc', { entity: orbit, label: 'OrbitCasino — Dépôts', tags: ['liquid'] })
@@ -70,7 +70,7 @@ export const accMoneroWall: ScenarioTemplate = {
       }
     }
 
-    // Entrée : tout le solde part chez FlashX (BTC → XMR)
+    // Entrée : tout le solde part chez eXch (BTC → XMR)
     const entryT = w.at(r.float(30, 60))
     const entryTx = forwardAll(w, s, fxDep, entryT)
     const entryBtc = w.flowIn(entryTx, fxDep)[0].value
@@ -83,7 +83,7 @@ export const accMoneroWall: ScenarioTemplate = {
     const msgT = exitT + Math.round(r.float(1, 3) * HOUR)
     const quoted = Math.round(exitBtc * 1000) / 1000
 
-    // Paiements du hot wallet FlashX, générés dans l'ordre chronologique
+    // Paiements du hot wallet eXch, générés dans l'ordre chronologique
     // (réserve initiale importante pour que la chaîne des rendus reste cohérente)
     w.sweepInto(fxHot, roundCoin(w, 55, 70, 0.0001), entryT - 2 * DAY)
     const plan: { to: string; value: number; time: number }[] = [{ to: x1, value: exitBtc, time: exitT }]
@@ -115,10 +115,10 @@ export const accMoneroWall: ScenarioTemplate = {
     const depSweep = dest.sweep([depAddr], depTx.time + r.int(1, 8) * HOUR)[0]
     const dep = { tx: depTx, deposit: depAddr, sweep: depSweep }
 
-    // Autres clients qui déposent chez FlashX
+    // Autres clients qui déposent chez eXch
     for (let i = 0; i < r.int(5, 9); i++) {
       const c = w.addr('btc')
-      const d = w.addr('btc', { entity: fx, label: 'FlashX — Adresse de dépôt', tags: ['deposit'] })
+      const d = w.addr('btc', { entity: fx, label: 'eXch — Adresse de dépôt', tags: ['deposit'] })
       const t = entryT + r.float(-2, 7) * DAY
       w.fund(c, roundCoin(w, 0.01, 0.9, 0.0001), t - r.int(2, 30) * HOUR)
       forwardAll(w, c, d, t)
@@ -155,7 +155,7 @@ export const accMoneroWall: ScenarioTemplate = {
         {
           id: 'telegram', type: 'telegram', title: 'Telegram — extraction du téléphone du téléopérateur', author: `@${handle}`, date: msgT,
           body:
-            `[${fmtDate(entryT + 50 * 60)}] @${handle} : tout est passé en XMR chez FlashX 🔒 qu'ils viennent me chercher 😂\n` +
+            `[${fmtDate(entryT + 50 * 60)}] @${handle} : tout est passé en XMR chez eXch 🔒 qu'ils viennent me chercher 😂\n` +
             `[${fmtDate(entryT + 70 * 60)}] téléopérateur : et tu ressors quand ? on attend nos commissions\n` +
             `[${fmtDate(entryT + 75 * 60)}] @${handle} : je laisse dormir quelques jours\n` +
             `[${fmtDate(msgT)}] @${handle} : c'est ressorti en BTC, ${quoted.toLocaleString('fr-FR')} tout propre 🧼 je mets direct sur mon compte`,
@@ -165,17 +165,17 @@ export const accMoneroWall: ScenarioTemplate = {
       objectives: [
         {
           id: 'o1', type: 'address', points: 20,
-          prompt: 'Point d\'entrée : sur quelle adresse de dépôt FlashX les bitcoins collectés auprès des victimes ont-ils été envoyés ?',
+          prompt: 'Point d\'entrée : sur quelle adresse de dépôt eXch les bitcoins collectés auprès des victimes ont-ils été envoyés ?',
           answer: [fxDep],
           hint: 'Suivez la transaction qui vide l\'adresse de collecte : la destination est une adresse de dépôt d\'échangeur, balayée peu après vers son hot wallet.',
-          explanation: `Le ${fmtDate(entryT)}, ${amt(entryBtc, 'BTC')} (≈ ${Math.round(entryUsd).toLocaleString('fr-FR')} $) partent sur ${A(w, fxDep)}, aussitôt balayée vers le hot wallet BTC de FlashX. Côté Monero, plus rien n'est visible. ${procedureFor(fx)}`,
+          explanation: `Le ${fmtDate(entryT)}, ${amt(entryBtc, 'BTC')} (≈ ${Math.round(entryUsd).toLocaleString('fr-FR')} $) partent sur ${A(w, fxDep)}, aussitôt balayée vers le hot wallet BTC d'eXch. Côté Monero, plus rien n'est visible. ${procedureFor(fx)}`,
         },
         {
           id: 'o2', type: 'address', points: 30,
-          prompt: 'Quelle adresse BTC est le candidat de sortie le plus probable (paiement FlashX au suspect) ?',
+          prompt: 'Quelle adresse BTC est le candidat de sortie le plus probable (paiement eXch au suspect) ?',
           answer: [x1],
-          hint: `Corrélez à partir du message Telegram, pas du dépôt d'entrée : émetteur FlashX, chaîne Bitcoin, fenêtre de 24 h précédant le message, montant ≈ ${quoted.toLocaleString('fr-FR')} BTC, tolérance élargie (~5 %). Examinez ensuite ce que fait chaque candidat.`,
-          explanation: `${A(w, x1)} reçoit ${amt(exitBtc, 'BTC')} de FlashX ${Math.round((msgT - exitT) / 60)} minutes avant le message, montant compatible avec « ${quoted.toLocaleString('fr-FR')} », puis dépose tout sur ${dest.entity.name} (« direct sur mon compte »). Les autres candidats ont un montant moins proche ou un horaire incompatible, ou finissent dans un casino.`,
+          hint: `Corrélez à partir du message Telegram, pas du dépôt d'entrée : émetteur eXch, chaîne Bitcoin, fenêtre de 24 h précédant le message, montant ≈ ${quoted.toLocaleString('fr-FR')} BTC, tolérance élargie (~5 %). Examinez ensuite ce que fait chaque candidat.`,
+          explanation: `${A(w, x1)} reçoit ${amt(exitBtc, 'BTC')} d'eXch ${Math.round((msgT - exitT) / 60)} minutes avant le message, montant compatible avec « ${quoted.toLocaleString('fr-FR')} », puis dépose tout sur ${dest.entity.name} (« direct sur mon compte »). Les autres candidats ont un montant moins proche ou un horaire incompatible, ou finissent dans un casino.`,
         },
         {
           id: 'o3', type: 'entity', points: 25,
@@ -191,7 +191,7 @@ export const accMoneroWall: ScenarioTemplate = {
             [
               'Lien certain : la corrélation montant/temps prouve à elle seule l\'identité du titulaire',
               'Aucune conclusion possible : Monero rend toute analyse inutile, l\'affaire doit être classée',
-              'Lien certain dès que FlashX aura « déchiffré » la blockchain Monero sur réquisition',
+              'Lien certain dès qu\'eXch aura « déchiffré » la blockchain Monero sur réquisition',
             ]),
           explanation: `Le passage par Monero rompt la preuve on-chain. La sortie est une hypothèse étayée par un faisceau d'indices (écart de ${quoteGapTxt} avec le montant annoncé dans le message, horaire, dépôt immédiat sur un exchange) ; elle devient solide si la réquisition à ${dest.entity.name} renvoie vers @${handle} (identité, IP, appareil). Noter aussi qu'on ne retrouve que ${Math.round((exitBtc / entryBtc) * 100)} % du montant d'entrée : une partie des XMR a été conservée ou dépensée ailleurs, et la corrélation à partir du dépôt d'entrée échoue.`,
         },
@@ -201,15 +201,15 @@ export const accMoneroWall: ScenarioTemplate = {
         addresses: [s, fxDep, x1, dep.deposit],
         debrief:
           `1. ${nPay} victimes du faux support technique paient ${A(w, s)}.\n` +
-          `2. Le ${fmtDate(entryT)}, le suspect envoie ${amt(entryBtc, 'BTC')} sur une adresse de dépôt FlashX (commande BTC → XMR). Les XMR disparaissent de toute analyse publique : adresses furtives (stealth), signatures en anneau et montants masqués (RingCT).\n` +
-          `3. ${Math.round((exitT - entryT) / DAY)} jours plus tard, une commande XMR → BTC fait payer ${amt(exitBtc, 'BTC')} par le hot wallet FlashX vers ${A(w, x1)}, au milieu de dizaines d'autres paiements.\n` +
+          `2. Le ${fmtDate(entryT)}, le suspect envoie ${amt(entryBtc, 'BTC')} sur une adresse de dépôt eXch (commande BTC → XMR). Les XMR disparaissent de toute analyse publique : adresses furtives (stealth), signatures en anneau et montants masqués (RingCT).\n` +
+          `3. ${Math.round((exitT - entryT) / DAY)} jours plus tard, une commande XMR → BTC fait payer ${amt(exitBtc, 'BTC')} par le hot wallet eXch vers ${A(w, x1)}, au milieu de dizaines d'autres paiements.\n` +
           `4. Le message Telegram (« ${quoted.toLocaleString('fr-FR')} », « direct sur mon compte ») permet de cibler la corrélation ; ${A(w, x1)} dépose ensuite tout sur ${dest.entity.name}.\n\n` +
           `À retenir : face à Monero, on travaille sur les bords (entrée/sortie), avec des fenêtres et tolérances larges, et on croise avec l'OSINT. Le résultat est une attribution probabiliste qu'il faut présenter comme telle dans la procédure et corroborer (réquisition exchange, téléphonie, perquisition : un portefeuille Monero saisi chez le suspect, avec ses clés, permettrait de reconstituer ses transactions — la clé de vue révèle les entrées, le fichier de portefeuille les sorties).`,
       },
       hints: [
         'L\'adresse de collecte figure dans les consignes de paiement : dépliez ses entrées (victimes) puis sa sortie.',
         'Corréler à partir du dépôt d\'entrée ne donne rien : les montants et le délai ne correspondent pas. Partez du dernier message Telegram.',
-        'Dans l\'outil de corrélation : émetteur FlashX, Bitcoin, début 24 h avant le message, fenêtre 24 h, tolérance d\'environ 5 %.',
+        'Dans l\'outil de corrélation : émetteur eXch, Bitcoin, début 24 h avant le message, fenêtre 24 h, tolérance d\'environ 5 %.',
         'Parmi les candidats, cherchez celui qui envoie ses fonds « direct » sur un compte d\'exchange.',
       ],
     }

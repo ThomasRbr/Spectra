@@ -23,10 +23,10 @@ export const accRugpullBsc: ScenarioTemplate = {
     const devHandle = fakeHandle(r)
 
     const br = bridge(w, 'arcbridge')
-    const syrup = dex(w, 'syrupswap', 'bsc')
-    const destKey = r.pick(['huobex', 'kaizen', 'binova'] as const)
+    const syrup = dex(w, 'pancakeswap', 'bsc')
+    const destKey = r.pick(['huobex', 'okx', 'binance'] as const)
     const dest = exchange(w, destKey, 'bsc')
-    const onramps = [exchange(w, 'binova', 'bsc'), exchange(w, 'kaizen', 'bsc'), exchange(w, 'coinvault', 'bsc')]
+    const onramps = [exchange(w, 'binance', 'bsc'), exchange(w, 'okx', 'bsc'), exchange(w, 'coinhouse', 'bsc')]
 
     const projectE = w.customEntity({ name: 'Zephyrion ($ZPHR)', category: 'scam' })
     const devE = w.customEntity({ name: `Développeur « ${devHandle} » (inconnu)`, category: 'suspect' })
@@ -110,7 +110,7 @@ export const accRugpullBsc: ScenarioTemplate = {
     const ethDest = w.addr('eth', { entity: devE })
     const brOut = br.send({ from: w1, value: roundAsset('BNB', toW1 * 0.995), time: rugT + r.float(1.5, 4) * HOUR, toChain: 'eth', recipient: ethDest })
 
-    // W3 : swap BNB → USDT sur SyrupSwap puis exchange
+    // W3 : swap BNB → USDT sur PancakeSwap puis exchange
     const sw = syrup.swap({ trader: w3, assetIn: 'BNB', amountIn: roundAsset('BNB', toW3 * 0.99), assetOut: 'USDT', time: rugT + r.float(3, 8) * HOUR })
     const d3 = dest.receive(w3, sw.amountOut, rugT + r.float(9, 20) * HOUR, { asset: 'USDT' })
     usdtToExchange += sw.amountOut
@@ -150,11 +150,11 @@ export const accRugpullBsc: ScenarioTemplate = {
             `Contrat officiel de prévente (BSC) : ${A(w, presale)}\n` +
             `Acceptés : BNB et USDT (BEP-20)\n` +
             `✅ Liquidité verrouillée 12 mois  ✅ Équipe doxxée  ✅ Audit en cours\n` +
-            `Lancement sur SyrupSwap dans 18 jours !`,
+            `Lancement sur PancakeSwap dans 18 jours !`,
         },
         {
           id: 'capture', type: 'capture', title: 'Capture du site (archive)', date: w.at(-5 * 24),
-          body: `Zephyrion — The future of DeFi yield\nPresale : 87 % rempli 🔥\nHard cap : 150 BNB\nListing SyrupSwap : ${fmtDate(rugT, false)}`,
+          body: `Zephyrion — The future of DeFi yield\nPresale : 87 % rempli 🔥\nHard cap : 150 BNB\nListing PancakeSwap : ${fmtDate(rugT, false)}`,
         },
       ],
       seeds: [],
@@ -184,7 +184,7 @@ export const accRugpullBsc: ScenarioTemplate = {
           id: 'o4', type: 'entity', points: 20,
           prompt: 'Sur quel exchange une partie des fonds a-t-elle été déposée ?',
           answer: [destKey],
-          explanation: `${amt(roundAsset('USDT', usdtToExchange), 'USDT')} arrivent sur ${dest.entity.name}${raisedUsdt > 0 ? ' : les USDT de la prévente directement, et des BNB convertis en USDT sur SyrupSwap' : ', après conversion des BNB en USDT sur SyrupSwap'}. ${procedureFor(dest.entity)}`,
+          explanation: `${amt(roundAsset('USDT', usdtToExchange), 'USDT')} arrivent sur ${dest.entity.name}${raisedUsdt > 0 ? ' : les USDT de la prévente directement, et des BNB convertis en USDT sur PancakeSwap' : ', après conversion des BNB en USDT sur PancakeSwap'}. ${procedureFor(dest.entity)}`,
         },
         {
           id: 'o5', type: 'address', points: 20,
@@ -201,7 +201,7 @@ export const accRugpullBsc: ScenarioTemplate = {
           `1. Le développeur ${A(w, dev)}, financé via ArcBridge depuis ${A(w, devEth)} (Ethereum), déploie le contrat de prévente ${A(w, presale)}.\n` +
           `2. ${nInv} investisseurs y versent ${amt(raisedBnb, 'BNB')} et ${amt(raisedUsdt, 'USDT')} en ${nContrib} participations, soit ≈ ${Math.round(raisedUsd).toLocaleString('fr-FR')} $.\n` +
           `3. Le jour du lancement, « emergencyWithdraw » renvoie tout au développeur, qui répartit sur trois portefeuilles.\n` +
-          `4. ${A(w, w1)} bridge ses BNB vers Ethereum (${amt(brOut.received, 'ETH')} pour ${A(w, ethDest)}) ; ${A(w, w3)} convertit ses BNB en USDT sur SyrupSwap ; les USDT finissent sur ${dest.entity.name}.\n\n` +
+          `4. ${A(w, w1)} bridge ses BNB vers Ethereum (${amt(brOut.received, 'ETH')} pour ${A(w, ethDest)}) ; ${A(w, w3)} convertit ses BNB en USDT sur PancakeSwap ; les USDT finissent sur ${dest.entity.name}.\n\n` +
           `À retenir : dans un rug pull, le contrat (prévente, pool de liquidité) centralise la preuve du préjudice : chaque transaction entrante est une victime. La fonction de retrait réservée au propriétaire (« emergencyWithdraw », « removeLiquidity ») désigne le développeur. Les promesses (« liquidité verrouillée », « équipe doxxée ») se vérifient on-chain. Penser à réquisitionner les exchanges qui ont financé les investisseurs pour les identifier et les informer.`,
       },
       hints: [

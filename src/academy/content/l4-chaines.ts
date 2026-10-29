@@ -43,7 +43,7 @@ Les montants Lightning s'expriment souvent en **millisatoshis** (msat) : 1 sat =
         { id: 'v', label: 'Portefeuille victime', kind: 'victim', sub: 'nœud mobile' },
         { id: 'lsp', label: 'LSP', kind: 'service', sub: 'nœud de routage' },
         { id: 'hub', label: 'Nœud de routage', kind: 'service', sub: 'voit montant et hash' },
-        { id: 'bn', label: 'Nœud Binova', kind: 'exchange', sub: 'émetteur de la facture' },
+        { id: 'bn', label: 'Nœud Binance', kind: 'exchange', sub: 'émetteur de la facture' },
         { id: 'acc', label: 'Compte client', kind: 'suspect', sub: 'crédité 4,2 M sats' },
       ],
       edges: [
@@ -87,7 +87,7 @@ Les montants Lightning s'expriment souvent en **millisatoshis** (msat) : 1 sat =
       title: 'Sur le terrain : les canaux publics sont annoncés',
       md: `Un canal **public** est annoncé sur le réseau de *gossip* avec son \`short_channel_id\`, qui désigne précisément la sortie de la funding transaction. Les explorateurs Lightning (pages « Lightning » de mempool.space, Amboss, 1ML…) relient ainsi une **clé publique de nœud** à des **UTXO** on-chain, à un alias et parfois à une adresse IP ou à une adresse Tor.
 
-Attention : l'alias et la couleur d'un nœud sont **auto-déclarés**. Un nœud nommé « Binova » n'appartient pas forcément à Binova : vérifiez par d'autres sources (site officiel, documentation, réponse du service). Les canaux **privés** (non annoncés), très fréquents sur mobile, n'apparaissent pas dans le gossip.`,
+Attention : l'alias et la couleur d'un nœud sont **auto-déclarés**. Un nœud nommé « Binance » n'appartient pas forcément à Binance : vérifiez par d'autres sources (site officiel, documentation, réponse du service). Les canaux **privés** (non annoncés), très fréquents sur mobile, n'apparaissent pas dans le gossip.`,
     },
     { type: 'widget', id: 'fee-mempool', caption: 'Une fermeture forcée en période de mempool chargée : pourquoi les ancres et le CPFP existent, et pourquoi le délai compte.' },
     {
@@ -128,11 +128,11 @@ Attention : l'alias et la couleur d'un nœud sont **auto-déclarés**. Un nœud 
       title: 'Cas — La facture du faux vendeur',
       md: `La victime transmet une capture de la facture payée le 18 mars à 09:43 UTC. Décodage hors ligne : montant 4 200 000 sats, payment hash \`5f2c…a91e\`, clé publique de destinataire \`03a1…7c4d\`, description « Commande #A-2291 ».
 
-La clé \`03a1…7c4d\` est un nœud public disposant de plus de 300 canaux, que la documentation officielle de Binova désigne comme son nœud de dépôt Lightning. La facture a donc vraisemblablement été générée depuis **un compte client Binova** (fonction « déposer via Lightning »).
+La clé \`03a1…7c4d\` est un nœud public disposant de plus de 300 canaux, que la documentation officielle de Binance désigne comme son nœud de dépôt Lightning. La facture a donc vraisemblablement été générée depuis **un compte client Binance** (fonction « déposer via Lightning »).
 
 La victime fournit aussi la **preimage** affichée par son portefeuille : son empreinte SHA-256 correspond au payment hash, ce qui **prouve** que le paiement a abouti.
 
-Réquisition à Binova : payment hash, montant, date et heure de création de la facture et de paiement → identité du titulaire du compte, IP de connexion lors de la génération de la facture, historique des retraits ultérieurs (on-chain : adresses et hash).`,
+Réquisition à Binance : payment hash, montant, date et heure de création de la facture et de paiement → identité du titulaire du compte, IP de connexion lors de la génération de la facture, historique des retraits ultérieurs (on-chain : adresses et hash).`,
     },
     {
       type: 'check',
@@ -233,7 +233,7 @@ Avant toute manipulation : fixez l'état (captures, export de la liste des canau
       explain: 'Le payment hash identifie le paiement chez l\'émetteur de la facture et chez tous les nœuds qui l\'ont routé.',
     },
     {
-      q: 'Un nœud public porte l\'alias « Coinvault-Pay ». On peut en conclure qu\'il appartient à Coinvault.',
+      q: 'Un nœud public porte l\'alias « Coinhouse-Pay ». On peut en conclure qu\'il appartient à Coinhouse.',
       kind: 'truefalse',
       options: ['Vrai', 'Faux'],
       answer: 1,
@@ -374,10 +374,10 @@ Les **Layer 2** (L2) concentrent aujourd'hui une large part de l'activité EVM. 
         { id: 'h', label: '0x7d2c…', kind: 'suspect', sub: 'Ethereum' },
         { id: 'br', label: 'Pont canonique', kind: 'bridge', sub: 'contrat L1' },
         { id: 'arb', label: '0x7d2c…', kind: 'wallet', sub: 'Arbitrum' },
-        { id: 'dex', label: 'OmniSwap', kind: 'dex', sub: 'ETH → USDC' },
+        { id: 'dex', label: 'Uniswap', kind: 'dex', sub: 'ETH → USDC' },
         { id: 'arc', label: 'ArcBridge', kind: 'bridge', sub: 'Arbitrum → BNB Chain' },
         { id: 'bsc', label: '0x19fe…', kind: 'wallet', sub: 'BNB Chain' },
-        { id: 'bin', label: 'Binova', kind: 'exchange', sub: 'adresse de dépôt' },
+        { id: 'bin', label: 'Binance', kind: 'exchange', sub: 'adresse de dépôt' },
       ],
       edges: [
         { from: 'h', to: 'br', label: 'dépôt 85 ETH' },
@@ -447,7 +447,7 @@ Côté lecture :
       title: 'Cas — Le détour par Arbitrum',
       md: `Le 11 avril à 03:14 UTC, l'adresse \`0x7d2c…41\` (fonds issus d'un piratage de compte) dépose **85 ETH** dans le pont canonique d'Arbitrum. À 03:26 UTC, l'adresse est créditée de 85 ETH sur Arbitrum.
 
-À 03:41 UTC, elle échange 85 ETH contre **201 300 USDC** sur OmniSwap (Arbitrum). À 04:02 UTC, elle dépose les USDC dans ArcBridge vers BNB Chain ; l'événement publie le destinataire \`0x19fe…a0\` et le nonce 48 211. À 04:06 UTC, ArcBridge verse **201 080 USDT** à \`0x19fe…a0\` sur BNB Chain (référence au nonce 48 211). Le 12 avril, \`0x19fe…a0\` dépose 200 950 USDT sur une adresse de dépôt Binova.
+À 03:41 UTC, elle échange 85 ETH contre **201 300 USDC** sur Uniswap (Arbitrum). À 04:02 UTC, elle dépose les USDC dans ArcBridge vers BNB Chain ; l'événement publie le destinataire \`0x19fe…a0\` et le nonce 48 211. À 04:06 UTC, ArcBridge verse **201 080 USDT** à \`0x19fe…a0\` sur BNB Chain (référence au nonce 48 211). Le 12 avril, \`0x19fe…a0\` dépose 200 950 USDT sur une adresse de dépôt Binance.
 
 Points à documenter : chaque hash sur sa chaîne, l'explorateur utilisé, la référence L1 du dépôt, le nonce du bridge. Les liens sont **déterministes** (pont canonique, événement du bridge) : aucune heuristique n'est nécessaire, ce qui renforce considérablement la conclusion.`,
     },
@@ -696,7 +696,7 @@ Les **programmes** (l'équivalent des smart contracts) sont **sans état** : ils
 
 \`HbV2…u8Pz\` a créé et financé, en quinze jours, **23 ATA USDC** pour 23 portefeuilles différents ; 11 d'entre eux ont reçu des fonds de victimes déjà signalées sur des plateformes de signalement.
 
-À 10:31 UTC, \`7xKX…pQ3m\` échange les USDC contre **312,4 SOL** via un agrégateur (6 pools dans les instructions internes), puis ferme l'ATA : les lamports du loyer reviennent à \`HbV2…u8Pz\`. À 11:05 UTC, les SOL partent vers une adresse de dépôt attribuée à Binova.
+À 10:31 UTC, \`7xKX…pQ3m\` échange les USDC contre **312,4 SOL** via un agrégateur (6 pools dans les instructions internes), puis ferme l'ATA : les lamports du loyer reviennent à \`HbV2…u8Pz\`. À 11:05 UTC, les SOL partent vers une adresse de dépôt attribuée à Binance.
 
 Analyse : le payeur du loyer et la destination de fermeture désignent le **même opérateur** derrière plusieurs portefeuilles de réception. Lien de confiance **élevée** entre ces portefeuilles, à exposer avec la liste des transactions de création et de fermeture.`,
     },

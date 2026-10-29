@@ -25,8 +25,8 @@ export const s02PigButchering: ScenarioTemplate = {
     const scamE = w.entity('aurora', { known: false })
     const operator = w.customEntity({ name: 'Réseau AuroraTrade (opérateurs)', category: 'suspect' })
 
-    const cv = exchange(w, 'coinvault', 'tron')
-    const kz = exchange(w, 'kaizen', 'tron')
+    const cv = exchange(w, 'coinhouse', 'tron')
+    const kz = exchange(w, 'okx', 'tron')
     const hx = exchange(w, 'huobex', 'tron')
     const otc = w.entity('satsdesk')
     const otcAddr = w.addr('tron', { entity: otc, label: 'SatsDesk OTC — Collecte', tags: ['liquid'] })
@@ -54,7 +54,7 @@ export const s02PigButchering: ScenarioTemplate = {
       for (let k = 0; k < nPay; k++) {
         const t = w.at(-20 * 24 + i * 50 + k * r.float(40, 120))
         const value = roundAsset('USDT', Math.round(r.float(1500, 18000) / 100) * 100)
-        // La victime achète ses USDT sur Coinvault
+        // La victime achète ses USDT sur Coinhouse
         cv.withdraw(va, value + r.int(5, 40), t - r.int(1, 6) * HOUR, 'USDT')
         const tx = w.transfer({ time: t, from: va, to: dep, value, asset: 'USDT' })
         if (i === 0 && k === 0) firstTx = tx.hash
@@ -92,14 +92,14 @@ export const s02PigButchering: ScenarioTemplate = {
       title: `Opération Aurora — ${city}`,
       briefing:
         `${victimName} (${city}) a rencontré « Kevin », trader basé à Singapour, sur une application de rencontre. Après plusieurs semaines de conversation, il l'a ${g('incité', 'incitée')} à investir sur la plateforme AuroraTrade, qui affichait des gains spectaculaires.\n\n` +
-        `${g('Il', 'Elle')} a acheté des USDT sur Coinvault (réseau Tron) et les a envoyés à l'adresse de dépôt fournie par la plateforme. Quand ${g('il', 'elle')} a voulu retirer, on lui a réclamé des « frais de déblocage ».\n\n` +
+        `${g('Il', 'Elle')} a acheté des USDT sur Coinhouse (réseau Tron) et les a envoyés à l'adresse de dépôt fournie par la plateforme. Quand ${g('il', 'elle')} a voulu retirer, on lui a réclamé des « frais de déblocage ».\n\n` +
         `Objectifs : remonter jusqu'au portefeuille collecteur du réseau, mesurer l'ampleur (autres victimes, montant total), identifier les plateformes de sortie et les fonds encore gelables.`,
       evidence: [
         {
           id: 'plainte', type: 'plainte', title: 'Plainte — déclaration de la victime', date: w.at(7 * 24), author: victimName,
           body:
             `« J'ai effectué ${plaignante.txs.length / 2} versements, pour un total de ${amt(plaignante.total, 'USDT')}.\n` +
-            `Mon adresse Tron (Coinvault → portefeuille personnel) : ${A(w, plaignante.addr)}\n` +
+            `Mon adresse Tron (Coinhouse → portefeuille personnel) : ${A(w, plaignante.addr)}\n` +
             `Premier versement : ${firstTx} »`,
         },
         {
@@ -125,7 +125,7 @@ export const s02PigButchering: ScenarioTemplate = {
           prompt: 'Combien de victimes distinctes (adresses sources) alimentent le réseau via les adresses de dépôt ?',
           answer: nVictims,
           hint: 'Dépliez les entrées du collecteur, puis les entrées de chaque adresse de dépôt.',
-          explanation: `${nVictims} victimes : chaque adresse de dépôt AuroraTrade correspond à une victime, financée depuis Coinvault. Les autres victimes peuvent être identifiées par réquisition à Coinvault.`,
+          explanation: `${nVictims} victimes : chaque adresse de dépôt AuroraTrade correspond à une victime, financée depuis Coinhouse. Les autres victimes peuvent être identifiées par réquisition à Coinhouse.`,
         },
         {
           id: 'o3', type: 'amount', points: 20, unit: 'USDT', tolerance: 0.03,
@@ -136,8 +136,8 @@ export const s02PigButchering: ScenarioTemplate = {
         {
           id: 'o4', type: 'entity', points: 20,
           prompt: 'Quelle plateforme a reçu la plus grosse part des fonds ?',
-          answer: ['kaizen'],
-          explanation: `Kaizen Exchange reçoit ${amt(kzShare, 'USDT')}, Huobex ${amt(hxShare, 'USDT')} et SatsDesk OTC ${amt(otcShare, 'USDT')}. ${procedureFor(kz.entity)}`,
+          answer: ['okx'],
+          explanation: `OKX reçoit ${amt(kzShare, 'USDT')}, Huobex ${amt(hxShare, 'USDT')} et SatsDesk OTC ${amt(otcShare, 'USDT')}. ${procedureFor(kz.entity)}`,
         },
         {
           id: 'o5', type: 'choice', points: 20,
@@ -145,11 +145,11 @@ export const s02PigButchering: ScenarioTemplate = {
           ...choice(r,
             'Demander en urgence le gel de l\'adresse à l\'émetteur de l\'USDT, puis requérir les plateformes de sortie',
             [
-              'Demander à Coinvault la clé privée du collecteur pour saisir immédiatement les USDT',
+              'Demander à Coinhouse la clé privée du collecteur pour saisir immédiatement les USDT',
               'Attendre la fin des investigations pour ne pas alerter le réseau avant les interpellations',
               'Envoyer une petite somme d\'USDT au collecteur pour « marquer » les fonds avant leur départ',
             ]),
-          explanation: 'L\'USDT est un jeton centralisé : son émetteur peut bloquer (blacklister) une adresse, souvent en quelques heures sur demande motivée des autorités. C\'est fréquemment la seule manière de préserver des fonds avant leur dispersion ; la saisie pénale proprement dite suit (autorisation du JLD ou du juge d\'instruction). On requiert ensuite les plateformes de sortie. Coinvault n\'a aucune prise sur une adresse auto-hébergée, et « marquer » des fonds n\'a aucun sens on-chain.',
+          explanation: 'L\'USDT est un jeton centralisé : son émetteur peut bloquer (blacklister) une adresse, souvent en quelques heures sur demande motivée des autorités. C\'est fréquemment la seule manière de préserver des fonds avant leur dispersion ; la saisie pénale proprement dite suit (autorisation du JLD ou du juge d\'instruction). On requiert ensuite les plateformes de sortie. Coinhouse n\'a aucune prise sur une adresse auto-hébergée, et « marquer » des fonds n\'a aucun sens on-chain.',
         },
       ],
       truth: {
@@ -157,7 +157,7 @@ export const s02PigButchering: ScenarioTemplate = {
         addresses: [collector, gasWallet, ...victims.map((v) => v.deposit), kzRes.deposit, hxRes.deposit],
         debrief:
           `Le réseau a ouvert une adresse de dépôt par victime (${nVictims} victimes), toutes vidées vers le collecteur ${A(w, collector)}.\n\n` +
-          `Total collecté : ${amt(grand, 'USDT')}. Décaissements : ${amt(kzShare, 'USDT')} vers Kaizen, ${amt(hxShare, 'USDT')} vers Huobex, ${amt(otcShare, 'USDT')} vers un courtier OTC. Il reste ${amt(remaining, 'USDT')} sur le collecteur.\n\n` +
+          `Total collecté : ${amt(grand, 'USDT')}. Décaissements : ${amt(kzShare, 'USDT')} vers OKX, ${amt(hxShare, 'USDT')} vers Huobex, ${amt(otcShare, 'USDT')} vers un courtier OTC. Il reste ${amt(remaining, 'USDT')} sur le collecteur.\n\n` +
           `Piste bonus : les adresses de dépôt et le collecteur reçoivent leurs TRX (gas) d'un même portefeuille ${A(w, gasWallet)}. Ce « financeur de gas » relie toutes les adresses du réseau, même sans flux d'USDT.`,
       },
       hints: [

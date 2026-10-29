@@ -31,14 +31,14 @@ Ce qui est vrai, en revanche, c'est qu'un DEX n'a **ni opérateur détenant les 
       {
         type: 'compare',
         left: {
-          title: 'Exchange centralisé (Coinvault, Binova)',
+          title: 'Exchange centralisé (Coinhouse, Binance)',
           md: `- Les fonds entrent dans une **comptabilité interne** : la trace on-chain s'interrompt au dépôt.
 - Le client est **identifié** (KYC) : réquisition possible.
 - Le service peut **geler** un compte.
 - Le lien dépôt → retrait n'est connu que du service.`,
         },
         right: {
-          title: 'Exchange décentralisé (OmniSwap, SyrupSwap)',
+          title: 'Exchange décentralisé (Uniswap, PancakeSwap)',
           md: `- Le swap est **on-chain** : entrée et sortie dans la même transaction.
 - **Aucun KYC** : l'utilisateur n'est qu'une adresse.
 - **Aucun gel** possible au niveau du protocole (seul l'émetteur d'un stablecoin peut geler son jeton).
@@ -58,7 +58,7 @@ Variantes : liquidité **concentrée** sur des plages de prix (plusieurs pools p
         type: 'callout',
         kind: 'example',
         title: 'Le calcul sur un exemple',
-        md: `Pool OmniSwap : **1 000 WETH** et **3 000 000 USDT**, soit un prix de 3 000 USDT/ETH ; \`k = 3 000 000 000\`.
+        md: `Pool Uniswap : **1 000 WETH** et **3 000 000 USDT**, soit un prix de 3 000 USDT/ETH ; \`k = 3 000 000 000\`.
 
 Un suspect apporte **30 000 USDT**. Après les frais de 0,3 %, 29 910 USDT entrent dans le calcul. Nouvelles réserves USDT : 3 029 910. Réserve WETH qui conserve k : 3 000 000 000 / 3 029 910 ≈ 990,128. Il reçoit donc **≈ 9,872 WETH**.
 
@@ -84,8 +84,8 @@ Prix effectif : 30 000 / 9,872 ≈ **3 039 USDT/ETH**, soit environ 1,3 % de plu
         type: 'flow',
         nodes: [
           { id: 'a', label: '0x7a3c…e41b', kind: 'suspect', sub: 'émetteur de la tx' },
-          { id: 'r', label: 'Routeur OmniSwap', kind: 'contract' },
-          { id: 'p', label: 'Pool USDT/WETH', kind: 'dex', sub: 'OmniSwap' },
+          { id: 'r', label: 'Routeur Uniswap', kind: 'contract' },
+          { id: 'p', label: 'Pool USDT/WETH', kind: 'dex', sub: 'Uniswap' },
           { id: 'w', label: 'Contrat WETH', kind: 'contract', sub: 'Withdrawal' },
           { id: 'b', label: '0x9e01…07ca', kind: 'wallet', sub: 'bénéficiaire réel' },
         ],
@@ -113,7 +113,7 @@ Prix effectif : 30 000 / 9,872 ≈ **3 039 USDT/ETH**, soit environ 1,3 % de plu
         type: 'callout',
         kind: 'warn',
         title: 'Le destinataire n\'est pas forcément l\'émetteur',
-        md: `Le paramètre « destinataire » d'un swap peut désigner **n'importe quelle adresse**. Ne supposez jamais que la sortie revient au \`from\` de la transaction : suivez le dernier \`Transfer\` (ou la transaction interne) jusqu'à son bénéficiaire réel. Bonne formulation : « 0x7a3c a converti 25 000 USDT en 7,41 ETH via OmniSwap, versés à 0x9e01 » — et non « 0x7a3c a envoyé des fonds à OmniSwap ».`,
+        md: `Le paramètre « destinataire » d'un swap peut désigner **n'importe quelle adresse**. Ne supposez jamais que la sortie revient au \`from\` de la transaction : suivez le dernier \`Transfer\` (ou la transaction interne) jusqu'à son bénéficiaire réel. Bonne formulation : « 0x7a3c a converti 25 000 USDT en 7,41 ETH via Uniswap, versés à 0x9e01 » — et non « 0x7a3c a envoyé des fonds à Uniswap ».`,
       },
       {
         type: 'check',
@@ -167,11 +167,11 @@ Prix effectif : 30 000 / 9,872 ≈ **3 039 USDT/ETH**, soit environ 1,3 % de plu
         title: 'Cas — le drainer et les trois swaps',
         md: `Le 3 juin 2026, une victime signe une approbation illimitée sur un faux site d'airdrop. À 18:02 UTC, 41 250 USDC sont aspirés vers \`0x5d1f…a9c0\`.
 
-- 18:04 : swap sur OmniSwap, 41 250 USDC → 13,52 WETH, désenveloppés et versés à \`0x22be…41f7\`.
+- 18:04 : swap sur Uniswap, 41 250 USDC → 13,52 WETH, désenveloppés et versés à \`0x22be…41f7\`.
 - 18:31 : \`0x22be\` envoie 13,5 ETH vers ArcBridge, à destination de BNB Smart Chain.
-- 18:44 : sur BSC, le bénéficiaire reçoit l'équivalent en BNB, puis un swap sur SyrupSwap le convertit en 40 380 USDT versés à \`0x8c47…d3e2\`.
+- 18:44 : sur BSC, le bénéficiaire reçoit l'équivalent en BNB, puis un swap sur PancakeSwap le convertit en 40 380 USDT versés à \`0x8c47…d3e2\`.
 
-L'enquêteur note les montants et leur contre-valeur à chaque étape (perte d'environ 2 % en frais, impact de prix et commission du bridge), demande immédiatement le **gel des USDT** sur \`0x8c47\` à l'émetteur, puis suit cette adresse jusqu'à son dépôt chez Kaizen Exchange. Les swaps n'ont rien caché : ils ont seulement changé l'actif.`,
+L'enquêteur note les montants et leur contre-valeur à chaque étape (perte d'environ 2 % en frais, impact de prix et commission du bridge), demande immédiatement le **gel des USDT** sur \`0x8c47\` à l'émetteur, puis suit cette adresse jusqu'à son dépôt chez OKX. Les swaps n'ont rien caché : ils ont seulement changé l'actif.`,
       },
       {
         type: 'callout',
@@ -258,7 +258,7 @@ L'enquêteur note les montants et leur contre-valeur à chaque étape (perte d'e
       {
         q: 'Après un swap, le suspect détient des USDC. Quelle mesure rapide devient envisageable ?',
         options: [
-          'Demander au pool OmniSwap d\'annuler le swap',
+          'Demander au pool Uniswap d\'annuler le swap',
           'Demander à l\'émetteur des USDC de bloquer l\'adresse qui les détient',
           'Requérir le routeur',
           'Aucune',

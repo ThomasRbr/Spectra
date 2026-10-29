@@ -3,17 +3,29 @@ import { icons, X, Copy, Check } from 'lucide-react'
 import { CHAINS, type ChainId } from '../engine/chains'
 import { CATEGORY, RISK_META, type Entity, type RiskLevel } from '../engine/entities'
 import { DIFFICULTY, type Difficulty } from '../scenarios/types'
+import { CHAIN_LOGOS, entityLogo } from './logos'
 
 export function Icon({ name, size = 16, className, color, strokeWidth = 2 }: { name: string; size?: number; className?: string; color?: string; strokeWidth?: number }) {
   const C = (icons as Record<string, typeof X>)[name] ?? icons.Circle
   return <C size={size} className={className} color={color} strokeWidth={strokeWidth} />
 }
 
+/** Logo de marque, rogné en cercle comme les nœuds du graphe. */
+export function Logo({ src, size = 16, className = '' }: { src: string; size?: number; className?: string }) {
+  return <img src={src} alt="" width={size} height={size} draggable={false} className={`shrink-0 rounded-full ${className}`} />
+}
+
+/** Logo de l'entité s'il existe, sinon l'icône de sa catégorie. */
+export function EntityIcon({ entity, size = 16, color }: { entity: Entity; size?: number; color?: string }) {
+  const logo = entityLogo(entity.id)
+  return logo ? <Logo src={logo} size={size} /> : <Icon name={CATEGORY[entity.category].icon} size={size} color={color} />
+}
+
 export function ChainBadge({ chain, compact }: { chain: ChainId; compact?: boolean }) {
   const c = CHAINS[chain]
   return (
     <span className="chip border" style={{ color: c.color, borderColor: `${c.color}55`, background: `${c.color}14` }}>
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: c.color }} />
+      <Logo src={CHAIN_LOGOS[chain]} size={12} />
       {compact ? c.short : c.name}
     </span>
   )
@@ -23,7 +35,7 @@ export function EntityChip({ entity, via }: { entity: Entity; via?: 'cluster' | 
   const m = CATEGORY[entity.category]
   return (
     <span className="chip border" style={{ color: m.color, borderColor: `${m.color}55`, background: `${m.color}12` }}>
-      <Icon name={m.icon} size={12} />
+      <EntityIcon entity={entity} size={12} />
       {entity.name}
       {via === 'cluster' && <span className="opacity-70">· via cluster</span>}
     </span>

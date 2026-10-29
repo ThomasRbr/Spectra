@@ -29,7 +29,7 @@ Non. Le CoinJoin est un **obstacle sérieux mais pas un mur** : la cryptographie
       type: 'text',
       md: `Une transaction Bitcoin peut contenir des entrées signées par des personnes **différentes** : chaque signature ne couvre que l'entrée de son propriétaire, mais engage la transaction entière. Le CoinJoin exploite cette propriété :
 
-1. plusieurs participants s'inscrivent auprès d'un **coordinateur** (Whirl Coordinator dans les exercices) ;
+1. plusieurs participants s'inscrivent auprès d'un **coordinateur** (zkSNACKs dans les exercices) ;
 2. chacun annonce ses entrées et une adresse de sortie **neuve** ;
 3. le coordinateur assemble une transaction où chaque participant reçoit une sortie d'un **montant identique** (la *dénomination*) ;
 4. chacun vérifie que sa sortie est bien présente, puis signe ses propres entrées ;
@@ -43,7 +43,7 @@ Différence fondamentale avec un mixeur centralisé : le CoinJoin est **non-cust
         { id: 'a', label: 'Participant A', kind: 'wallet', sub: '0,0731 BTC' },
         { id: 'b', label: 'Participant B', kind: 'wallet', sub: '0,0502 BTC' },
         { id: 'c', label: 'Participant C', kind: 'suspect', sub: '0,0502 BTC' },
-        { id: 'coord', label: 'Whirl Coordinator', kind: 'service', sub: 'assemble, ne détient rien' },
+        { id: 'coord', label: 'zkSNACKs', kind: 'service', sub: 'assemble, ne détient rien' },
         { id: 'tx', label: 'Transaction CoinJoin', kind: 'tx', sub: 'entrées de A, B, C…' },
         { id: 'o1', label: 'bc1q…7k2', kind: 'unknown', sub: '0,05 BTC' },
         { id: 'o2', label: 'bc1q…m9d', kind: 'unknown', sub: '0,05 BTC' },
@@ -125,7 +125,7 @@ Conséquence pour l'enquêteur : vous rencontrerez à la fois des CoinJoin **his
         { id: 'in', label: 'UTXO de l\'utilisateur', kind: 'suspect', sub: '1,0000 BTC' },
         { id: 'tx0', label: 'Tx0', kind: 'tx', sub: 'découpage' },
         { id: 'pre', label: '19 sorties prémix', kind: 'wallet', sub: '19 × 0,05015 BTC' },
-        { id: 'fee', label: 'Frais Whirl Coordinator', kind: 'service', sub: '0,0025 BTC' },
+        { id: 'fee', label: 'Frais zkSNACKs', kind: 'service', sub: '0,0025 BTC' },
         { id: 'tox', label: 'Rendu toxique', kind: 'wallet', sub: '0,04435 BTC' },
         { id: 'mix', label: 'Mix 5 × 5', kind: 'mixer', sub: 'avec 4 autres participants' },
         { id: 'post', label: 'Sorties postmix', kind: 'unknown', sub: '0,05 BTC chacune' },
@@ -157,7 +157,7 @@ Les sorties postmix restent dans un compte dédié du portefeuille. L'utilisateu
       md: `Le 12 février à 21:47 UTC, l'adresse \`bc1q8f3…w0d\`, alimentée par une rançon de 1,0 BTC, dépense son UTXO unique dans une transaction à 22 sorties :
 
 - 19 sorties de **0,05015 BTC** vers 19 adresses neuves ;
-- 1 sortie de **0,0025 BTC** vers une adresse étiquetée « Whirl Coordinator — frais » ;
+- 1 sortie de **0,0025 BTC** vers une adresse étiquetée « zkSNACKs — frais » ;
 - 1 sortie de **0,04435 BTC** vers une adresse neuve (montant atypique) ;
 - frais de minage : 0,0003 BTC.
 
@@ -376,7 +376,7 @@ const privacyPools: Lesson = {
       type: 'text',
       md: `Après un piratage, l'attaquant envoie 1 200 ETH dans un contrat. Quelques jours plus tard, des dizaines d'adresses neuves reçoivent des montants ronds de ce même contrat. Entre les deux : **aucun lien technique**, par construction. Le pool de confidentialité est l'outil d'anonymisation le plus robuste de l'écosystème EVM — et pourtant, une part significative de ses utilisateurs se trahit.
 
-Cette leçon décrit la mécanique d'un pool de type Tornado (**Cyclone Cash** dans les exercices), ce qu'elle laisse sur la chaîne, et la manière rigoureuse de démixer.`,
+Cette leçon décrit la mécanique d'un pool de type Tornado (**Tornado Cash** dans les exercices), ce qu'elle laisse sur la chaîne, et la manière rigoureuse de démixer.`,
     },
     { type: 'heading', text: 'La mécanique : déposer un secret, retirer une preuve' },
     {
@@ -392,7 +392,7 @@ Cette leçon décrit la mécanique d'un pool de type Tornado (**Cyclone Cash** d
       type: 'flow',
       nodes: [
         { id: 'h', label: 'Adresse du hacker', kind: 'suspect', sub: '0x91ab…' },
-        { id: 'pool', label: 'Cyclone Cash 10 ETH', kind: 'mixer', sub: 'arbre de commitments' },
+        { id: 'pool', label: 'Tornado Cash 10 ETH', kind: 'mixer', sub: 'arbre de commitments' },
         { id: 'rel', label: 'Relayeur', kind: 'service', sub: 'paie le gaz, commission' },
         { id: 'w1', label: 'Adresse neuve', kind: 'unknown', sub: '0x3c7e…' },
         { id: 'w2', label: 'Adresse neuve', kind: 'unknown', sub: '0xa012…' },
@@ -486,11 +486,11 @@ Le paramètre clé est le **jeu d'anonymat effectif**. L'arbre peut contenir des
     {
       type: 'case',
       title: 'Cas guidé — L\'exploit Lendora',
-      md: `Le 4 mars, entre 02:10 et 02:31 UTC, l'adresse \`0x91ab…e3\` (alimentée par l'exploit du protocole Lendora) dépose dans Cyclone Cash : **3 × 10 ETH, 2 × 1 ETH, 4 × 0,1 ETH**, soit 32,4 ETH.
+      md: `Le 4 mars, entre 02:10 et 02:31 UTC, l'adresse \`0x91ab…e3\` (alimentée par l'exploit du protocole Lendora) dépose dans Tornado Cash : **3 × 10 ETH, 2 × 1 ETH, 4 × 0,1 ETH**, soit 32,4 ETH.
 
 Le même jour, entre 06:02 et 06:40 UTC, **neuf retraits** via le même relayeur vers neuf adresses neuves : 3 × 10, 2 × 1 et 4 × 0,1 ETH, commissions déduites. Entre 02:31 et 06:40, le pool 10 ETH n'a reçu que **7 dépôts** et le pool 0,1 ETH **11 dépôts**.
 
-Le 5 mars, les neuf adresses envoient leurs fonds vers \`0xe44f…07\`, qui dépose **32,05 ETH** chez Binova.
+Le 5 mars, les neuf adresses envoient leurs fonds vers \`0xe44f…07\`, qui dépose **32,05 ETH** chez Binance.
 
 Raisonnement :
 
@@ -499,17 +499,17 @@ Raisonnement :
 3. consolidation finale dont le total correspond au dépôt diminué des commissions ;
 4. aucune autre combinaison de dépôts sur la fenêtre ne permet d'atteindre 32,4 ETH avec la même répartition.
 
-Conclusion : **confiance élevée** que ces retraits proviennent des dépôts de \`0x91ab…e3\`. La réquisition à Binova (adresse de dépôt, hash) devient prioritaire, et la demande de gel urgente.`,
+Conclusion : **confiance élevée** que ces retraits proviennent des dépôts de \`0x91ab…e3\`. La réquisition à Binance (adresse de dépôt, hash) devient prioritaire, et la demande de gel urgente.`,
     },
     {
       type: 'flow',
       nodes: [
         { id: 'ex', label: 'Exploit Lendora', kind: 'contract' },
         { id: 'h', label: '0x91ab…e3', kind: 'suspect', sub: '32,4 ETH' },
-        { id: 'pool', label: 'Cyclone Cash', kind: 'mixer', sub: '9 dépôts' },
+        { id: 'pool', label: 'Tornado Cash', kind: 'mixer', sub: '9 dépôts' },
         { id: 'r', label: '9 adresses de retrait', kind: 'unknown', sub: '≈ 32,1 ETH' },
         { id: 'c', label: '0xe44f…07', kind: 'wallet', sub: 'consolidation' },
-        { id: 'b', label: 'Binova', kind: 'exchange', sub: 'dépôt 32,05 ETH' },
+        { id: 'b', label: 'Binance', kind: 'exchange', sub: 'dépôt 32,05 ETH' },
       ],
       edges: [
         { from: 'ex', to: 'h', label: 'fonds volés' },
@@ -561,7 +561,7 @@ L'utilisation d'un pool n'est pas en soi une infraction en droit français ; c'e
     {
       type: 'steps',
       items: [
-        { title: 'Exposer la rupture', md: `« Le [date], 32,4 ETH ont été déposés dans le pool Cyclone Cash depuis l'adresse… Aucun lien cryptographique ne relie les dépôts aux retraits. »` },
+        { title: 'Exposer la rupture', md: `« Le [date], 32,4 ETH ont été déposés dans le pool Tornado Cash depuis l'adresse… Aucun lien cryptographique ne relie les dépôts aux retraits. »` },
         { title: 'Lister les heuristiques', md: `Chaque indice, avec sa mesure : délai, nombre de dépôts concurrents, rareté de la combinaison, destination finale.` },
         { title: 'Discuter les alternatives', md: `Combien d'autres déposants auraient pu produire ces retraits ? Quels éléments contraires ont été recherchés ?` },
         { title: 'Conclure avec un niveau', md: `« Confiance élevée / modérée / faible », jamais « certain ». Distinguer ce qui est établi (dépôts, retraits, consolidation) de ce qui est inféré (l'appariement).` },
@@ -572,7 +572,7 @@ L'utilisation d'un pool n'est pas en soi une infraction en droit français ; c'e
       type: 'callout',
       kind: 'tip',
       title: 'La note : preuve et clé',
-      md: `Une **note** de dépôt retrouvée sur un support saisi (chaîne commençant typiquement par le nom du protocole, l'actif, le montant et l'identifiant du réseau, puis une longue valeur hexadécimale, par exemple \`cyclone-eth-10-1-0x…\`) établit le lien entre un dépôt et son retrait — et, si la note n'a pas encore été utilisée, **permet de retirer les fonds**.
+      md: `Une **note** de dépôt retrouvée sur un support saisi (chaîne commençant typiquement par le nom du protocole, l'actif, le montant et l'identifiant du réseau, puis une longue valeur hexadécimale, par exemple \`tornado-eth-10-1-0x…\`) établit le lien entre un dépôt et son retrait — et, si la note n'a pas encore été utilisée, **permet de retirer les fonds**.
 
 Traitez-la comme une clé privée : fixation, scellé, aucune manipulation hors d'un cadre procédural décidé avec le magistrat.`,
     },
@@ -756,12 +756,12 @@ Ces faiblesses ont un intérêt opérationnel aujourd'hui très limité, surtout
       type: 'flow',
       nodes: [
         { id: 'v', label: 'Victime', kind: 'victim', sub: 'virement 18 400 €' },
-        { id: 'cv', label: 'Coinvault', kind: 'exchange', sub: 'achat BTC (KYC victime)' },
+        { id: 'cv', label: 'Coinhouse', kind: 'exchange', sub: 'achat BTC (KYC victime)' },
         { id: 's', label: 'Adresse du suspect', kind: 'suspect', sub: '0,285 BTC' },
-        { id: 'oc', label: 'Ocelot Swap', kind: 'service', sub: 'BTC → XMR' },
+        { id: 'oc', label: 'ChangeNOW', kind: 'service', sub: 'BTC → XMR' },
         { id: 'x', label: 'Chaîne Monero', kind: 'unknown', sub: 'opaque' },
-        { id: 'fx', label: 'FlashX', kind: 'service', sub: 'XMR → USDT-TRC20' },
-        { id: 'k', label: 'Kaizen Exchange', kind: 'exchange', sub: 'dépôt 17 210 USDT' },
+        { id: 'fx', label: 'eXch', kind: 'service', sub: 'XMR → USDT-TRC20' },
+        { id: 'k', label: 'OKX', kind: 'exchange', sub: 'dépôt 17 210 USDT' },
       ],
       edges: [
         { from: 'v', to: 'cv' },
@@ -787,13 +787,13 @@ Ces faiblesses ont un intérêt opérationnel aujourd'hui très limité, surtout
     {
       type: 'case',
       title: 'Cas — Le faux support technique',
-      md: `Le 9 juin à 14:02 UTC, l'adresse du suspect dépose **0,285 BTC** chez Ocelot Swap (environ 17 650 USD au cours du moment). À 15:31 UTC, FlashX envoie **17 210 USDT-TRC20** vers l'adresse de dépôt \`TQx7…9Lm\` chez Kaizen Exchange.
+      md: `Le 9 juin à 14:02 UTC, l'adresse du suspect dépose **0,285 BTC** chez ChangeNOW (environ 17 650 USD au cours du moment). À 15:31 UTC, eXch envoie **17 210 USDT-TRC20** vers l'adresse de dépôt \`TQx7…9Lm\` chez OKX.
 
-Dans une fenêtre de 4 heures et une tolérance de 3 %, la recherche ne fait ressortir que **2 retraits de FlashX** : l'un de 17 210 USDT, l'autre de 17 590 USDT vers une adresse active depuis 2021 sur des montants réguliers (profil d'un commerçant).
+Dans une fenêtre de 4 heures et une tolérance de 3 %, la recherche ne fait ressortir que **2 retraits d'eXch** : l'un de 17 210 USDT, l'autre de 17 590 USDT vers une adresse active depuis 2021 sur des montants réguliers (profil d'un commerçant).
 
 Écart pour le premier candidat : (17 650 − 17 210) / 17 650 ≈ 2,5 %, compatible avec les commissions cumulées de deux échangeurs. Délai : 89 minutes, compatible avec les 10 blocs de verrouillage et un traitement manuel.
 
-Rédaction : corrélation **modérée** fondée sur le montant et le timing ; réquisitions simultanées à Ocelot Swap (commande liée au hash du dépôt BTC) et à Kaizen Exchange (titulaire du dépôt). La réponse d'Ocelot (adresse XMR de destination, IP) et celle de Kaizen (KYC, IP de connexion) peuvent transformer cette corrélation en lien établi.`,
+Rédaction : corrélation **modérée** fondée sur le montant et le timing ; réquisitions simultanées à ChangeNOW (commande liée au hash du dépôt BTC) et à OKX (titulaire du dépôt). La réponse de ChangeNOW (adresse XMR de destination, IP) et celle d'OKX (KYC, IP de connexion) peuvent transformer cette corrélation en lien établi.`,
     },
     {
       type: 'check',
@@ -873,7 +873,7 @@ Les **transitions** transparent → protégé et protégé → transparent sont 
       type: 'callout',
       kind: 'tip',
       title: 'Rédiger la rupture',
-      md: `Documentez la rupture sans dramatiser ni sur-interpréter : « Le 9 juin à 14:02 UTC, les fonds ont été convertis en Monero (XMR) via le service Ocelot Swap. Les caractéristiques de cette cryptomonnaie (signatures de cercle, adresses furtives, montants masqués) ne permettent pas de suivre les fonds de façon fiable sur sa blockchain. Les investigations se sont poursuivies sur les points de sortie transparents… »`,
+      md: `Documentez la rupture sans dramatiser ni sur-interpréter : « Le 9 juin à 14:02 UTC, les fonds ont été convertis en Monero (XMR) via le service ChangeNOW. Les caractéristiques de cette cryptomonnaie (signatures de cercle, adresses furtives, montants masqués) ne permettent pas de suivre les fonds de façon fiable sur sa blockchain. Les investigations se sont poursuivies sur les points de sortie transparents… »`,
     },
   ],
   keyPoints: [

@@ -78,7 +78,7 @@ Dans la transaction, il se repère par un emprunt et un remboursement du même a
       nodes: [
         { id: 'fl', label: 'Prêteur flash', kind: 'contract', sub: '30 000 ETH empruntés' },
         { id: 'atk', label: 'Contrat d\'attaque', kind: 'suspect', sub: '0x5e1c…' },
-        { id: 'pool', label: 'Pool OmniSwap LND/ETH', kind: 'dex', sub: 'prix ×7' },
+        { id: 'pool', label: 'Pool Uniswap LND/ETH', kind: 'dex', sub: 'prix ×7' },
         { id: 'lend', label: 'Lendora', kind: 'contract', sub: 'oracle = prix du pool' },
         { id: 'eoa', label: 'EOA de l\'attaquant', kind: 'suspect', sub: '0x91ab…' },
       ],
@@ -175,7 +175,7 @@ La victime est le protocole et ses déposants, pas un utilisateur isolé.`,
         { id: 'a', label: 'Adresse de l\'attaquant', kind: 'suspect' },
         { id: 'dex', label: 'DEX', kind: 'dex', sub: 'jetons → ETH/DAI' },
         { id: 'split', label: 'Dizaines d\'adresses', kind: 'wallet', sub: 'fractionnement' },
-        { id: 'pool', label: 'Cyclone Cash', kind: 'mixer' },
+        { id: 'pool', label: 'Tornado Cash', kind: 'mixer' },
         { id: 'br', label: 'ArcBridge / swaps inter-chaînes', kind: 'bridge', sub: 'vers BTC, Tron…' },
         { id: 'otc', label: 'SatsDesk OTC / échangeurs', kind: 'exchange', sub: 'sortie fiat' },
       ],
@@ -203,15 +203,15 @@ La victime est le protocole et ses déposants, pas un utilisateur isolé.`,
     {
       type: 'case',
       title: 'Cas — L\'exploit Lendora',
-      md: `**J−2, 22:40 UTC** : \`0x91ab…e3\` reçoit 1 ETH d'un retrait Cyclone Cash (pool 1 ETH) sans relayeur — l'adresse avait reçu 0,05 ETH d'un échangeur instantané une heure plus tôt pour payer le gaz.
+      md: `**J−2, 22:40 UTC** : \`0x91ab…e3\` reçoit 1 ETH d'un retrait Tornado Cash (pool 1 ETH) sans relayeur — l'adresse avait reçu 0,05 ETH d'un échangeur instantané une heure plus tôt pour payer le gaz.
 
 **J−1, 03:02 UTC** : \`0x91ab…e3\` déploie le contrat \`0x5e1c…\`.
 
-**J, 04:17 UTC** : transaction d'attaque : flash loan de 30 000 ETH, achat massif de jetons LND sur OmniSwap (prix multiplié par 7), dépôt de LND chez Lendora, emprunt de 9 400 ETH, revente, remboursement. Profit transféré à \`0x91ab…e3\`.
+**J, 04:17 UTC** : transaction d'attaque : flash loan de 30 000 ETH, achat massif de jetons LND sur Uniswap (prix multiplié par 7), dépôt de LND chez Lendora, emprunt de 9 400 ETH, revente, remboursement. Profit transféré à \`0x91ab…e3\`.
 
 **J, 04:30 à 05:10 UTC** : les 2,1 M USDC également empruntés sont échangés contre de l'ETH sur un DEX — sauf 380 000 USDC restés sur une adresse intermédiaire, que l'émetteur gèle à 06:20 UTC sur demande.
 
-**J+1** : 32,4 ETH partent vers Cyclone Cash (voir la leçon sur les pools), le reste est fractionné sur 40 adresses.
+**J+1** : 32,4 ETH partent vers Tornado Cash (voir la leçon sur les pools), le reste est fractionné sur 40 adresses.
 
 Pistes : l'échangeur instantané qui a financé le gaz (hash connu), le démixage du dépôt Cyclone, les points de sortie à surveiller. Le gel partiel n'a été possible que parce que la demande est partie dans les deux heures.`,
     },
@@ -353,7 +353,7 @@ const cooperation: Lesson = {
   blocks: [
     {
       type: 'text',
-      md: `Votre traçage est terminé : les fonds d'une escroquerie ont abouti chez un exchange établi en Estonie, un autre à Singapour, un courtier OTC à Hong Kong, et une partie dort en USDT sur Tron. Le suspect vit probablement à l'étranger. **Le travail technique est fait ; le travail de coopération commence.**
+      md: `Votre traçage est terminé : les fonds d'une escroquerie ont abouti chez un exchange établi au Luxembourg, un autre aux Seychelles, un courtier OTC à Hong Kong, et une partie dort en USDT sur Tron. Le suspect vit probablement à l'étranger. **Le travail technique est fait ; le travail de coopération commence.**
 
 C'est souvent ici que les affaires se gagnent ou se perdent : un gel demandé trop tard, une demande imprécise renvoyée par l'autorité étrangère, une information policière inutilisable devant le tribunal faute d'avoir été régularisée. Cette leçon vous donne la carte et la boussole. Les textes et circuits évoluent : vérifiez toujours la version en vigueur et les instructions de votre parquet.`,
     },
@@ -449,11 +449,11 @@ Beaucoup de plateformes acceptent de bloquer temporairement un compte sur demand
       type: 'flow',
       nodes: [
         { id: 'enq', label: 'Enquêteur', kind: 'service', sub: 'identifie les fonds' },
-        { id: 'tet', label: 'Émetteur USDT', kind: 'service', sub: 'gel au niveau du contrat' },
-        { id: 'kai', label: 'Kaizen Exchange', kind: 'exchange', sub: 'Singapour, portail LE' },
-        { id: 'nor', label: 'Nordex', kind: 'exchange', sub: 'Estonie (UE)' },
+        { id: 'tet', label: 'Tether', kind: 'service', sub: 'gel au niveau du contrat' },
+        { id: 'kai', label: 'OKX', kind: 'exchange', sub: 'Seychelles, portail LE' },
+        { id: 'nor', label: 'Bitstamp', kind: 'exchange', sub: 'Luxembourg (UE)' },
         { id: 'mag', label: 'Magistrat', kind: 'service', sub: 'décision de gel / saisie' },
-        { id: 'hel', label: 'Helvetix', kind: 'exchange', sub: 'Suisse (hors UE)' },
+        { id: 'hel', label: 'SwissBorg', kind: 'exchange', sub: 'Suisse (hors UE)' },
       ],
       edges: [
         { from: 'enq', to: 'tet', label: 'demande urgente' },
@@ -477,9 +477,9 @@ Beaucoup de plateformes acceptent de bloquer temporairement un compte sur demand
       md: `Escroquerie sentimentale et faux trading : 312 000 USDT-TRC20 tracés au 3 mars.
 
 - **J0, 16:00** : 41 000 USDT dorment sur une adresse intermédiaire Tron → demande de gel à l'émetteur via son portail. **Gel effectif J+1, 09:30.**
-- **J0, 17:30** : 118 000 USDT déposés chez Kaizen Exchange (Singapour) → demande de gel volontaire et de préservation via le portail forces de l'ordre. Réponse J+3 : compte bloqué 60 jours, identité communiquée à titre de renseignement.
-- **J+2** : 96 000 USDT chez Nordex (Estonie) → la plateforme bloque à titre conservatoire et indique qu'une DEE est nécessaire pour les relevés complets. DEE émise J+9 par le magistrat, exécutée J+52.
-- **J+4** : 57 000 USDT chez Helvetix (Suisse) → demande d'entraide préparée avec le magistrat, appui du magistrat de liaison. Exécution partielle à J+140.
+- **J0, 17:30** : 118 000 USDT déposés chez OKX (Seychelles) → demande de gel volontaire et de préservation via le portail forces de l'ordre. Réponse J+3 : compte bloqué 60 jours, identité communiquée à titre de renseignement.
+- **J+2** : 96 000 USDT chez Bitstamp (Luxembourg) → la plateforme bloque à titre conservatoire et indique qu'une DEE est nécessaire pour les relevés complets. DEE émise J+9 par le magistrat, exécutée J+52.
+- **J+4** : 57 000 USDT chez SwissBorg (Suisse) → demande d'entraide préparée avec le magistrat, appui du magistrat de liaison. Exécution partielle à J+140.
 
 Bilan : 41 000 USDT gelés en 18 heures grâce à l'émetteur, 214 000 USDT bloqués dans les délais grâce au parallélisme des voies. Les montants non gelés sont ceux qui avaient déjà quitté les adresses identifiées avant J0.`,
     },

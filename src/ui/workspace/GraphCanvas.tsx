@@ -10,6 +10,7 @@ import { useGame, FLAG_META, type Flag } from '../../store/game'
 import { useUi } from '../../store/ui'
 import { aKey, computeEdges, extraLinks, idOf, isAKey, tKey } from '../../lib/graph'
 import { Icon } from '../common'
+import { entityLogo } from '../logos'
 
 /** Cadre tout le graphe sans zoomer exagérément quand il y a peu de nœuds. */
 export function fitGraph(cy: Core, duration = 300) {
@@ -59,6 +60,8 @@ const STYLE: cytoscape.Stylesheet[] = [
       'min-zoomed-font-size': 7,
     } as never,
   },
+  // Logo de marque : il remplit le disque, la bordure garde la couleur de la catégorie.
+  { selector: 'node[kind="addr"][?logo]', style: { 'background-width': '100%', 'background-height': '100%', 'background-clip': 'node' } as never },
   {
     selector: 'node[kind="tx"]',
     style: {
@@ -213,11 +216,12 @@ export function GraphCanvas() {
         const cat = at.entity ? CATEGORY[at.entity.category] : null
         const color = cat?.color ?? (a.contract ? '#818cf8' : '#4a5a80')
         const iconName = cat?.icon ?? (a.contract ? 'FileCode2' : 'Wallet')
+        const logo = entityLogo(at.entity?.id)
         const flag = flags[id] as Flag | undefined
         const name = at.label ?? (a.contract ? a.label ?? a.contract.name : null)
         const label = name ? `${name}\n${shortAddr(a.addr, 5)}` : shortAddr(a.addr, 6)
         const data = {
-          id: key, kind: 'addr', label, color, icon: iconUri(iconName, color), size: at.entity ? 50 : 42,
+          id: key, kind: 'addr', label, color, icon: logo ?? iconUri(iconName, color), logo: !!logo || undefined, size: at.entity ? 50 : 42,
           flag: flag ?? undefined, flagColor: flag ? FLAG_META[flag].color : undefined, seed: seeds.has(id) || undefined,
           chain: CHAINS[a.chain].color,
         }

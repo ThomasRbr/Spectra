@@ -5,8 +5,8 @@ import { A, amt, choice, fakeCity, fakeHandle, fakeName, fmtDate, forwardAll, pr
 
 const r8 = (v: number) => Math.round(v * 1e8) / 1e8
 
-type Target = 'binova' | 'nordex' | 'kaizen' | 'huobex' | 'orbit' | 'cardhub' | 'unknown'
-const EXCHANGES = ['binova', 'nordex', 'kaizen', 'huobex'] as const
+type Target = 'binance' | 'bitstamp' | 'okx' | 'huobex' | 'orbit' | 'cardhub' | 'unknown'
+const EXCHANGES = ['binance', 'bitstamp', 'okx', 'huobex'] as const
 
 export const btcPeelChain: ScenarioTemplate = {
   id: 'peel-chain',
@@ -27,9 +27,9 @@ export const btcPeelChain: ScenarioTemplate = {
     const handle = fakeHandle(r)
 
     const kits: Record<(typeof EXCHANGES)[number], ExchangeKit> = {
-      binova: exchange(w, 'binova', 'btc'),
-      nordex: exchange(w, 'nordex', 'btc'),
-      kaizen: exchange(w, 'kaizen', 'btc'),
+      binance: exchange(w, 'binance', 'btc'),
+      bitstamp: exchange(w, 'bitstamp', 'btc'),
+      okx: exchange(w, 'okx', 'btc'),
       huobex: exchange(w, 'huobex', 'btc'),
     }
     const orbit = w.entity('orbit')

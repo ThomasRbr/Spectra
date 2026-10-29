@@ -232,7 +232,7 @@ function synthetic(rng: Rng): Card {
 }
 
 function fromCatalog(rng: Rng): Card {
-  const key = rng.pick(['coinvault', 'binova', 'nordex', 'helvetix', 'kaizen', 'grantis', 'satsdesk', 'flashx'])
+  const key = rng.pick(['coinhouse', 'binance', 'bitstamp', 'swissborg', 'okx', 'garantex', 'satsdesk', 'exch', 'coinbase', 'kraken'])
   const e = ENTITY_CATALOG[key]
   const c = e.compliance!
   const strict = 'Ne répond aux autorités étrangères que sur présentation d\'un titre judiciaire reconnu dans son pays.'
@@ -243,8 +243,8 @@ function fromCatalog(rng: Rng): Card {
     : strict
   const country = c.cooperation === 'eio' ? `${e.country} (Union européenne)` : e.country ?? 'Inconnu'
   const status =
-    c.cooperation === 'direct' ? 'Enregistré PSAN auprès de l\'AMF, agréé PSCA (MiCA)'
-    : e.category === 'sanctioned' ? 'Inscrit sur les listes de sanctions OFAC et UE'
+    c.cooperation === 'direct' ? 'Enregistré PSAN auprès de l\'AMF'
+    : e.category === 'sanctioned' ? 'Inscrit sur la liste de sanctions de l\'OFAC'
     : c.regulator ? `Supervisé par : ${c.regulator}`
     : 'Pas de régulateur identifié'
   return { name: e.name, category: CATEGORY[e.category].label, country, status, policy, coop: c.cooperation }
@@ -286,7 +286,7 @@ function dataItem(rng: Rng): DrillItem {
     return {
       prompt: 'Que demander en priorité à ce service ?',
       context: 'Les fonds de la victime (BTC) ont été envoyés à cet échangeur ; une heure plus tard, des USDT-TRC20 sortent de son hot wallet vers une adresse inconnue.',
-      visual: { type: 'list', title: 'Fiche du prestataire', items: ['Nom : Ocelot Swap', 'Activité : Échangeur instantané (sans compte)', 'Pays : Seychelles', 'KYC : aucun', 'Politique : répond aux demandes déposées par les autorités étrangères'] },
+      visual: { type: 'list', title: 'Fiche du prestataire', items: ['Nom : ChangeNOW', 'Activité : Échangeur instantané (sans compte)', 'Pays : Seychelles', 'KYC : aucun', 'Politique : répond aux demandes déposées par les autorités étrangères'] },
       kind: 'choice',
       options,
       answer,
@@ -301,7 +301,7 @@ function dataItem(rng: Rng): DrillItem {
     return {
       prompt: 'Que demander en priorité à l\'émetteur du stablecoin ?',
       context: `${'L\'escroc détient encore'} ${rng.int(20, 400) * 1000} USDT-${rng.pick(['TRC20', 'ERC20'])} sur une adresse personnelle (non custodiale). Aucune sortie depuis ${rng.int(2, 30)} heures.`,
-      visual: { type: 'list', title: 'Fiche du prestataire', items: ['Nom : Émetteur USDT', 'Activité : Émetteur de stablecoin', 'Capacité : peut bloquer une adresse dans le contrat du jeton', 'Politique : portail dédié aux forces de l\'ordre, délais courts'] },
+      visual: { type: 'list', title: 'Fiche du prestataire', items: ['Nom : Tether', 'Activité : Émetteur de stablecoin', 'Capacité : peut bloquer une adresse dans le contrat du jeton', 'Politique : portail dédié aux forces de l\'ordre, délais courts'] },
       kind: 'choice',
       options,
       answer,
@@ -310,7 +310,7 @@ function dataItem(rng: Rng): DrillItem {
         'La restitution à la victime ne se décide pas par simple demande à l\'émetteur : elle relève d\'une décision judiciaire. Personne ne détient « la clé privée » d\'une adresse non custodiale, à part son propriétaire.',
     }
   }
-  const ex = rng.pick(['Coinvault', 'Binova', 'Nordex', 'Kaizen Exchange'])
+  const ex = rng.pick(['Coinhouse', 'Binance', 'Bitstamp', 'OKX'])
   if (kind === 'freeze') {
     const correct = 'Solliciter en urgence le blocage du compte, en même temps que l\'identification du titulaire'
     const { options, answer } = mkChoice(rng, correct, rng.shuffle(['Attendre la réponse sur l\'identité avant toute demande de blocage', 'Demander à l\'exchange de renvoyer directement les fonds à la victime', 'Prévenir le titulaire du compte pour obtenir ses explications']), 4)

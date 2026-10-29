@@ -18,7 +18,7 @@ const DISTRIBUTIONS: number[][] = [
 export const btcCentralizedMixer: ScenarioTemplate = {
   id: 'centralized-mixer',
   title: 'À travers le mixeur',
-  tagline: 'Nebula Mixer brouille les pistes… sauf si le client regroupe ses sorties.',
+  tagline: 'Sinbad brouille les pistes… sauf si le client regroupe ses sorties.',
   description:
     'Des bitcoins volés par hameçonnage sont envoyés dans un mixeur centralisé. Le lien on-chain est rompu, mais les paramètres de la commande, la corrélation montant/temps et une erreur du suspect après le mixage permettent de renouer le fil jusqu\'à l\'exchange.',
   difficulty: 3,
@@ -32,10 +32,10 @@ export const btcCentralizedMixer: ScenarioTemplate = {
     const victimName = fakeName(r)
     const city = fakeCity(r)
 
-    const neb = mixer(w, 'nebula', 'btc')
-    const outKey = r.pick(['binova', 'nordex', 'kaizen', 'helvetix'] as const)
+    const neb = mixer(w, 'sinbad', 'btc')
+    const outKey = r.pick(['binance', 'bitstamp', 'okx', 'swissborg'] as const)
     const out = exchange(w, outKey, 'btc')
-    const cv = exchange(w, 'coinvault', 'btc')
+    const cv = exchange(w, 'coinhouse', 'btc')
     const victimE = w.customEntity({ name: victimName, category: 'victim' })
     const thief = w.customEntity({ name: 'Auteur du hameçonnage (inconnu)', category: 'suspect' })
 
@@ -128,7 +128,7 @@ export const btcCentralizedMixer: ScenarioTemplate = {
       title: `Opération Nébuleuse — ${city}`,
       briefing:
         `${victimName} (${city}) a reçu un courriel imitant le fabricant de son portefeuille matériel, l'invitant à « resynchroniser » son appareil. La victime a saisi sa phrase de récupération sur le faux site : quelques heures plus tard, ${amt(r8(stolen - theftFee), 'BTC')} étaient vidés de son portefeuille.\n\n` +
-        `Le voleur a envoyé l'essentiel des fonds dans Nebula Mixer, un mixeur centralisé : les bitcoins sont mélangés à ceux d'autres clients et restitués plus tard, sur des adresses neuves, moins une commission. Le lien on-chain direct est rompu.\n\n` +
+        `Le voleur a envoyé l'essentiel des fonds dans Sinbad, un mixeur centralisé : les bitcoins sont mélangés à ceux d'autres clients et restitués plus tard, sur des adresses neuves, moins une commission. Le lien on-chain direct est rompu.\n\n` +
         `Bonne nouvelle : Nebula vient d'être démantelé et un extrait de sa base de données a été transmis. Il contient les paramètres de la commande… mais pas les adresses de sortie. À vous de les retrouver.`,
       evidence: [
         {
@@ -139,7 +139,7 @@ export const btcCentralizedMixer: ScenarioTemplate = {
             `Je n'ai jamais autorisé ce transfert. »`,
         },
         {
-          id: 'europol', type: 'rapport', title: 'Extrait de la base Nebula Mixer (saisie)', date: w.at(20 * 24), author: 'Coopération internationale — Europol EC3',
+          id: 'europol', type: 'rapport', title: 'Extrait de la base Sinbad (saisie)', date: w.at(20 * 24), author: 'Coopération internationale — Europol EC3',
           body:
             `Commande n° NB-${r.int(100000, 999999)}\n` +
             `Adresse de dépôt attribuée : ${A(w, deposit)}\n` +
@@ -153,7 +153,7 @@ export const btcCentralizedMixer: ScenarioTemplate = {
         {
           id: 'methode', type: 'note', title: 'Fiche méthode — corrélation', date: w.at(21 * 24), author: 'Cellule d\'appui',
           body:
-            `Outil de corrélation : partir de l'heure du dépôt, fixer une fenêtre (ex. 36 h), un montant en USD et une tolérance, et filtrer sur l'entité émettrice (Nebula Mixer).\n\n` +
+            `Outil de corrélation : partir de l'heure du dépôt, fixer une fenêtre (ex. 36 h), un montant en USD et une tolérance, et filtrer sur l'entité émettrice (Sinbad).\n\n` +
             `Montant attendu d'une sortie ≈ montant déposé × (1 − commission) × part demandée.\n\n` +
             `Une corrélation seule n'est qu'une hypothèse : il faut la confirmer par un comportement on-chain (dépense commune, destination commune…).`,
         },
@@ -165,7 +165,7 @@ export const btcCentralizedMixer: ScenarioTemplate = {
           prompt: 'Après le mixage, le suspect a regroupé ses fonds. Quelle est l\'adresse de regroupement ?',
           answer: [consol],
           hint: 'Recherchez, après le dépôt, une transaction dont la sortie vaut environ le montant déposé moins 1 à 3 %.',
-          explanation: `${A(w, consol)} reçoit ${amt(r8(paidOut - consFee), 'BTC')} en une transaction à ${dist.length} entrées, chacune issue d'un paiement de Nebula Mixer.`,
+          explanation: `${A(w, consol)} reçoit ${amt(r8(paidOut - consFee), 'BTC')} en une transaction à ${dist.length} entrées, chacune issue d'un paiement de Sinbad.`,
         },
         {
           id: 'o2', type: 'addresses', points: 25,
@@ -182,7 +182,7 @@ export const btcCentralizedMixer: ScenarioTemplate = {
         },
         {
           id: 'o4', type: 'number', points: 15, tolerance: 0.5, unit: '%',
-          prompt: 'Quelle commission (en % du montant déposé) Nebula Mixer a-t-il prélevée sur cette commande ?',
+          prompt: 'Quelle commission (en % du montant déposé) Sinbad a-t-il prélevée sur cette commande ?',
           answer: Math.round(realFeePct * 100) / 100,
           hint: 'Commission = 1 − (somme des sorties ÷ montant déposé).',
           explanation: `Somme des sorties : ${amt(r8(paidOut), 'BTC')} pour ${amt(V, 'BTC')} déposés, soit une commission de ${realFeePct.toFixed(2).replace('.', ',')} %.`,
@@ -213,7 +213,7 @@ export const btcCentralizedMixer: ScenarioTemplate = {
       },
       hints: [
         'Suivez le vol jusqu\'à l\'adresse de dépôt Nebula : le traçage direct s\'arrête là.',
-        'Utilisez l\'outil de corrélation avec Nebula Mixer comme émetteur, à partir de l\'heure du dépôt, pour chaque part de la répartition.',
+        'Utilisez l\'outil de corrélation avec Sinbad comme émetteur, à partir de l\'heure du dépôt, pour chaque part de la répartition.',
         'Autre piste : cherchez sans filtre d\'entité un montant proche du dépôt moins la commission.',
         'Parmi les candidats, retenez ceux dont les sorties sont dépensées ensemble.',
       ],

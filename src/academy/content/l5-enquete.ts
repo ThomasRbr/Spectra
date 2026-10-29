@@ -20,7 +20,7 @@ const blanchiment: Lesson = {
   blocks: [
     {
       type: 'text',
-      md: `Trois affaires sans lien apparent : une escroquerie au faux conseiller bancaire à Lyon, un rançongiciel visant une PME bretonne, un vendeur de stupéfiants sur Obsidian Market. Au bout de chaque traçage, la même adresse de dépôt USDT-TRC20, chez le même courtier OTC.
+      md: `Trois affaires sans lien apparent : une escroquerie au faux conseiller bancaire à Lyon, un rançongiciel visant une PME bretonne, un vendeur de stupéfiants sur Hydra Market. Au bout de chaque traçage, la même adresse de dépôt USDT-TRC20, chez le même courtier OTC.
 
 C'est la signature du **blanchiment professionnel** : un prestataire spécialisé, souvent sans lien avec l'infraction d'origine, qui transforme des fonds illicites en argent utilisable — contre commission — pour de multiples réseaux. Le GAFI a consacré un rapport à ce phénomène en 2018. Pour l'enquêteur, c'est un **point de convergence** : y remonter, c'est toucher plusieurs affaires à la fois.`,
     },
@@ -65,10 +65,10 @@ C'est la signature du **blanchiment professionnel** : un prestataire spécialis�
       type: 'flow',
       nodes: [
         { id: 's1', label: 'Escroquerie (Lyon)', kind: 'suspect' },
-        { id: 's2', label: 'Rançongiciel LockFang', kind: 'suspect' },
+        { id: 's2', label: 'Rançongiciel LockBit', kind: 'suspect' },
         { id: 's3', label: 'Vendeur Obsidian', kind: 'suspect' },
         { id: 'otc', label: 'SatsDesk OTC', kind: 'service', sub: 'collecte USDT-TRC20' },
-        { id: 'ex', label: 'Comptes chez Kaizen', kind: 'exchange', sub: 'au nom de sociétés' },
+        { id: 'ex', label: 'Comptes chez OKX', kind: 'exchange', sub: 'au nom de sociétés' },
         { id: 'cash', label: 'Remise d\'espèces', kind: 'unknown', sub: 'coursiers, compensation' },
       ],
       edges: [
@@ -83,7 +83,7 @@ C'est la signature du **blanchiment professionnel** : un prestataire spécialis�
     { type: 'heading', text: 'Les mules' },
     {
       type: 'text',
-      md: `Les réseaux de mules sont le placement de masse des escroqueries en ligne. Recrutées par de fausses offres d'emploi, sur les réseaux sociaux ou par des proches, les mules ouvrent à leur nom des comptes bancaires et des comptes chez des exchanges régulés (Coinvault, Nordex…), reçoivent les virements des victimes, achètent de la crypto et l'envoient à une adresse fournie par leur « recruteur ».
+      md: `Les réseaux de mules sont le placement de masse des escroqueries en ligne. Recrutées par de fausses offres d'emploi, sur les réseaux sociaux ou par des proches, les mules ouvrent à leur nom des comptes bancaires et des comptes chez des exchanges régulés (Coinhouse, Bitstamp…), reçoivent les virements des victimes, achètent de la crypto et l'envoient à une adresse fournie par leur « recruteur ».
 
 Indicateurs pour l'exchange et pour l'enquêteur :
 
@@ -104,7 +104,7 @@ La même adresse de retrait commune à 37 comptes de clients d'un exchange est u
     {
       type: 'steps',
       items: [
-        { title: 'Le vendeur P2P', md: `Sur LocalSats, un vendeur de bonne foi propose des USDT contre virement bancaire, avec séquestre.` },
+        { title: 'Le vendeur P2P', md: `Sur Hodl Hodl, un vendeur de bonne foi propose des USDT contre virement bancaire, avec séquestre.` },
         { title: 'L\'escroc commande', md: `L'escroc ouvre une commande d'achat et transmet au vendeur… les coordonnées de paiement que **la victime** va utiliser.` },
         { title: 'La victime paie', md: `La victime, persuadée d'acheter un bien ou d'investir, vire la somme sur le compte du vendeur P2P.` },
         { title: 'Le séquestre libère', md: `Le vendeur constate le virement et libère les USDT vers l'adresse de l'escroc.` },
@@ -164,11 +164,11 @@ Indices : une adresse de dépôt d'exchange qui reçoit des volumes énormes de 
     {
       type: 'case',
       title: 'Cas — Le réseau des 37 comptes',
-      md: `Entre janvier et avril, 64 plaintes pour escroquerie au faux conseiller bancaire. Les virements des victimes (de 2 000 à 38 000 €) aboutissent sur **37 comptes bancaires** de particuliers, qui achètent aussitôt des USDT chez Coinvault et Nordex.
+      md: `Entre janvier et avril, 64 plaintes pour escroquerie au faux conseiller bancaire. Les virements des victimes (de 2 000 à 38 000 €) aboutissent sur **37 comptes bancaires** de particuliers, qui achètent aussitôt des USDT chez Coinhouse et Bitstamp.
 
 Les 37 comptes d'exchange retirent vers seulement **3 adresses TRON**. Ces adresses consolident vers \`TJr4…Qa8\`, qui verse chaque semaine 100 000 à 250 000 USDT vers une adresse de dépôt attribuée à SatsDesk OTC — au total **2,84 M USDT** en quatre mois. La même adresse SatsDesk reçoit aussi des fonds exposés à un rançongiciel.
 
-Actes : réquisition à Coinvault (réponse directe) sur les 3 adresses de retrait → 21 comptes identifiés, IP communes à 9 d'entre eux ; DEE vers l'Estonie pour Nordex ; demande d'entraide vers Hong Kong pour SatsDesk ; gel par l'émetteur de 412 000 USDT encore présents sur \`TJr4…Qa8\` ; auditions de mules révélant un recruteur unique sur une messagerie. Le dossier change de nature : d'une série d'escroqueries, il devient une affaire de **blanchiment en bande organisée** visant le recruteur et le courtier.`,
+Actes : réquisition à Coinhouse (réponse directe) sur les 3 adresses de retrait → 21 comptes identifiés, IP communes à 9 d'entre eux ; DEE vers le Luxembourg pour Bitstamp ; demande d'entraide vers Hong Kong pour SatsDesk ; gel par l'émetteur de 412 000 USDT encore présents sur \`TJr4…Qa8\` ; auditions de mules révélant un recruteur unique sur une messagerie. Le dossier change de nature : d'une série d'escroqueries, il devient une affaire de **blanchiment en bande organisée** visant le recruteur et le courtier.`,
     },
     {
       type: 'callout',
@@ -322,7 +322,7 @@ Si vous ne pouvez pas répondre précisément, l'analyse la plus juste du monde 
         ['Fait on-chain', '« La transaction 4f2a… du 12/02 transfère 0,95 BTC de l\'adresse A à l\'adresse B »', 'Vérifiable par quiconque sur un nœud', 'Affirmatif'],
         ['Inférence déterministe', '« Le bridge a versé les fonds sur BNB Chain (même nonce) »', 'Très élevée, dépend de la lecture du contrat', 'Affirmatif, méthode citée'],
         ['Inférence heuristique', '« A et C appartiennent probablement au même portefeuille (CIOH) »', 'Élevée mais faillible', 'Probabiliste, limites citées'],
-        ['Attribution', '« L\'adresse D est une adresse de dépôt Binova »', 'Selon la source : réponse officielle > étiquette d\'outil > OSINT', 'Source citée et datée'],
+        ['Attribution', '« L\'adresse D est une adresse de dépôt Binance »', 'Selon la source : réponse officielle > étiquette d\'outil > OSINT', 'Source citée et datée'],
         ['Hypothèse', '« Les retraits du pool proviennent des dépôts de A »', 'Variable, souvent modérée', 'Force de soutien, alternatives'],
       ],
       caption: 'Un rapport solide signale explicitement le niveau de chaque affirmation. Le mélange des niveaux est la première cible d\'une contre-expertise.',

@@ -7,7 +7,8 @@ import type { Tx, World } from '../../engine/world'
 import { useGame, FLAG_META, type Flag } from '../../store/game'
 import { useUi } from '../../store/ui'
 import { aKey, tKey } from '../../lib/graph'
-import { ChainBadge, CopyButton, Empty, EntityChip, Icon, RiskGauge, Stat, Tabs, fmtTime } from '../common'
+import { ChainBadge, CopyButton, Empty, EntityChip, EntityIcon, Icon, Logo, RiskGauge, Stat, Tabs, fmtTime } from '../common'
+import { entityLogo } from '../logos'
 
 export function Inspector() {
   const selection = useGame((s) => s.selection)
@@ -66,6 +67,7 @@ function AddressInspector({ w, id }: { w: World; id: string }) {
   const risk = useMemo(() => riskScore(w, id), [w, id])
   const cat = at.entity ? CATEGORY[at.entity.category] : null
   const color = cat?.color ?? (a.contract ? '#818cf8' : '#7a88a8')
+  const logo = entityLogo(at.entity?.id)
   const isUtxo = CHAINS[a.chain].model === 'utxo'
   const balanceEntries = Object.entries(sum.balance) as [AssetId, number][]
 
@@ -74,7 +76,7 @@ function AddressInspector({ w, id }: { w: World; id: string }) {
       <div className="border-b border-ink-700/60 p-4">
         <div className="flex items-start gap-3">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2" style={{ borderColor: color, background: `${color}14`, boxShadow: `0 0 18px ${color}33` }}>
-            <Icon name={cat?.icon ?? (a.contract ? 'FileCode2' : 'Wallet')} size={19} color={color} />
+            {logo ? <Logo src={logo} size={40} /> : <Icon name={cat?.icon ?? (a.contract ? 'FileCode2' : 'Wallet')} size={19} color={color} />}
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[15px] font-semibold text-white">{at.label ?? (a.contract ? a.label ?? a.contract.name : 'Adresse non attribuée')}</div>
@@ -367,7 +369,7 @@ function EntityPanel({ w, id }: { w: World; id: string }) {
     <div className="space-y-3">
       <div className="rounded-xl border p-3" style={{ borderColor: `${m.color}40`, background: `${m.color}0a` }}>
         <div className="flex items-center gap-2">
-          <Icon name={m.icon} size={18} color={m.color} />
+          <EntityIcon entity={e} size={18} color={m.color} />
           <div className="text-[14px] font-semibold text-white">{e.name}</div>
           <span className="chip ml-auto" style={{ color: m.color, background: `${m.color}1a` }}>{m.label}</span>
         </div>

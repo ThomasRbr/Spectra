@@ -27,8 +27,8 @@ export const btcCoinjoinDemix: ScenarioTemplate = {
     const ceo = fakeName(r)
     const company = `${r.pick(['Transports', 'Menuiserie', 'Laboratoires', 'Groupe', 'Imprimerie', 'Clinique vétérinaire'])} ${r.pick(['Durand', 'Lacoste', 'Vasseur', 'Arnaud', 'Brunet', 'Leclerc'])}`
 
-    const cv = exchange(w, 'coinvault', 'btc')
-    const outKey = r.pick(['binova', 'kaizen', 'huobex', 'nordex'] as const)
+    const cv = exchange(w, 'coinhouse', 'btc')
+    const outKey = r.pick(['binance', 'okx', 'huobex', 'bitstamp'] as const)
     const out = exchange(w, outKey, 'btc')
     const cardhub = w.entity('cardhub')
     const suspect = w.customEntity({ name: 'Maître-chanteur « DDoS » (inconnu)', category: 'suspect' })
@@ -96,7 +96,7 @@ export const btcCoinjoinDemix: ScenarioTemplate = {
     // Rendus des autres participants du 1er tour : parfois dépensés
     for (const o of cj1.tx.outputs) {
       const v = o.value.toFixed(8)
-      if (v === denom.toFixed(8) || w.get(o.address).entityId === 'whirl') continue
+      if (v === denom.toFixed(8) || w.get(o.address).entityId === 'wasabi') continue
       if (r.chance(0.5)) w.utxoTx({ time: cj1.tx.time + r.float(3, 80) * HOUR, from: [o.address], to: [{ address: w.addr('btc'), value: r8(o.value * r.float(0.4, 0.9)) }] })
     }
 
@@ -130,8 +130,8 @@ export const btcCoinjoinDemix: ScenarioTemplate = {
       world: w,
       title: `Chantage au déni de service — ${city}`,
       briefing:
-        `La société ${company} (${city}) a subi plusieurs attaques par déni de service (DDoS) paralysant son site de commande. Un message exigeait le paiement de ${amt(P, 'BTC')} pour que les attaques cessent. La direction (${ceo}) a payé depuis un compte Coinvault ouvert pour l'occasion.\n\n` +
-        `Le maître-chanteur a fait passer les fonds par un CoinJoin coordonné à dénomination fixe (Whirl Coordinator) : plusieurs participants mettent en commun des UTXO et reçoivent chacun une sortie de montant identique (${amt(denom, 'BTC')}). Impossible, en principe, de savoir quelle sortie appartient à qui.\n\n` +
+        `La société ${company} (${city}) a subi plusieurs attaques par déni de service (DDoS) paralysant son site de commande. Un message exigeait le paiement de ${amt(P, 'BTC')} pour que les attaques cessent. La direction (${ceo}) a payé depuis un compte Coinhouse ouvert pour l'occasion.\n\n` +
+        `Le maître-chanteur a fait passer les fonds par un CoinJoin coordonné à dénomination fixe (zkSNACKs) : plusieurs participants mettent en commun des UTXO et reçoivent chacun une sortie de montant identique (${amt(denom, 'BTC')}). Impossible, en principe, de savoir quelle sortie appartient à qui.\n\n` +
         `Mais un CoinJoin ne protège que si l'utilisateur ne commet pas d'erreur avant ou après. Retrouvez la transaction CoinJoin, le rendu « toxique », la transaction qui trahit le suspect et la plateforme de destination.`,
       evidence: [
         {
@@ -145,7 +145,7 @@ export const btcCoinjoinDemix: ScenarioTemplate = {
           id: 'pv', type: 'pv', title: 'PV d\'audition de la direction (extrait)', date: w.at(3 * 24), author: ceo,
           body:
             `« Sur conseil de mon prestataire informatique, j'ai payé pour faire cesser les attaques. ` +
-            `J'ai acheté les bitcoins sur Coinvault et je les ai envoyés le ${fmtDate(ransomTx.time)}. ` +
+            `J'ai acheté les bitcoins sur Coinhouse et je les ai envoyés le ${fmtDate(ransomTx.time)}. ` +
             `Identifiant de transaction : ${ransomTx.hash} »`,
         },
         {

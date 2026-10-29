@@ -28,4 +28,8 @@ Le plan officiel est dans `src/academy/model.ts` (`CURRICULUM`). Le contenu est 
 
 ## Avertissement
 
-Les entités (exchanges, mixeurs, etc.) sont fictives. Les modèles de réquisition et les contenus juridiques sont pédagogiques : vérifiez toujours les textes en vigueur et les trames de votre service.
+La plupart des entités sont des acteurs réels (Binance, Coinbase, Kraken, OKX, Bitstamp, Coinhouse, Tornado Cash, Sinbad, Garantex, eXch, LockBit, Hydra…), décrits à partir de faits publics (`src/engine/entities.ts`). En revanche, les flux, les adresses et les affaires sont simulés : ils ne reflètent aucune transaction réelle, et la date d'une affaire ne tient pas compte de la période d'activité réelle d'un service (un mixeur saisi en 2023 peut apparaître dans une affaire de 2025). Les délais et modalités de coopération sont indicatifs. Restent fictifs les rôles qui prêteraient à un acteur réel un comportement non établi : Huobex (exchange offshore), SatsDesk OTC, Lendora (protocole piraté), AuroraTrade, OrbitCasino, CardHub, ainsi que le bridge ArcBridge, modèle générique.
+
+Les logos viennent de [@web3icons/core](https://github.com/0xa3k5/web3icons) (MIT) et de [simple-icons](https://simpleicons.org) (CC0), embarqués dans le build (`src/ui/logos.ts`). Ce sont des marques déposées appartenant à leurs titulaires, utilisées ici uniquement pour identifier les services dans un cadre pédagogique.
+
+Les modèles de réquisition et les contenus juridiques sont pédagogiques : vérifiez toujours les textes en vigueur et les trames de votre service.

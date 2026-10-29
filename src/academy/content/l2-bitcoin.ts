@@ -361,11 +361,11 @@ Les exchanges consolident régulièrement leurs adresses de dépôt dans des tra
           { id: 'a', label: 'Adresse A', kind: 'wallet', sub: 'dépôt client 1' },
           { id: 'b', label: 'Adresse B', kind: 'wallet', sub: 'dépôt client 2' },
           { id: 'c', label: 'Adresse C', kind: 'wallet', sub: 'dépôt client 3' },
-          { id: 'd', label: 'Adresse D', kind: 'deposit', sub: 'dépôt test : « Coinvault »' },
+          { id: 'd', label: 'Adresse D', kind: 'deposit', sub: 'dépôt test : « Coinhouse »' },
           { id: 't1', label: 'tx 1 (A + B)', kind: 'tx' },
           { id: 't2', label: 'tx 2 (B + C)', kind: 'tx' },
           { id: 't3', label: 'tx 3 (C + D)', kind: 'tx' },
-          { id: 'hot', label: 'Hot wallet', kind: 'hot', sub: 'cluster C-4A1F2 = Coinvault' },
+          { id: 'hot', label: 'Hot wallet', kind: 'hot', sub: 'cluster C-4A1F2 = Coinhouse' },
         ],
         edges: [
           { from: 'a', to: 't1' },
@@ -391,7 +391,7 @@ Les exchanges consolident régulièrement leurs adresses de dépôt dans des tra
 Deux garde-fous :
 
 - les transactions détectées comme **CoinJoin** sont **exclues** du clustering. Le critère utilisé : au moins 4 entrées issues d'au moins 4 adresses distinctes, au moins 4 sorties, dont au moins 4 de **montant strictement identique** ;
-- l'**attribution par cluster** est signalée comme telle : une adresse sans étiquette propre mais membre d'un cluster attribué apparaît par exemple comme « Coinvault (cluster) », et non « Coinvault ».
+- l'**attribution par cluster** est signalée comme telle : une adresse sans étiquette propre mais membre d'un cluster attribué apparaît par exemple comme « Coinhouse (cluster) », et non « Coinhouse ».
 
 Les outils commerciaux vont plus loin : ils ajoutent souvent au cluster du payeur l'**adresse de rendu** détectée (clustering par rendu, plus risqué car il hérite des erreurs de détection), et appliquent des filtres propriétaires pour éviter les fusions abusives.`,
       },
@@ -406,7 +406,7 @@ Les outils commerciaux vont plus loin : ils ajoutent souvent au cluster du payeu
         type: 'table',
         headers: ['Situation', 'Ce qui se passe', 'Signature visible', 'Détectable ?'],
         rows: [
-          ['CoinJoin', 'Plusieurs utilisateurs signent ensemble une même transaction', 'Nombreuses sorties de montant identique, coordinateur connu (Whirl Coordinator…)', 'Oui, le plus souvent'],
+          ['CoinJoin', 'Plusieurs utilisateurs signent ensemble une même transaction', 'Nombreuses sorties de montant identique, coordinateur connu (zkSNACKs…)', 'Oui, le plus souvent'],
           ['PayJoin (BIP78)', 'Le destinataire ajoute discrètement une de ses entrées au paiement', 'Aucune : ressemble à un paiement 2 entrées / 2 sorties', 'Pas avec certitude'],
           ['Multisignature partagée', 'Une adresse 2-sur-3 est co-contrôlée (séquestre, garde partagée)', 'Script multisig (P2SH / P2WSH)', 'Partiellement'],
           ['Clé importée', 'Un utilisateur balaie une clé reçue d\'un tiers (carte cadeau, portefeuille papier)', 'Rien de particulier', 'Non'],
@@ -480,7 +480,7 @@ Conclusion du rapport : **le rapprochement suspect / exchange est écarté**. Se
         type: 'callout',
         kind: 'field',
         title: 'Sur le terrain',
-        md: `Dans un rapport, distinguez toujours trois niveaux : **l'adresse observée** (fait), **le cluster** (inférence algorithmique, avec l'outil et la règle utilisée) et **l'attribution** du cluster (étiquette, avec sa source). Écrire « l'adresse X appartient à Coinvault » mélange les trois ; écrire « l'adresse X est reliée par deux co-dépenses (tx … et tx …) à l'adresse Y, attribuée à Coinvault par dépôt test du 3 février 2026 » les sépare.`,
+        md: `Dans un rapport, distinguez toujours trois niveaux : **l'adresse observée** (fait), **le cluster** (inférence algorithmique, avec l'outil et la règle utilisée) et **l'attribution** du cluster (étiquette, avec sa source). Écrire « l'adresse X appartient à Coinhouse » mélange les trois ; écrire « l'adresse X est reliée par deux co-dépenses (tx … et tx …) à l'adresse Y, attribuée à Coinhouse par dépôt test du 3 février 2026 » les sépare.`,
       },
       {
         type: 'terms',
@@ -589,7 +589,7 @@ Conclusion du rapport : **le rapprochement suspect / exchange est écarté**. Se
       { front: 'Signes d\'une fausse fusion', back: 'Croissance brutale du cluster après une transaction précise, étiquettes contradictoires, comportement incohérent.' },
       { front: 'Chemin de co-dépense', back: 'Liste des transactions reliant maillon par maillon deux adresses ; il justifie tout rapprochement.' },
       { front: 'Critère CoinJoin de SPECTRA', back: '≥ 4 entrées d\'adresses distinctes, ≥ 4 sorties, dont ≥ 4 de montant identique : exclue du clustering et de l\'analyse de rendu.' },
-      { front: '« Coinvault (cluster) » dans SPECTRA', back: 'L\'adresse n\'a pas d\'étiquette propre : elle hérite de celle d\'une autre adresse de son cluster.' },
+      { front: '« Coinhouse (cluster) » dans SPECTRA', back: 'L\'adresse n\'a pas d\'étiquette propre : elle hérite de celle d\'une autre adresse de son cluster.' },
       { front: 'CIOH et modèle à comptes', back: 'Elle ne s\'applique pas : une transaction Ethereum ou Tron n\'a qu\'un seul émetteur.' },
     ],
     practice: ['sextortion-cluster', 'change-anatomy', 'darknet-vendor'],
@@ -627,14 +627,14 @@ La grosse sortie est donc le **rendu** de chaque transaction : suivre une peel c
       {
         type: 'flow',
         nodes: [
-          { id: 'r', label: 'Rançon LockFang', kind: 'suspect', sub: '12,4 BTC' },
+          { id: 'r', label: 'Rançon LockBit', kind: 'suspect', sub: '12,4 BTC' },
           { id: 'h1', label: 'Saut 1', kind: 'tx', sub: '02:14 UTC' },
           { id: 'h2', label: 'Saut 2', kind: 'tx', sub: '02:36 UTC' },
           { id: 'h3', label: 'Saut 3', kind: 'tx', sub: '02:58 UTC' },
           { id: 'next', label: 'Suite de la chaîne', kind: 'wallet', sub: '10,3894 BTC' },
-          { id: 'cv', label: 'Coinvault', kind: 'deposit', sub: 'adresse de dépôt' },
-          { id: 'oc', label: 'Ocelot Swap', kind: 'service', sub: 'échangeur instantané' },
-          { id: 'bn', label: 'Binova', kind: 'deposit', sub: 'adresse de dépôt' },
+          { id: 'cv', label: 'Coinhouse', kind: 'deposit', sub: 'adresse de dépôt' },
+          { id: 'oc', label: 'ChangeNOW', kind: 'service', sub: 'échangeur instantané' },
+          { id: 'bn', label: 'Binance', kind: 'deposit', sub: 'adresse de dépôt' },
         ],
         edges: [
           { from: 'r', to: 'h1', label: '12,4' },
@@ -696,7 +696,7 @@ C'est aussi sa faiblesse : chaque pelure arrivée chez un service régulé est u
           { title: 'Valider le départ', md: 'Vérifiez que la chaîne démarre bien dans le portefeuille de l\'auteur (rançon, adresse de collecte) et non dans un cluster de service.' },
           { title: 'Suivre le reste', md: 'Avancez de saut en saut par la grosse sortie. Le suivi automatique de l\'outil fait gagner du temps : vérifiez manuellement les premiers sauts et chaque saut atypique.' },
           { title: 'Tabuler chaque pelure', md: 'N° de saut, txid, heure UTC, montant BTC, contre-valeur en euros, adresse de destination, attribution, source de l\'attribution, confiance.' },
-          { title: 'Regrouper par service', md: '7 pelures chez Coinvault, 4 chez Binova, 3 chez Ocelot Swap… Le regroupement oriente les réquisitions.' },
+          { title: 'Regrouper par service', md: '7 pelures chez Coinhouse, 4 chez Binance, 3 chez ChangeNOW… Le regroupement oriente les réquisitions.' },
           { title: 'Prioriser', md: 'Services coopératifs et capables de geler d\'abord ; montants élevés ; pelures les plus anciennes (risque de purge des données techniques).' },
           { title: 'Repérer la fin', md: 'Reste résiduel faible, consolidation, passage par un mixeur ou un CoinJoin : notez où et pourquoi la chaîne s\'arrête.' },
         ],
@@ -705,9 +705,9 @@ C'est aussi sa faiblesse : chaque pelure arrivée chez un service régulé est u
         type: 'table',
         headers: ['Saut', 'Heure UTC', 'Pelure (BTC)', 'Valeur (€)', 'Destination', 'Attribution', 'Confiance'],
         rows: [
-          ['1', '12/05/2026 02:14', '0,62', '38 170', 'bc1q…u7d4', 'Coinvault (cluster)', 'Élevée'],
-          ['2', '12/05/2026 02:36', '0,48', '29 550', 'bc1q…9mfe', 'Ocelot Swap', 'Élevée'],
-          ['3', '12/05/2026 02:58', '0,91', '56 020', '3Fz1…kQ2p', 'Binova (cluster)', 'Moyenne'],
+          ['1', '12/05/2026 02:14', '0,62', '38 170', 'bc1q…u7d4', 'Coinhouse (cluster)', 'Élevée'],
+          ['2', '12/05/2026 02:36', '0,48', '29 550', 'bc1q…9mfe', 'ChangeNOW', 'Élevée'],
+          ['3', '12/05/2026 02:58', '0,91', '56 020', '3Fz1…kQ2p', 'Binance (cluster)', 'Moyenne'],
           ['4', '12/05/2026 03:19', '0,55', '33 860', 'bc1q…x0aa', 'Inconnue — balayée vers un hot wallet', 'À attribuer'],
         ],
         caption: 'Extrait d\'un tableau des pelures (cours retenu : 61 560 €/BTC). C\'est ce tableau, et non le graphe, qui sert de base aux réquisitions.',
@@ -748,11 +748,11 @@ C'est aussi sa faiblesse : chaque pelure arrivée chez un service régulé est u
       {
         type: 'case',
         title: 'Cas — la rançon de 12,4 BTC',
-        md: `Le 12 mai 2026 à 01:47 UTC, une PME de Haute-Savoie paie une rançon de **12,4 BTC** au groupe LockFang. Vingt-sept minutes plus tard, la chaîne démarre : **41 sauts** en 15 heures, à intervalles de 20 à 23 minutes, pelures comprises entre 0,41 et 0,95 BTC.
+        md: `Le 12 mai 2026 à 01:47 UTC, une PME de Haute-Savoie paie une rançon de **12,4 BTC** au groupe LockBit. Vingt-sept minutes plus tard, la chaîne démarre : **41 sauts** en 15 heures, à intervalles de 20 à 23 minutes, pelures comprises entre 0,41 et 0,95 BTC.
 
-Le tableau des pelures montre : 14 dépôts attribués à Coinvault (8,96 BTC cumulés), 9 chez Binova, 6 chez Ocelot Swap, 12 vers des adresses inconnues dont 7 sont balayées ensuite vers un même hot wallet non attribué. Le reste final, 0,37 BTC, entre dans un CoinJoin via Whirl Coordinator.
+Le tableau des pelures montre : 14 dépôts attribués à Coinhouse (8,96 BTC cumulés), 9 chez Binance, 6 chez ChangeNOW, 12 vers des adresses inconnues dont 7 sont balayées ensuite vers un même hot wallet non attribué. Le reste final, 0,37 BTC, entre dans un CoinJoin via zkSNACKs.
 
-Décisions : réquisition unique à Coinvault (service français, 14 txid, demande de gel), demande via le portail de Binova (9 txid), demande à Ocelot Swap avec les hash de dépôt pour obtenir les adresses de destination des échanges ; analyse du hot wallet inconnu (dépôt test envisagé) ; arrêt documenté de la trace au CoinJoin.`,
+Décisions : réquisition unique à Coinhouse (service français, 14 txid, demande de gel), demande via le portail de Binance (9 txid), demande à ChangeNOW avec les hash de dépôt pour obtenir les adresses de destination des échanges ; analyse du hot wallet inconnu (dépôt test envisagé) ; arrêt documenté de la trace au CoinJoin.`,
       },
       {
         type: 'check',

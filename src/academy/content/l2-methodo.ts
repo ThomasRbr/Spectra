@@ -12,7 +12,7 @@ export const L2_METHODO: Lesson[] = [
     track: 'methodo',
     minutes: 26,
     summary:
-      "Une adresse n'a pas de nom : l'étiquette « Coinvault » ou « Nebula Mixer » qu'affiche un outil est une affirmation, issue d'une source, à une date, par une méthode. Panorama des sources d'attribution (dépôts tests, publications, sanctions, saisies, OSINT, heuristiques), de leur fiabilité, de leur propagation, et de la manière de les citer dans une procédure.",
+      "Une adresse n'a pas de nom : l'étiquette « Coinhouse » ou « Sinbad » qu'affiche un outil est une affirmation, issue d'une source, à une date, par une méthode. Panorama des sources d'attribution (dépôts tests, publications, sanctions, saisies, OSINT, heuristiques), de leur fiabilité, de leur propagation, et de la manière de les citer dans une procédure.",
     objectives: [
       'Distinguer les faits observés sur la chaîne des attributions inférées.',
       'Citer les grandes familles de sources d\'attribution et leur fiabilité relative.',
@@ -24,7 +24,7 @@ export const L2_METHODO: Lesson[] = [
     blocks: [
       {
         type: 'text',
-        md: `La blockchain enregistre des adresses, des montants et des horodatages. **Nulle part** elle n'indique qu'une adresse appartient à Coinvault, à un mixeur ou à un suspect. Toutes les étiquettes que vous voyez dans SPECTRA ou dans un outil commercial ont été **ajoutées** par quelqu'un, à partir d'une source, à une date, selon une méthode.
+        md: `La blockchain enregistre des adresses, des montants et des horodatages. **Nulle part** elle n'indique qu'une adresse appartient à Coinhouse, à un mixeur ou à un suspect. Toutes les étiquettes que vous voyez dans SPECTRA ou dans un outil commercial ont été **ajoutées** par quelqu'un, à partir d'une source, à une date, selon une méthode.
 
 Pour l'enquêteur, la conséquence est simple : une étiquette est un **renseignement**, pas un fait. Elle oriente les réquisitions — et c'est souvent la réponse de la réquisition qui transformera l'attribution en élément de preuve.`,
       },
@@ -38,8 +38,8 @@ Pour l'enquêteur, la conséquence est simple : une étiquette est un **renseign
         },
         right: {
           title: 'Inféré (attribution)',
-          md: `- « \`bc1q…u7d4\` est une adresse de dépôt Coinvault. »
-- Dépend d'une source (dépôt test, réponse de Coinvault, cluster).
+          md: `- « \`bc1q…u7d4\` est une adresse de dépôt Coinhouse. »
+- Dépend d'une source (dépôt test, réponse de Coinhouse, cluster).
 - Peut être fausse, périmée ou propagée à tort : elle se **cite** et se **corrobore**.`,
         },
       },
@@ -48,7 +48,7 @@ Pour l'enquêteur, la conséquence est simple : une étiquette est un **renseign
         type: 'table',
         headers: ['Source', 'Exemple', 'Fiabilité', 'Limites'],
         rows: [
-          ['Réponse de réquisition', 'Coinvault confirme que l\'adresse est un dépôt du client n° 88213', 'Très élevée', 'Ponctuelle ; couverte par le secret de l\'enquête'],
+          ['Réponse de réquisition', 'Coinhouse confirme que l\'adresse est un dépôt du client n° 88213', 'Très élevée', 'Ponctuelle ; couverte par le secret de l\'enquête'],
           ['Dépôt test / retrait test', 'L\'analyste crée un compte et dépose : il obtient une adresse de dépôt et voit où elle est balayée', 'Élevée', 'Ne couvre que le service testé, à une date donnée'],
           ['Publication par l\'entité', 'Adresses de réserves publiées par un exchange, adresse de dons d\'une association', 'Élevée', 'L\'entité peut changer d\'adresses'],
           ['Listes de sanctions', 'Adresses figurant sur la liste SDN de l\'OFAC', 'Élevée (sur l\'identité visée)', 'Ne couvrent qu\'une partie des adresses de l\'entité'],
@@ -72,7 +72,7 @@ Le **retrait test** fonctionne en miroir : en retirant depuis le service, on app
           { id: 'dep', label: 'bc1q…k8vn', kind: 'deposit', sub: 'adresse de dépôt fournie' },
           { id: 'others', label: '182 autres dépôts', kind: 'deposit', sub: 'clients inconnus' },
           { id: 'sweep', label: 'tx de balayage', kind: 'tx', sub: '183 entrées' },
-          { id: 'hot', label: 'Hot wallet', kind: 'hot', sub: 'désormais étiqueté « Binova »' },
+          { id: 'hot', label: 'Hot wallet', kind: 'hot', sub: 'désormais étiqueté « Binance »' },
         ],
         edges: [
           { from: 'an', to: 'dep', label: '0,002 BTC' },
@@ -89,9 +89,9 @@ Le **retrait test** fonctionne en miroir : en retirant depuis le service, on app
       },
       {
         type: 'check',
-        q: 'Pourquoi un dépôt test sur Binova permet-il d\'étiqueter des adresses de dépôt d\'autres clients que l\'analyste ?',
+        q: 'Pourquoi un dépôt test sur Binance permet-il d\'étiqueter des adresses de dépôt d\'autres clients que l\'analyste ?',
         options: [
-          'Parce que Binova publie la liste de ses clients',
+          'Parce que Binance publie la liste de ses clients',
           'Parce que l\'adresse de dépôt de l\'analyste est consolidée avec celles des autres clients, ce qui les relie (CIOH sur Bitcoin, hot wallet commun sur les chaînes à comptes)',
           'Parce que toutes les adresses d\'un exchange commencent par le même préfixe',
           'Parce que l\'analyste reçoit une copie des dépôts des autres clients',
@@ -104,7 +104,7 @@ Le **retrait test** fonctionne en miroir : en retirant depuis le service, on app
         type: 'text',
         md: `Une étiquette posée sur une adresse se **propage** :
 
-- sur les chaînes UTXO, à tout le **cluster** (CIOH). Dans SPECTRA, l'attribution est alors marquée comme telle : « Binova (cluster) » signifie que l'adresse n'a pas d'étiquette propre mais qu'une autre adresse de son cluster en a une ;
+- sur les chaînes UTXO, à tout le **cluster** (CIOH). Dans SPECTRA, l'attribution est alors marquée comme telle : « Binance (cluster) » signifie que l'adresse n'a pas d'étiquette propre mais qu'une autre adresse de son cluster en a une ;
 - sur les chaînes à comptes, aux **adresses de dépôt** qui reversent au hot wallet étiqueté (heuristique de l'adresse de dépôt), ou aux contrats déployés par une adresse connue ;
 - dans les outils commerciaux, parfois au **rendu** détecté, ce qui ajoute le risque d'erreur de la détection de rendu.
 
@@ -141,15 +141,15 @@ Plus une étiquette a voyagé, plus il faut remonter à son point d'origine avan
       {
         type: 'case',
         title: 'Cas — deux outils, deux noms',
-        md: `Dans une escroquerie au faux placement, l'adresse Tron \`TQx7…9bLm\` reçoit 48 000 USDT de trois victimes. L'outil A l'étiquette « Kaizen Exchange — dépôt », l'outil B « Huobex ».
+        md: `Dans une escroquerie au faux placement, l'adresse Tron \`TQx7…9bLm\` reçoit 48 000 USDT de trois victimes. L'outil A l'étiquette « OKX — dépôt », l'outil B « Huobex ».
 
-L'analyste examine le comportement : l'adresse reverse chaque dépôt, en moins d'une heure, vers \`TJk2…hW4e\`, qui reçoit aussi les reversements de 41 000 autres adresses. Une recherche dans SPECTRA montre que \`TJk2…hW4e\` est attribuée à Kaizen par dépôt test daté de janvier 2026 ; l'étiquette « Huobex » de l'outil B provient d'un signalement communautaire de 2023, sans méthode indiquée.
+L'analyste examine le comportement : l'adresse reverse chaque dépôt, en moins d'une heure, vers \`TJk2…hW4e\`, qui reçoit aussi les reversements de 41 000 autres adresses. Une recherche dans SPECTRA montre que \`TJk2…hW4e\` est attribuée à OKX par dépôt test daté de janvier 2026 ; l'étiquette « Huobex » de l'outil B provient d'un signalement communautaire de 2023, sans méthode indiquée.
 
-Décision : réquisition adressée à **Kaizen**, en exposant le raisonnement (reversement vers le hot wallet attribué par dépôt test). Kaizen confirme deux semaines plus tard : l'attribution passe de « forte » à « confirmée ».`,
+Décision : réquisition adressée à **OKX**, en exposant le raisonnement (reversement vers le hot wallet attribué par dépôt test). OKX confirme deux semaines plus tard : l'attribution passe de « forte » à « confirmée ».`,
       },
       {
         type: 'check',
-        q: 'Une adresse est étiquetée « Ocelot Swap » dans un outil, sans indication de source. Quel usage en faire ?',
+        q: 'Une adresse est étiquetée « ChangeNOW » dans un outil, sans indication de source. Quel usage en faire ?',
         options: [
           'L\'écrire comme un fait établi dans le procès-verbal',
           'L\'ignorer totalement',
@@ -163,13 +163,13 @@ Décision : réquisition adressée à **Kaizen**, en exposant le raisonnement (r
         type: 'callout',
         kind: 'law',
         title: 'Listes de sanctions',
-        md: `L'OFAC (Trésor américain) inscrit des adresses de crypto-actifs sur sa liste SDN depuis 2018 ; les listes de l'Union européenne visent surtout des personnes et entités, plus rarement des adresses. Une exposition à une entité sanctionnée (Grantis dans les exercices) est un **signal fort** : elle peut justifier un signalement (TRACFIN, partenaires) et rend la coopération de l'entité illusoire. Vérifiez toujours l'inscription sur la liste officielle à la date considérée, et non la seule étiquette de l'outil.`,
+        md: `L'OFAC (Trésor américain) inscrit des adresses de crypto-actifs sur sa liste SDN depuis 2018 ; les listes de l'Union européenne visent surtout des personnes et entités, plus rarement des adresses. Une exposition à une entité sanctionnée (Garantex dans les exercices) est un **signal fort** : elle peut justifier un signalement (TRACFIN, partenaires) et rend la coopération de l'entité illusoire. Vérifiez toujours l'inscription sur la liste officielle à la date considérée, et non la seule étiquette de l'outil.`,
       },
       {
         type: 'callout',
         kind: 'field',
         title: 'Sur le terrain : citer une attribution',
-        md: `Formulation type : « L'adresse \`TJk2…hW4e\` est attribuée à Kaizen Exchange (hot wallet) par l'outil SPECTRA, source : dépôt test du 14/01/2026 ; attribution corroborée par le reversement de plus de 41 000 adresses de dépôt. Niveau de confiance : fort. » Le lecteur — magistrat, avocat, expert — sait ainsi exactement ce qui est affirmé et sur quoi.`,
+        md: `Formulation type : « L'adresse \`TJk2…hW4e\` est attribuée à OKX (hot wallet) par l'outil SPECTRA, source : dépôt test du 14/01/2026 ; attribution corroborée par le reversement de plus de 41 000 adresses de dépôt. Niveau de confiance : fort. » Le lecteur — magistrat, avocat, expert — sait ainsi exactement ce qui est affirmé et sur quoi.`,
       },
       {
         type: 'terms',
@@ -224,12 +224,12 @@ Décision : réquisition adressée à **Kaizen**, en exposant le raisonnement (r
         explain: 'Source, date, mode de propagation et corroboration déterminent la confiance. Le préfixe indique le type d\'adresse, pas son propriétaire.',
       },
       {
-        q: 'Que signifie l\'affichage « Coinvault (cluster) » dans SPECTRA ?',
+        q: 'Que signifie l\'affichage « Coinhouse (cluster) » dans SPECTRA ?',
         options: [
-          'L\'adresse a été confirmée par Coinvault',
+          'L\'adresse a été confirmée par Coinhouse',
           'L\'adresse est un cold wallet',
           'L\'adresse n\'a pas d\'étiquette propre : elle hérite de celle d\'une autre adresse de son cluster',
-          'Coinvault a publié cette adresse',
+          'Coinhouse a publié cette adresse',
         ],
         answer: 2,
         explain: 'L\'attribution par cluster est signalée pour rappeler qu\'elle dépend du clustering, donc d\'un chemin de co-dépense à vérifier.',
@@ -317,11 +317,11 @@ De l'exposition, les outils déduisent un **score de risque**. C'est un résumé
       {
         type: 'flow',
         nodes: [
-          { id: 'mx', label: 'Nebula Mixer', kind: 'mixer', sub: 'sévère' },
-          { id: 'cv', label: 'Coinvault', kind: 'exchange', sub: 'faible' },
+          { id: 'mx', label: 'Sinbad', kind: 'mixer', sub: 'sévère' },
+          { id: 'cv', label: 'Coinhouse', kind: 'exchange', sub: 'faible' },
           { id: 'y', label: 'Adresse Y', kind: 'unknown', sub: 'non attribuée' },
-          { id: 'dn', label: 'Obsidian Market', kind: 'service', sub: 'darknet — sévère' },
-          { id: 'cv2', label: 'Binova', kind: 'exchange', sub: 'faible' },
+          { id: 'dn', label: 'Hydra Market', kind: 'service', sub: 'darknet — sévère' },
+          { id: 'cv2', label: 'Binance', kind: 'exchange', sub: 'faible' },
           { id: 'x', label: 'Adresse étudiée X', kind: 'suspect', sub: 'reçoit 100 000 $' },
         ],
         edges: [
@@ -400,18 +400,18 @@ Chaque score d'exposition vaut **100 × (somme des montants × poids de leur cat
         title: 'Calcul pas à pas — l\'adresse X du schéma',
         md: `Exposition entrante de X (100 000 $) :
 
-- directe : Coinvault 30 000 $ × 0 = 0 ; Nebula Mixer 20 000 $ × 1 = 20 000 ;
-- indirecte (via Y) : Obsidian Market 30 000 $ × 1 × 0,6 = 18 000 ; Binova 20 000 $ × 0 = 0.
+- directe : Coinhouse 30 000 $ × 0 = 0 ; Sinbad 20 000 $ × 1 = 20 000 ;
+- indirecte (via Y) : Hydra Market 30 000 $ × 1 × 0,6 = 18 000 ; Binance 20 000 $ × 0 = 0.
 
 Somme pondérée : 38 000. Rapport : 38 000 / 100 000 = 0,38, soit un **score entrant de 38**.
 
-X n'est pas attribuée, et ses fonds sortants partent intégralement vers Coinvault (score sortant 0). Score final : max(0, 38, 0) = **38 → risque moyen**, avec pour raison « Exposition entrante : Mixeur ».
+X n'est pas attribuée, et ses fonds sortants partent intégralement vers Coinhouse (score sortant 0). Score final : max(0, 38, 0) = **38 → risque moyen**, avec pour raison « Exposition entrante : Mixeur ».
 
 Remarquez que sans l'atténuation de l'indirect, le score aurait été de 50. Et que si les 20 000 $ du mixeur étaient passés par une adresse intermédiaire, ils n'auraient compté que pour 12 000.`,
       },
       {
         type: 'check',
-        q: 'Une adresse non attribuée a une exposition sortante 100 % directe vers Grantis (entité sanctionnée). Quel score SPECTRA affiche-t-il ?',
+        q: 'Une adresse non attribuée a une exposition sortante 100 % directe vers Garantex (entité sanctionnée). Quel score SPECTRA affiche-t-il ?',
         options: ['38', '60', '95', '100'],
         answer: 3,
         explain: 'Exposition directe à une catégorie sévère (poids 1) pour 100 % du montant : 100 × 1 = 100, niveau sévère. Le score de 95 correspond à une adresse elle-même attribuée à une entité sévère.',
@@ -444,7 +444,7 @@ Remarquez que sans l'atténuation de l'indirect, le score aurait été de 50. Et
         type: 'callout',
         kind: 'field',
         title: 'Sur le terrain',
-        md: `Dans un rapport, ne donnez jamais un score seul. Écrivez : « Selon SPECTRA (calcul au prorata, 3 sauts), 38 % de la valeur pondérée reçue par X provient de catégories à risque, dont 20 000 $ directement de Nebula Mixer et environ 30 000 $ indirectement d'Obsidian Market via l'adresse Y. » Puis démontrez par la trace les flux qui comptent pour l'infraction poursuivie.`,
+        md: `Dans un rapport, ne donnez jamais un score seul. Écrivez : « Selon SPECTRA (calcul au prorata, 3 sauts), 38 % de la valeur pondérée reçue par X provient de catégories à risque, dont 20 000 $ directement de Sinbad et environ 30 000 $ indirectement d'Hydra Market via l'adresse Y. » Puis démontrez par la trace les flux qui comptent pour l'infraction poursuivie.`,
       },
       {
         type: 'steps',

@@ -24,7 +24,7 @@ export const L2_ENQUETE_B: Lesson[] = [
     blocks: [
       {
         type: 'text',
-        md: `Toute l'analyse on-chain converge vers un moment : la **réquisition**. C'est elle qui transforme « l'adresse de dépôt \`bc1q…u7d4\` chez Coinvault » en « le compte de M. X, ouvert le 3 janvier 2026 avec tel passeport, alimenté depuis tel IBAN, connecté depuis telle adresse IP ».
+        md: `Toute l'analyse on-chain converge vers un moment : la **réquisition**. C'est elle qui transforme « l'adresse de dépôt \`bc1q…u7d4\` chez Coinhouse » en « le compte de M. X, ouvert le 3 janvier 2026 avec tel passeport, alimenté depuis tel IBAN, connecté depuis telle adresse IP ».
 
 Une réquisition mal ciblée (adresse de hot wallet, tag XRP oublié, heure sans fuseau) revient vide ou ambiguë, et fait perdre des semaines. Une réquisition précise obtient souvent une réponse en quelques jours, ouvre de nouvelles pistes (banque, opérateur, autre exchange) et, parfois, permet un **gel** avant la dissipation des fonds.`,
       },
@@ -56,11 +56,11 @@ L'application exacte de ce régime aux journaux de connexion conservés par un p
         type: 'flow',
         nodes: [
           { id: 'v', label: 'Victime', kind: 'victim' },
-          { id: 'cv', label: 'Coinvault', kind: 'exchange', sub: 'exchange de la victime' },
+          { id: 'cv', label: 'Coinhouse', kind: 'exchange', sub: 'exchange de la victime' },
           { id: 's', label: 'Portefeuille suspect', kind: 'suspect' },
           { id: 'dep', label: 'Adresse de dépôt', kind: 'deposit', sub: 'unique au client : À REQUÉRIR' },
-          { id: 'hot', label: 'Hot wallet Binova', kind: 'hot', sub: 'partagé par tous' },
-          { id: 'usdt', label: 'Émetteur USDT', kind: 'service', sub: 'peut bloquer une adresse' },
+          { id: 'hot', label: 'Hot wallet Binance', kind: 'hot', sub: 'partagé par tous' },
+          { id: 'usdt', label: 'Tether', kind: 'service', sub: 'peut bloquer une adresse' },
         ],
         edges: [
           { from: 'v', to: 'cv', label: 'achat' },
@@ -78,7 +78,7 @@ L'application exacte de ce régime aux journaux de connexion conservés par un p
       },
       {
         type: 'check',
-        q: 'Les fonds du suspect arrivent sur une adresse de dépôt Binova, puis sont balayés vers le hot wallet de Binova. Quelle adresse citer dans la réquisition ?',
+        q: 'Les fonds du suspect arrivent sur une adresse de dépôt Binance, puis sont balayés vers le hot wallet de Binance. Quelle adresse citer dans la réquisition ?',
         options: [
           'L\'adresse du hot wallet, car c\'est là que sont les fonds',
           'L\'adresse de dépôt, avec le txid du dépôt, le montant et l\'horodatage UTC',
@@ -118,12 +118,12 @@ L'application exacte de ce régime aux journaux de connexion conservés par un p
         type: 'table',
         headers: ['Situation', 'Voie', 'Caractère', 'Remarques'],
         rows: [
-          ['Prestataire établi en France', 'Réquisition (60-1, 77-1-1, 99-3)', 'Contraignant', 'Coinvault dans les exercices'],
-          ['Grand exchange étranger doté d\'un portail forces de l\'ordre', 'Demande de coopération volontaire', 'Non contraignant', 'Souvent rapide pour l\'identité de base et le gel ; usage procédural à apprécier avec le parquet (Binova, Kaizen)'],
-          ['Prestataire établi dans un autre État membre de l\'UE', 'Décision d\'enquête européenne (directive 2014/41/UE)', 'Contraignant', 'Émise ou validée par un magistrat ; délais encadrés (Nordex en Estonie)'],
-          ['Prestataire hors UE sans coopération volontaire', 'Demande d\'entraide pénale internationale', 'Contraignant selon les conventions', 'Plusieurs mois ; à anticiper avec une demande de conservation (Helvetix en Suisse)'],
+          ['Prestataire établi en France', 'Réquisition (60-1, 77-1-1, 99-3)', 'Contraignant', 'Coinhouse dans les exercices'],
+          ['Grand exchange étranger doté d\'un portail forces de l\'ordre', 'Demande de coopération volontaire', 'Non contraignant', 'Souvent rapide pour l\'identité de base et le gel ; usage procédural à apprécier avec le parquet (Binance, OKX)'],
+          ['Prestataire établi dans un autre État membre de l\'UE', 'Décision d\'enquête européenne (directive 2014/41/UE)', 'Contraignant', 'Émise ou validée par un magistrat ; délais encadrés (Bitstamp en Estonie)'],
+          ['Prestataire hors UE sans coopération volontaire', 'Demande d\'entraide pénale internationale', 'Contraignant selon les conventions', 'Plusieurs mois ; à anticiper avec une demande de conservation (SwissBorg en Suisse)'],
           ['Émetteur de stablecoin', 'Demande de blocage via son portail', 'Volontaire', 'Gel rapide d\'une adresse ; à demander dès l\'identification'],
-          ['Entité sanctionnée ou non coopérative', '—', 'Aucune', 'Signalement, partenaires, suivre la sortie (Grantis, FlashX)'],
+          ['Entité sanctionnée ou non coopérative', '—', 'Aucune', 'Signalement, partenaires, suivre la sortie (Garantex, eXch)'],
         ],
       },
       {
@@ -159,7 +159,7 @@ L'application exacte de ce régime aux journaux de connexion conservés par un p
       },
       {
         type: 'case',
-        title: 'Exemple — l\'essentiel d\'une demande à Binova',
+        title: 'Exemple — l\'essentiel d\'une demande à Binance',
         md: `**Objet** : identification du titulaire d'un compte crédité par un dépôt USDT (TRC-20), procédure n° 2026/0412, escroquerie en bande organisée et blanchiment.
 
 **Éléments techniques** : chaîne Tron, actif USDT (contrat \`TR7N…Lj6t\`), adresse de dépôt \`TQx7…9bLm\`, txid \`b41c…e07a\`, montant 18 400,00 USDT, horodatage 2026-09-14 08:31:07 UTC.
@@ -427,10 +427,10 @@ Leçons : consignes écrites à la victime dès la plainte ; demande de gel **sa
       },
       {
         type: 'check',
-        q: 'Des USDT des auteurs sont identifiés sur deux adresses, et un compte chez Coinvault est alimenté par le même réseau. Quelle conduite est la plus prudente ?',
+        q: 'Des USDT des auteurs sont identifiés sur deux adresses, et un compte chez Coinhouse est alimenté par le même réseau. Quelle conduite est la plus prudente ?',
         options: [
           'Geler d\'abord une adresse et attendre de voir la réaction des auteurs',
-          'Demander les blocages auprès de l\'émetteur et de Coinvault de façon coordonnée et simultanée',
+          'Demander les blocages auprès de l\'émetteur et de Coinhouse de façon coordonnée et simultanée',
           'Publier les adresses pour avertir les autres victimes',
           'Envoyer un message aux auteurs pour les inciter à rendre les fonds',
         ],

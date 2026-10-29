@@ -1,6 +1,9 @@
-// Catalogue d'entités FICTIVES. Les noms sont inventés : ils imitent des
-// typologies réelles (exchange régulé, échangeur sans KYC, mixeur…) sans
-// désigner d'acteur existant.
+// Catalogue d'entités. La plupart sont des acteurs RÉELS (exchanges, mixeurs,
+// DEX…) décrits à partir de faits publics ; les flux qui les traversent
+// restent simulés. Les délais et modalités de coopération sont indicatifs.
+// Restent fictifs les rôles qui imputeraient à un acteur réel un comportement
+// non établi (exchange offshore peu coopératif, protocole piraté, casino…) et
+// le bridge, qui sert de modèle générique.
 
 export type EntityCategory =
   | 'exchange' | 'instant_exchanger' | 'mixer' | 'coinjoin' | 'privacy_pool'
@@ -87,101 +90,116 @@ type Template = Omit<Entity, 'id' | 'known'> & { known?: boolean }
 
 export const ENTITY_CATALOG: Record<string, Template> = {
   // ── Exchanges ────────────────────────────────────────────────────────────
-  coinvault: {
-    name: 'Coinvault', category: 'exchange', risk: 'low', country: 'France',
-    description: 'Plateforme française enregistrée auprès de l\'AMF, agréée PSCA (MiCA). KYC complet.',
-    compliance: { contact: 'requisitions@coinvault.example', cooperation: 'direct', responseDays: [3, 10], canFreeze: true, kyc: 'renforcé', regulator: 'AMF / ACPR' },
+  coinhouse: {
+    name: 'Coinhouse', category: 'exchange', risk: 'low', country: 'France',
+    description: 'Plateforme française, première à avoir été enregistrée PSAN auprès de l\'AMF (2020). KYC complet.',
+    compliance: { contact: 'Service conformité de Coinhouse (réquisition judiciaire)', cooperation: 'direct', responseDays: [3, 10], canFreeze: true, kyc: 'renforcé', regulator: 'AMF / ACPR' },
   },
-  binova: {
-    name: 'Binova', category: 'exchange', risk: 'low', country: 'Émirats arabes unis',
-    description: 'Exchange mondial à très fort volume. Dispose d\'un portail dédié aux forces de l\'ordre.',
-    compliance: { contact: 'le-portal.binova.example', portal: 'Portail LE Binova', cooperation: 'voluntary', responseDays: [5, 15], canFreeze: true, kyc: 'standard', notes: 'Répond aux réquisitions françaises via son portail ; gel possible sur demande motivée.' },
+  binance: {
+    name: 'Binance', category: 'exchange', risk: 'low', country: 'International',
+    description: 'Premier exchange mondial en volume, réparti entre de nombreuses entités locales. Dispose d\'un portail dédié aux demandes des forces de l\'ordre.',
+    compliance: { contact: 'Portail des demandes des forces de l\'ordre de Binance', portal: 'Portail LE Binance', cooperation: 'voluntary', responseDays: [5, 15], canFreeze: true, kyc: 'standard', notes: 'Les réquisitions françaises passent par le portail ; gel possible sur demande motivée.' },
   },
-  nordex: {
-    name: 'Nordex', category: 'exchange', risk: 'low', country: 'Estonie',
-    description: 'Exchange européen agréé PSCA dans un État membre de l\'UE.',
-    compliance: { contact: 'compliance@nordex.example', cooperation: 'eio', responseDays: [15, 45], canFreeze: true, kyc: 'standard', regulator: 'FIU Estonie', notes: 'Coopère volontairement sur les données de base ; DEE recommandée pour les relevés complets.' },
+  coinbase: {
+    name: 'Coinbase', category: 'exchange', risk: 'low', country: 'États-Unis',
+    description: 'Exchange américain coté en bourse. Ses clients européens relèvent d\'une entité agréée MiCA au Luxembourg.',
+    compliance: { contact: 'Portail des demandes des forces de l\'ordre de Coinbase', portal: 'Portail LE Coinbase', cooperation: 'voluntary', responseDays: [5, 20], canFreeze: true, kyc: 'standard', notes: 'Demandes déposées sur le portail ; les relevés complets d\'un client européen peuvent nécessiter une DEE.' },
   },
-  helvetix: {
-    name: 'Helvetix', category: 'exchange', risk: 'low', country: 'Suisse',
-    description: 'Exchange suisse supervisé.',
-    compliance: { contact: 'legal@helvetix.example', cooperation: 'mlat', responseDays: [60, 180], canFreeze: true, kyc: 'renforcé', regulator: 'FINMA', notes: 'Entraide pénale avec la Suisse nécessaire.' },
+  kraken: {
+    name: 'Kraken', category: 'exchange', risk: 'low', country: 'États-Unis',
+    description: 'Exchange américain fondé en 2011. Ses clients européens relèvent d\'une entité agréée MiCA en Irlande.',
+    compliance: { contact: 'Service des demandes des forces de l\'ordre de Kraken', cooperation: 'voluntary', responseDays: [7, 25], canFreeze: true, kyc: 'standard' },
   },
-  kaizen: {
-    name: 'Kaizen Exchange', category: 'exchange', risk: 'low', country: 'Singapour',
-    description: 'Exchange asiatique, forte liquidité sur les stablecoins TRON.',
-    compliance: { contact: 'lawenforcement@kaizen.example', cooperation: 'voluntary', responseDays: [10, 30], canFreeze: true, kyc: 'standard' },
+  bitstamp: {
+    name: 'Bitstamp', category: 'exchange', risk: 'low', country: 'Luxembourg',
+    description: 'Exchange historique (fondé en 2011), agréé dans l\'Union européenne.',
+    compliance: { contact: 'Service conformité de Bitstamp', cooperation: 'eio', responseDays: [15, 45], canFreeze: true, kyc: 'standard', regulator: 'CSSF (Luxembourg)', notes: 'Coopère volontairement sur les données de base ; DEE recommandée pour les relevés complets.' },
   },
+  swissborg: {
+    name: 'SwissBorg', category: 'exchange', risk: 'low', country: 'Suisse',
+    description: 'Application d\'investissement en crypto-actifs basée à Lausanne.',
+    compliance: { contact: 'Service juridique de SwissBorg', cooperation: 'mlat', responseDays: [60, 180], canFreeze: true, kyc: 'renforcé', regulator: 'Surveillance LBA (Suisse)', notes: 'Entraide pénale avec la Suisse nécessaire.' },
+  },
+  okx: {
+    name: 'OKX', category: 'exchange', risk: 'low', country: 'Seychelles',
+    description: 'Exchange mondial à fort volume, très utilisé pour l\'USDT sur Tron.',
+    compliance: { contact: 'Portail des demandes des forces de l\'ordre d\'OKX', portal: 'Portail LE OKX', cooperation: 'voluntary', responseDays: [10, 30], canFreeze: true, kyc: 'standard' },
+  },
+  // Fictif : profil d'exchange offshore peu coopératif.
   huobex: {
     name: 'Huobex', category: 'exchange', risk: 'medium', country: 'Seychelles',
-    description: 'Exchange offshore, KYC allégé sous un certain seuil de retrait.',
+    description: 'Exchange offshore (fictif), KYC allégé sous un certain seuil de retrait.',
     compliance: { contact: 'support@huobex.example', cooperation: 'voluntary', responseDays: [20, 90], canFreeze: false, kyc: 'faible', notes: 'Réponses irrégulières, données KYC parfois incomplètes.' },
   },
-  grantis: {
-    name: 'Grantis', category: 'sanctioned', risk: 'severe', country: 'Russie',
-    description: 'Exchange sanctionné (OFAC / UE). Plaque tournante du blanchiment.',
+  garantex: {
+    name: 'Garantex', category: 'sanctioned', risk: 'severe', country: 'Russie',
+    description: 'Exchange russe sanctionné par l\'OFAC (avril 2022), plaque tournante du blanchiment. Domaines saisis en mars 2025 ; activité reprise sous le nom Grinex.',
     compliance: { contact: '—', cooperation: 'none', responseDays: [0, 0], canFreeze: false, kyc: 'aucun', notes: 'Aucune coopération. Exposition = signal fort à signaler (TRACFIN, partenaires).' },
   },
 
   // ── Échangeurs instantanés / OTC / P2P ───────────────────────────────────
-  ocelot: {
-    name: 'Ocelot Swap', category: 'instant_exchanger', risk: 'high', country: 'Seychelles',
+  changenow: {
+    name: 'ChangeNOW', category: 'instant_exchanger', risk: 'high',
     description: 'Échangeur instantané sans compte : on dépose un actif, on reçoit un autre actif sur la chaîne de son choix.',
-    compliance: { contact: 'abuse@ocelot.example', cooperation: 'voluntary', responseDays: [7, 30], canFreeze: false, kyc: 'aucun', notes: 'Peut fournir l\'adresse de destination et l\'IP de la commande si on fournit le hash de dépôt.' },
+    compliance: { contact: 'Service conformité de ChangeNOW', cooperation: 'voluntary', responseDays: [7, 30], canFreeze: false, kyc: 'aucun', notes: 'Peut communiquer les données d\'une commande (adresse de destination, données techniques) si on fournit le hash de dépôt.' },
   },
-  flashx: {
-    name: 'FlashX', category: 'instant_exchanger', risk: 'high', country: 'Inconnu',
-    description: 'Service de swap express, accepte BTC, ETH, XMR, TRX.',
-    compliance: { contact: 'support@flashx.example', cooperation: 'none', responseDays: [0, 0], canFreeze: false, kyc: 'aucun' },
+  exch: {
+    name: 'eXch', category: 'instant_exchanger', risk: 'high',
+    description: 'Échangeur instantané sans KYC, acceptant notamment le XMR. Fermé en avril 2025 ; infrastructure saisie par les autorités allemandes.',
+    compliance: { contact: '—', cooperation: 'none', responseDays: [0, 0], canFreeze: false, kyc: 'aucun' },
   },
+  // Fictif : courtier OTC.
   satsdesk: {
     name: 'SatsDesk OTC', category: 'otc', risk: 'medium', country: 'Hong Kong',
-    description: 'Courtier de gré à gré, gros volumes USDT ↔ espèces.',
+    description: 'Courtier de gré à gré (fictif), gros volumes USDT ↔ espèces.',
     compliance: { contact: 'kyc@satsdesk.example', cooperation: 'mlat', responseDays: [60, 180], canFreeze: false, kyc: 'faible' },
   },
-  localsats: {
-    name: 'LocalSats', category: 'p2p', risk: 'medium', country: 'Inconnu',
-    description: 'Place de marché P2P avec séquestre (escrow) multisignature.',
-    compliance: { contact: 'legal@localsats.example', cooperation: 'voluntary', responseDays: [15, 60], canFreeze: false, kyc: 'faible' },
+  hodlhodl: {
+    name: 'Hodl Hodl', category: 'p2p', risk: 'medium',
+    description: 'Place de marché P2P non-custodial, sans KYC, avec séquestre (escrow) multisignature.',
+    compliance: { contact: 'Support de Hodl Hodl', cooperation: 'voluntary', responseDays: [15, 60], canFreeze: false, kyc: 'aucun', notes: 'Ne détient pas les fonds : données limitées aux annonces et aux échanges entre utilisateurs.' },
   },
 
   // ── Confidentialité ──────────────────────────────────────────────────────
-  nebula: {
-    name: 'Nebula Mixer', category: 'mixer', risk: 'severe', country: 'Inconnu',
-    description: 'Mixeur centralisé (custodial) : mélange les fonds avec ceux d\'autres utilisateurs et restitue après un délai, moins une commission.',
+  sinbad: {
+    name: 'Sinbad', category: 'mixer', risk: 'severe',
+    description: 'Mixeur centralisé (custodial), successeur de Blender.io : mélange les fonds avec ceux d\'autres utilisateurs et restitue après un délai, moins une commission. Sanctionné par l\'OFAC et saisi en novembre 2023.',
   },
-  cyclone: {
-    name: 'Cyclone Cash', category: 'privacy_pool', risk: 'severe', country: '—',
-    description: 'Pool de confidentialité non-custodial sur Ethereum (dénominations fixes 0,1 / 1 / 10 / 100 ETH, preuves à divulgation nulle). Sanctionné.',
+  tornado: {
+    name: 'Tornado Cash', category: 'privacy_pool', risk: 'severe',
+    description: 'Pool de confidentialité non-custodial sur Ethereum (dénominations fixes 0,1 / 1 / 10 / 100 ETH, preuves à divulgation nulle). Sanctionné par l\'OFAC d\'août 2022 à mars 2025.',
   },
-  whirl: {
-    name: 'Whirl Coordinator', category: 'coinjoin', risk: 'high', country: '—',
-    description: 'Coordinateur CoinJoin Bitcoin : transactions collaboratives à sorties de montant égal.',
+  wasabi: {
+    name: 'zkSNACKs', category: 'coinjoin', risk: 'high',
+    description: 'Coordinateur CoinJoin de Wasabi Wallet, opéré par zkSNACKs jusqu\'en juin 2024 : transactions collaboratives à sorties de montant égal, frais de coordination prélevés dans la transaction.',
   },
 
   // ── DeFi / bridges ───────────────────────────────────────────────────────
-  omniswap: { name: 'OmniSwap', category: 'dex', risk: 'low', description: 'DEX à teneur de marché automatisé (AMM) sur Ethereum.' },
-  syrupswap: { name: 'SyrupSwap', category: 'dex', risk: 'low', description: 'DEX AMM sur BNB Smart Chain.' },
-  helioswap: { name: 'HelioSwap', category: 'dex', risk: 'low', description: 'DEX AMM sur Tron.' },
+  uniswap: { name: 'Uniswap', category: 'dex', risk: 'low', description: 'DEX à teneur de marché automatisé (AMM) sur Ethereum.' },
+  pancakeswap: { name: 'PancakeSwap', category: 'dex', risk: 'low', description: 'DEX AMM sur BNB Smart Chain.' },
+  sunswap: { name: 'SunSwap', category: 'dex', risk: 'low', description: 'DEX AMM sur Tron.' },
+  // Fictif : bridge générique qui sert à enseigner la mécanique commune aux
+  // bridges de liquidité (aucun bridge réel ne couvre toutes ces chaînes).
   arcbridge: {
     name: 'ArcBridge', category: 'bridge', risk: 'medium',
-    description: 'Bridge de liquidité inter-chaînes : l\'actif déposé sur la chaîne source est restitué sur la chaîne de destination, au besoin converti dans l\'actif natif de celle-ci (ETH → BNB par exemple), à partir des réserves du bridge. Les événements publient la chaîne cible, le destinataire et un nonce qui relie les deux transactions.',
+    description: 'Bridge de liquidité inter-chaînes (fictif) : l\'actif déposé sur la chaîne source est restitué sur la chaîne de destination, au besoin converti dans l\'actif natif de celle-ci (ETH → BNB par exemple), à partir des réserves du bridge. Les événements publient la chaîne cible, le destinataire et un nonce qui relie les deux transactions.',
   },
-  lendora: { name: 'Lendora', category: 'defi', risk: 'low', description: 'Protocole de prêt décentralisé.' },
+  // Fictif : protocole victime d'un piratage dans les scénarios.
+  lendora: { name: 'Lendora', category: 'defi', risk: 'low', description: 'Protocole de prêt décentralisé (fictif).' },
 
   // ── Illicite ─────────────────────────────────────────────────────────────
-  obsidian: { name: 'Obsidian Market', category: 'darknet', risk: 'severe', description: 'Marché du darknet (stupéfiants, faux documents). Portefeuilles de séquestre centralisés.' },
-  lockfang: { name: 'LockFang', category: 'ransomware', risk: 'severe', description: 'Groupe de rançongiciel en mode RaaS (affiliés + opérateurs).' },
-  aurora: { name: 'AuroraTrade (faux)', category: 'scam', risk: 'severe', description: 'Fausse plateforme d\'investissement utilisée dans des escroqueries sentimentales.' },
+  hydra: { name: 'Hydra Market', category: 'darknet', risk: 'severe', description: 'Marché du darknet russophone (stupéfiants, faux documents, blanchiment), saisi en avril 2022 par les autorités allemandes. Portefeuilles de séquestre centralisés.' },
+  lockbit: { name: 'LockBit', category: 'ransomware', risk: 'severe', description: 'Groupe de rançongiciel en mode RaaS (affiliés + opérateurs), perturbé en février 2024 par l\'opération Cronos.' },
+  aurora: { name: 'AuroraTrade (faux)', category: 'scam', risk: 'severe', description: 'Fausse plateforme d\'investissement (fictive) utilisée dans des escroqueries sentimentales.' },
 
   // ── Divers ───────────────────────────────────────────────────────────────
-  orbit: { name: 'OrbitCasino', category: 'gambling', risk: 'medium', description: 'Casino en ligne crypto, KYC absent.' },
-  shieldvpn: { name: 'ShieldVPN', category: 'merchant', risk: 'low', description: 'Fournisseur VPN acceptant les cryptos.' },
-  cardhub: { name: 'CardHub', category: 'merchant', risk: 'medium', description: 'Vente de cartes cadeaux contre crypto.' },
-  deeppool: { name: 'DeepPool', category: 'mining', risk: 'low', description: 'Pool de minage Bitcoin.' },
+  orbit: { name: 'OrbitCasino', category: 'gambling', risk: 'medium', description: 'Casino en ligne crypto (fictif), KYC absent.' },
+  mullvad: { name: 'Mullvad VPN', category: 'merchant', risk: 'low', description: 'Fournisseur VPN acceptant le bitcoin et le monero.' },
+  cardhub: { name: 'CardHub', category: 'merchant', risk: 'medium', description: 'Vente de cartes cadeaux contre crypto (fictif).' },
+  foundry: { name: 'Foundry USA', category: 'mining', risk: 'low', description: 'Pool de minage Bitcoin.' },
   tether: {
-    name: 'Émetteur USDT', category: 'token_issuer', risk: 'low',
+    name: 'Tether', category: 'token_issuer', risk: 'low',
     description: 'Émetteur du stablecoin USDT. Capable de geler (blacklister) une adresse sur demande des autorités.',
-    compliance: { contact: 'Portail forces de l\'ordre de l\'émetteur', cooperation: 'voluntary', responseDays: [1, 7], canFreeze: true, kyc: 'aucun', notes: 'Le gel d\'USDT sur une adresse est rapide et très efficace : à demander dès l\'identification.' },
+    compliance: { contact: 'Portail des forces de l\'ordre de Tether', cooperation: 'voluntary', responseDays: [1, 7], canFreeze: true, kyc: 'aucun', notes: 'Le gel d\'USDT sur une adresse est rapide et très efficace : à demander dès l\'identification.' },
   },
 }

@@ -361,12 +361,12 @@ La bonne nouvelle : chaque saut a un **opérateur**, un **protocole** ou une **t
         nodes: [
           { id: 'v', label: 'Victimes', kind: 'victim', sub: 'BTC' },
           { id: 'col', label: 'Collecteur', kind: 'suspect', sub: 'Bitcoin' },
-          { id: 'oc', label: 'Ocelot Swap', kind: 'exchange', sub: 'dépôt BTC → hot wallet ETH' },
+          { id: 'oc', label: 'ChangeNOW', kind: 'exchange', sub: 'dépôt BTC → hot wallet ETH' },
           { id: 'e', label: 'Adresse neuve', kind: 'wallet', sub: 'Ethereum' },
           { id: 'br', label: 'ArcBridge', kind: 'bridge', sub: 'ETH → BNB' },
           { id: 'b', label: 'Même acteur', kind: 'wallet', sub: 'BNB Chain' },
-          { id: 'dx', label: 'SyrupSwap', kind: 'dex', sub: 'BNB → USDT' },
-          { id: 'ex', label: 'Dépôt Kaizen', kind: 'deposit', sub: 'exchange' },
+          { id: 'dx', label: 'PancakeSwap', kind: 'dex', sub: 'BNB → USDT' },
+          { id: 'ex', label: 'Dépôt OKX', kind: 'deposit', sub: 'exchange' },
         ],
         edges: [
           { from: 'v', to: 'col', label: 'paiements' },
@@ -420,7 +420,7 @@ La bonne nouvelle : chaque saut a un **opérateur**, un **protocole** ou une **t
         type: 'callout',
         kind: 'field',
         title: 'Sur le terrain',
-        md: `De nombreux échangeurs, même offshore et sans KYC, répondent aux demandes motivées des forces de l'ordre si on leur fournit le **hash de la transaction de dépôt** et l'adresse de dépôt. Dans SPECTRA, Ocelot Swap coopère volontairement ; FlashX ne répond pas. Envoyez la demande **tôt** : les durées de conservation de ces services sont inconnues, et la corrélation que vous menez en parallèle ne remplace pas leur réponse.`,
+        md: `De nombreux échangeurs, même offshore et sans KYC, répondent aux demandes motivées des forces de l'ordre si on leur fournit le **hash de la transaction de dépôt** et l'adresse de dépôt. Dans SPECTRA, ChangeNOW coopère volontairement ; eXch ne répond pas. Envoyez la demande **tôt** : les durées de conservation de ces services sont inconnues, et la corrélation que vous menez en parallèle ne remplace pas leur réponse.`,
       },
       { type: 'heading', text: 'La corrélation montant / temps, pas à pas' },
       {
@@ -437,12 +437,12 @@ La bonne nouvelle : chaque saut a un **opérateur**, un **protocole** ou une **t
       },
       {
         type: 'case',
-        title: 'Cas pratique — 0,8215 BTC chez Ocelot Swap',
-        md: `Dépôt de 0,8215 BTC à 14:02 UTC (confirmé à 14:09) sur une adresse de dépôt Ocelot. Cours de référence : environ 24,1 ETH pour 1 BTC → 19,80 ETH bruts. Après 0,5 à 2 % de frais : fourchette de **19,40 à 19,70 ETH**.
+        title: 'Cas pratique — 0,8215 BTC chez ChangeNOW',
+        md: `Dépôt de 0,8215 BTC à 14:02 UTC (confirmé à 14:09) sur une adresse de dépôt ChangeNOW. Cours de référence : environ 24,1 ETH pour 1 BTC → 19,80 ETH bruts. Après 0,5 à 2 % de frais : fourchette de **19,40 à 19,70 ETH**.
 
-Sorties du hot wallet ETH d'Ocelot entre 14:09 et 15:00 : **214**. Dans la fourchette : **une seule**, 19,61 ETH à 14:17 UTC vers \`0x2d9a…e410\`, adresse jamais vue auparavant. Quarante minutes plus tard, cette adresse dépose la totalité dans ArcBridge vers BNB Chain.
+Sorties du hot wallet ETH de ChangeNOW entre 14:09 et 15:00 : **214**. Dans la fourchette : **une seule**, 19,61 ETH à 14:17 UTC vers \`0x2d9a…e410\`, adresse jamais vue auparavant. Quarante minutes plus tard, cette adresse dépose la totalité dans ArcBridge vers BNB Chain.
 
-Conclusion : hypothèse **forte** (1 candidat sur 214, adresse neuve, usage immédiat cohérent avec le schéma du suspect), à confirmer par réquisition d'Ocelot Swap avec le hash du dépôt.`,
+Conclusion : hypothèse **forte** (1 candidat sur 214, adresse neuve, usage immédiat cohérent avec le schéma du suspect), à confirmer par réquisition de ChangeNOW avec le hash du dépôt.`,
       },
       { type: 'widget', id: 'timing-correlation', caption: `Réglez fenêtre et tolérance : observez comment le nombre de candidats, et donc la confiance, évolue.` },
       {
@@ -486,11 +486,11 @@ Même logique pour un **exchange centralisé** utilisé comme saut (dépôt de B
         caption: `Extrait de chronologie : une ligne par transaction, tout en UTC, avec la contre-valeur et la nature du lien`,
         headers: ['UTC', 'Chaîne', 'Opération', 'Montant', 'Contre-valeur', 'Lien avec la ligne précédente', 'Confiance'],
         rows: [
-          ['12/05 14:02', 'Bitcoin', 'Collecteur → dépôt Ocelot', '0,8215 BTC', '≈ 49 300 €', '—', 'Établi'],
-          ['12/05 14:17', 'Ethereum', 'Hot wallet Ocelot → 0x2d9a…', '19,61 ETH', '≈ 48 800 €', 'Corrélation (1/214)', 'Élevée'],
+          ['12/05 14:02', 'Bitcoin', 'Collecteur → dépôt ChangeNOW', '0,8215 BTC', '≈ 49 300 €', '—', 'Établi'],
+          ['12/05 14:17', 'Ethereum', 'Hot wallet ChangeNOW → 0x2d9a…', '19,61 ETH', '≈ 48 800 €', 'Corrélation (1/214)', 'Élevée'],
           ['12/05 14:58', 'Ethereum', '0x2d9a… → ArcBridge', '19,60 ETH', '≈ 48 780 €', 'Constaté', 'Établi'],
           ['12/05 15:07', 'BNB Chain', 'ArcBridge → 0x2d9a…', '82,4 BNB', '≈ 48 690 €', 'Nonce 41 077', 'Établi'],
-          ['12/05 15:20', 'BNB Chain', 'Swap SyrupSwap → USDT', '52 640 USDT', '≈ 48 540 €', 'Même transaction', 'Établi'],
+          ['12/05 15:20', 'BNB Chain', 'Swap PancakeSwap → USDT', '52 640 USDT', '≈ 48 540 €', 'Même transaction', 'Établi'],
         ],
       },
       {
@@ -724,7 +724,7 @@ La bonne approche est entre les deux : un mixeur casse le lien **transactionnel*
       { type: 'widget', id: 'risk-exposure', caption: `Calculez l'exposition directe et indirecte d'une adresse à un mixeur : un pourcentage de risque, pas une preuve de lien.` },
       {
         type: 'check',
-        q: `Une adresse a reçu 0,95 BTC depuis les réserves de Nebula Mixer, 6 heures après que la victime y a déposé 1 BTC. Que pouvez-vous écrire ?`,
+        q: `Une adresse a reçu 0,95 BTC depuis les réserves de Sinbad, 6 heures après que la victime y a déposé 1 BTC. Que pouvez-vous écrire ?`,
         options: [
           `Que l'adresse a reçu les fonds de la victime`,
           `Qu'un versement compatible en montant et en délai a été observé, à confronter aux autres candidats`,
@@ -741,7 +741,7 @@ La bonne approche est entre les deux : un mixeur casse le lien **transactionnel*
         headers: ['Piste', 'Principe', 'Force typique', 'Exemple'],
         rows: [
           ['Corrélation montant/temps', 'Somme des sorties ≈ dépôt − commission, dans la fenêtre de délai', 'Faible à moyenne', '3,2 BTC déposés, 3,13 BTC ressortis en trois versements sous 24 h'],
-          ['Regroupement post-mixage', 'Les sorties sont dépensées ensemble ou envoyées au même endroit', 'Forte', 'Trois sorties consolidées vers un même dépôt Binova'],
+          ['Regroupement post-mixage', 'Les sorties sont dépensées ensemble ou envoyées au même endroit', 'Forte', 'Trois sorties consolidées vers un même dépôt Binance'],
           ['Réutilisation d’adresse', 'Adresse de sortie déjà connue ou réutilisée ensuite', 'Forte', 'Sortie vers une adresse déjà utilisée par le suspect avant les faits'],
           ['Schéma propre au service', 'Montants ou délais standards reconnaissables', 'Moyenne', 'Versements toujours fractionnés en 3 parts'],
           ['Données de démantèlement', 'Bases saisies reliant commandes, dépôts et sorties', 'Forte', 'Correspondance obtenue via la coopération internationale'],
@@ -752,11 +752,11 @@ La bonne approche est entre les deux : un mixeur casse le lien **transactionnel*
       {
         type: 'case',
         title: 'Cas pratique — l’erreur après le mixage',
-        md: `Le 12 mars à 08:41 UTC, le suspect dépose 3,2 BTC volés sur une adresse de dépôt de Nebula Mixer. Dans les 36 heures, les réserves du mixeur effectuent 47 versements. Trois d'entre eux, de 1,18 BTC, 0,97 BTC et 0,98 BTC (total 3,13 BTC, soit 2,2 % de moins que le dépôt), partent vers trois adresses neuves.
+        md: `Le 12 mars à 08:41 UTC, le suspect dépose 3,2 BTC volés sur une adresse de dépôt de Sinbad. Dans les 36 heures, les réserves du mixeur effectuent 47 versements. Trois d'entre eux, de 1,18 BTC, 0,97 BTC et 0,98 BTC (total 3,13 BTC, soit 2,2 % de moins que le dépôt), partent vers trois adresses neuves.
 
-Pris isolément, ces versements ne valent pas grand-chose : d'autres combinaisons de sorties approchent aussi 3,13 BTC. Mais le 14 mars, une **même transaction** dépense les trois adresses ensemble (entrées communes) vers une adresse de dépôt attribuée à **Binova**.
+Pris isolément, ces versements ne valent pas grand-chose : d'autres combinaisons de sorties approchent aussi 3,13 BTC. Mais le 14 mars, une **même transaction** dépense les trois adresses ensemble (entrées communes) vers une adresse de dépôt attribuée à **Binance**.
 
-Le regroupement post-mixage transforme une corrélation faible en hypothèse forte : les trois sorties sont contrôlées par une même personne, qui a déposé un montant compatible chez Binova. Réquisition de Binova pour identifier le titulaire du compte.`,
+Le regroupement post-mixage transforme une corrélation faible en hypothèse forte : les trois sorties sont contrôlées par une même personne, qui a déposé un montant compatible chez Binance. Réquisition de Binance pour identifier le titulaire du compte.`,
       },
       {
         type: 'flow',
@@ -767,7 +767,7 @@ Le regroupement post-mixage transforme une corrélation faible en hypothèse for
           { id: 'o2', label: 'Sortie 2', kind: 'wallet', sub: '0,97 BTC' },
           { id: 'o3', label: 'Sortie 3', kind: 'wallet', sub: '0,98 BTC' },
           { id: 't', label: 'Transaction de regroupement', kind: 'tx', sub: '3 entrées communes' },
-          { id: 'ex', label: 'Dépôt Binova', kind: 'deposit', sub: 'compte KYC' },
+          { id: 'ex', label: 'Dépôt Binance', kind: 'deposit', sub: 'compte KYC' },
         ],
         edges: [
           { from: 'r', to: 'o1' },
@@ -802,7 +802,7 @@ Les données issues de démantèlements peuvent relier dépôts et sorties. Leur
         type: 'callout',
         kind: 'example',
         title: 'Formulation pour le rapport',
-        md: `« Le 12/03 à 08:41 UTC, 3,2 BTC ont été déposés sur une adresse attribuée par l'outil X (consulté le 20/03) au mixeur Nebula Mixer (txid …). Aucun lien transactionnel ne permet de suivre ces fonds au-delà du mixeur. Une corrélation montant/temps (fenêtre 36 h, tolérance 5 %) a identifié plusieurs combinaisons de versements compatibles. L'une d'elles (trois versements totalisant 3,13 BTC) a été regroupée le 14/03 dans une transaction unique vers un dépôt Binova, ce qui fonde une hypothèse de confiance élevée. »`,
+        md: `« Le 12/03 à 08:41 UTC, 3,2 BTC ont été déposés sur une adresse attribuée par l'outil X (consulté le 20/03) au mixeur Sinbad (txid …). Aucun lien transactionnel ne permet de suivre ces fonds au-delà du mixeur. Une corrélation montant/temps (fenêtre 36 h, tolérance 5 %) a identifié plusieurs combinaisons de versements compatibles. L'une d'elles (trois versements totalisant 3,13 BTC) a été regroupée le 14/03 dans une transaction unique vers un dépôt Binance, ce qui fonde une hypothèse de confiance élevée. »`,
       },
       {
         type: 'check',

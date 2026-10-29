@@ -44,7 +44,7 @@ Elle n'a pas été piratée. Elle n'a rien signé d'anormal. Elle a copié une a
         caption: `L'historique de la victime est pollué juste après un paiement légitime ; le paiement suivant part vers le sosie.`,
         nodes: [
           { id: 'v', label: 'Victime', kind: 'victim', sub: 'indépendante' },
-          { id: 'leg', label: 'Dépôt Coinvault', kind: 'deposit', sub: 'TXk3m…A4gZ6r' },
+          { id: 'leg', label: 'Dépôt Coinhouse', kind: 'deposit', sub: 'TXk3m…A4gZ6r' },
           { id: 'hub', label: 'Financeur', kind: 'suspect', sub: 'TRX + USDT' },
           { id: 'sos', label: 'Adresse sosie', kind: 'suspect', sub: 'TXk3m…9hgZ6r' },
           { id: 'col', label: 'Collecteur', kind: 'wallet' },
@@ -142,8 +142,8 @@ Points d'attention :
       { type: 'widget', id: 'amm-swap', caption: `Les fonds détournés sont souvent échangés aussitôt sur un DEX pour sortir du stablecoin gelable : lisez les jambes du swap.` },
       {
         type: 'case',
-        title: 'Cas pratique — le sosie du dépôt Coinvault',
-        md: `La victime a effectué cinq virements mensuels d'USDT-TRC20 vers son adresse de dépôt Coinvault \`TXk3mPq7Rv9sWbN2cJd5hYt8LuEfA4gZ6r\`. Le dernier, le 2 avril à 09:14 UTC.
+        title: 'Cas pratique — le sosie du dépôt Coinhouse',
+        md: `La victime a effectué cinq virements mensuels d'USDT-TRC20 vers son adresse de dépôt Coinhouse \`TXk3mPq7Rv9sWbN2cJd5hYt8LuEfA4gZ6r\`. Le dernier, le 2 avril à 09:14 UTC.
 
 - 2 avril, 07:50 UTC : un financeur \`TFv8…\` envoie 35 TRX puis 1 USDT à \`TXk3mW8aHnQe2RzVyKp4oT7cBxDs9hgZ6r\` (le sosie).
 - 2 avril, 09:31 UTC (17 minutes après le virement légitime) : le sosie envoie **0,01 USDT** à la victime.
@@ -373,7 +373,7 @@ Pour l'enquêteur, ce partage est une aubaine : comme pour un rançongiciel, l'a
           { id: 'dr', label: 'Contrat drainer', kind: 'contract', sub: 'spender' },
           { id: 'aff', label: 'Affilié', kind: 'suspect', sub: '80 %' },
           { id: 'op', label: 'Opérateur du kit', kind: 'suspect', sub: '20 % de milliers de vols' },
-          { id: 'dex', label: 'OmniSwap', kind: 'dex', sub: 'ETH → USDT' },
+          { id: 'dex', label: 'Uniswap', kind: 'dex', sub: 'ETH → USDT' },
           { id: 'ex', label: 'Dépôt exchange', kind: 'deposit' },
         ],
         edges: [
@@ -441,7 +441,7 @@ Pour l'enquêteur, ce partage est une aubaine : comme pour un rançongiciel, l'a
 
 Le contrat répartit chaque entrée : **80 %** vers \`0x3ab0…\` (affilié), **20 %** vers \`0xe77d…\` (opérateur). L'adresse opérateur a reçu des fonds de 2 300 adresses distinctes en six semaines.
 
-L'affilié échange les ETH contre de l'USDT sur OmniSwap à 20:05, puis dépose 23 900 USDT sur un exchange à 21:30. Actes : gel et réquisition de l'exchange, signalement de l'adresse opérateur aux partenaires, recherche d'autres plaintes liées au même contrat.`,
+L'affilié échange les ETH contre de l'USDT sur Uniswap à 20:05, puis dépose 23 900 USDT sur un exchange à 21:30. Actes : gel et réquisition de l'exchange, signalement de l'adresse opérateur aux partenaires, recherche d'autres plaintes liées au même contrat.`,
       },
       { type: 'widget', id: 'amm-swap', caption: `Le drainer convertit les jetons volés sur un DEX : routeur, pool, jeton entrant et jeton sortant.` },
       {
@@ -664,7 +664,7 @@ Le **rug pull** (« tirer le tapis ») consiste à récupérer cette valeur et �
           { id: 'cex', label: 'Exchange', kind: 'exchange', sub: 'retrait de gaz' },
           { id: 'dep', label: 'Déployeur', kind: 'suspect', sub: '0x5d02…' },
           { id: 'tok', label: 'Contrat $ZPHR', kind: 'contract' },
-          { id: 'pool', label: 'Pool ZPHR/BNB', kind: 'dex', sub: 'SyrupSwap' },
+          { id: 'pool', label: 'Pool ZPHR/BNB', kind: 'dex', sub: 'PancakeSwap' },
           { id: 'inv', label: 'Investisseurs', kind: 'victim', sub: '640 adresses' },
           { id: 'w', label: 'Portefeuilles relais', kind: 'wallet' },
         ],
@@ -726,10 +726,10 @@ Le **rug pull** (« tirer le tapis ») consiste à récupérer cette valeur et �
 À 16:47 UTC, l'adresse \`0x5d02…\` (owner) appelle \`withdrawAll\` sur la prévente : 372 BNB et 186 000 USDT partent vers quatre portefeuilles. À 17:05, retrait de la liquidité du pool. Puis :
 
 - 180 BNB bridgés vers Ethereum via ArcBridge (nonce 63 118), convertis en ETH à l'arrivée ;
-- 186 000 USDT déposés en trois fois chez Kaizen ;
+- 186 000 USDT déposés en trois fois chez OKX ;
 - 220 BNB restants dormants sur deux portefeuilles.
 
-Préjudice lié à la prévente : 412 BNB + 186 000 USDT bruts ; net, après déduction des remboursements obtenus par 31 investisseurs qui ont réclamé avant le lancement : 398 BNB + 186 000 USDT. Les achats dans le pool après le lancement s'y ajoutent, calculés de la même façon. Actes : demande de gel de l'USDT déposé chez Kaizen et réquisition, surveillance des portefeuilles dormants, poursuite côté Ethereum.`,
+Préjudice lié à la prévente : 412 BNB + 186 000 USDT bruts ; net, après déduction des remboursements obtenus par 31 investisseurs qui ont réclamé avant le lancement : 398 BNB + 186 000 USDT. Les achats dans le pool après le lancement s'y ajoutent, calculés de la même façon. Actes : demande de gel de l'USDT déposé chez OKX et réquisition, surveillance des portefeuilles dormants, poursuite côté Ethereum.`,
       },
       {
         type: 'compare',
@@ -763,7 +763,7 @@ Préjudice lié à la prévente : 412 BNB + 186 000 USDT bruts ; net, après dé
         type: 'flow',
         caption: `Le financement du gaz relie le déployeur à un compte d'exchange et à d'autres lancements.`,
         nodes: [
-          { id: 'cex', label: 'Hot wallet Binova', kind: 'hot', sub: 'retrait client' },
+          { id: 'cex', label: 'Hot wallet Binance', kind: 'hot', sub: 'retrait client' },
           { id: 'fund', label: 'Financeur', kind: 'suspect' },
           { id: 'd1', label: 'Déployeur $ZPHR', kind: 'suspect' },
           { id: 'd2', label: 'Déployeur d’un jeton antérieur', kind: 'suspect', sub: 'rug il y a 4 mois' },

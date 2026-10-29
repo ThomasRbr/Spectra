@@ -56,7 +56,7 @@ Les groupes changent souvent de nom, mais les affiliés et les infrastructures c
           { id: 'ra', label: 'Adresse de rançon', kind: 'suspect', sub: 'unique par victime' },
           { id: 'sp', label: 'Transaction de partage', kind: 'tx', sub: '80 / 20' },
           { id: 'aff', label: 'Affilié', kind: 'suspect', sub: '14,72 BTC' },
-          { id: 'op', label: 'Opérateurs LockFang', kind: 'suspect', sub: '3,68 BTC' },
+          { id: 'op', label: 'Opérateurs LockBit', kind: 'suspect', sub: '3,68 BTC' },
           { id: 'ov', label: 'Autres victimes', kind: 'victim', sub: '11 partages' },
         ],
         edges: [
@@ -84,12 +84,12 @@ Les groupes changent souvent de nom, mais les affiliés et les infrastructures c
       },
       {
         type: 'case',
-        title: 'Cas pratique — 18,4 BTC versés à LockFang',
-        md: `Le 14 octobre à 10:12 UTC, un prestataire de réponse à incident verse **18,4 BTC** depuis son compte Coinvault sur l'adresse \`bc1q…r7m\` indiquée dans le portail LockFang. À 13:20 UTC, une transaction dépense cette adresse vers deux sorties : **14,7199 BTC** et **3,6800 BTC** (frais : 0,0001 BTC).
+        title: 'Cas pratique — 18,4 BTC versés à LockBit',
+        md: `Le 14 octobre à 10:12 UTC, un prestataire de réponse à incident verse **18,4 BTC** depuis son compte Coinhouse sur l'adresse \`bc1q…r7m\` indiquée dans le portail LockBit. À 13:20 UTC, une transaction dépense cette adresse vers deux sorties : **14,7199 BTC** et **3,6800 BTC** (frais : 0,0001 BTC).
 
 Ratio : 3,68 / 18,3999 = **20,0 %**. La sortie de 3,68 BTC va vers \`bc1q…op4\`, adresse qui a reçu sur trois mois **onze** autres versements, chacun égal à 20 % d'une transaction de partage. Les adresses de rançon correspondantes permettent d'identifier onze autres attaques, dont deux font l'objet de plaintes en France.
 
-La sortie de 14,72 BTC (affilié) part en peel chain : 4 BTC dans Nebula Mixer, puis 6,1 BTC vers un dépôt Nordex six jours plus tard.`,
+La sortie de 14,72 BTC (affilié) part en peel chain : 4 BTC dans Sinbad, puis 6,1 BTC vers un dépôt Bitstamp six jours plus tard.`,
       },
       {
         type: 'check',
@@ -320,15 +320,15 @@ Ce fonctionnement a une conséquence majeure : on ne remonte pas « de l'achat a
       { type: 'heading', text: 'Le modèle financier d’une place de marché' },
       {
         type: 'flow',
-        caption: `Circuit type (Obsidian Market) : l'acheteur dépose, le séquestre centralisé garde le prix, le vendeur est payé à la finalisation, moins la commission.`,
+        caption: `Circuit type (Hydra Market) : l'acheteur dépose, le séquestre centralisé garde le prix, le vendeur est payé à la finalisation, moins la commission.`,
         nodes: [
           { id: 'cex', label: 'Exchange régulé', kind: 'exchange', sub: 'compte de l’acheteur' },
           { id: 'bd', label: 'Dépôt acheteur', kind: 'deposit', sub: 'Obsidian' },
           { id: 'esc', label: 'Séquestre Obsidian', kind: 'hot', sub: 'paie tous les vendeurs' },
           { id: 'vw', label: 'Portefeuille vendeur', kind: 'suspect' },
-          { id: 'p2p', label: 'LocalSats', kind: 'service', sub: 'P2P' },
-          { id: 'sw', label: 'Ocelot Swap', kind: 'exchange', sub: 'BTC → LTC' },
-          { id: 'cv', label: 'Coinvault', kind: 'exchange', sub: 'KYC' },
+          { id: 'p2p', label: 'Hodl Hodl', kind: 'service', sub: 'P2P' },
+          { id: 'sw', label: 'ChangeNOW', kind: 'exchange', sub: 'BTC → LTC' },
+          { id: 'cv', label: 'Coinhouse', kind: 'exchange', sub: 'KYC' },
         ],
         edges: [
           { from: 'cex', to: 'bd', label: 'retrait BTC' },
@@ -391,9 +391,9 @@ La réquisition de l'exchange donne l'identité, les adresses IP de connexion et
       {
         type: 'case',
         title: 'Cas pratique — 14 retraits vers Obsidian',
-        md: `L'outil signale qu'un compte client Coinvault a effectué, entre janvier et juin, **14 retraits** vers des adresses directement balayées dans le cluster Obsidian Market : de 0,0021 à 0,0185 BTC (environ 120 à 1 100 €), en moyenne tous les douze jours, avec une hausse nette en mai.
+        md: `L'outil signale qu'un compte client Coinhouse a effectué, entre janvier et juin, **14 retraits** vers des adresses directement balayées dans le cluster Hydra Market : de 0,0021 à 0,0185 BTC (environ 120 à 1 100 €), en moyenne tous les douze jours, avec une hausse nette en mai.
 
-Réquisition de Coinvault : identité, IP de connexion, moyens de paiement. L'analyse de la fréquence et des montants, croisée avec la surveillance des colis à l'adresse du titulaire, oriente vers une activité de revente locale.`,
+Réquisition de Coinhouse : identité, IP de connexion, moyens de paiement. L'analyse de la fréquence et des montants, croisée avec la surveillance des colis à l'adresse du titulaire, oriente vers une activité de revente locale.`,
       },
       { type: 'heading', text: 'Côté vendeur' },
       {
@@ -425,9 +425,9 @@ Réquisition de Coinvault : identité, IP de connexion, moyens de paiement. L'an
         title: 'Cas pratique — le vendeur et son erreur de KYC',
         md: `Achat sous pseudonyme de 0,0412 BTC, finalisé le 9 février à 18:20 UTC. À 18:34, le séquestre Obsidian libère **0,0391 BTC** (prix − 5 % de commission) vers \`bc1q…v3n\`. Cette adresse est ensuite regroupée avec 37 autres adresses ayant reçu des libérations du séquestre : **2,86 BTC** de chiffre d'affaires en quatre mois.
 
-Sorties : 0,9 BTC vendus sur LocalSats, 1,1 BTC convertis en Litecoin via Ocelot Swap (corrélation : un seul candidat sur 96 sorties LTC dans la fenêtre), et **0,64 BTC déposés chez Coinvault** sur un compte vérifié. La clé PGP publiée sur le forum est identique à celle de la boutique Obsidian.
+Sorties : 0,9 BTC vendus sur Hodl Hodl, 1,1 BTC convertis en Litecoin via ChangeNOW (corrélation : un seul candidat sur 96 sorties LTC dans la fenêtre), et **0,64 BTC déposés chez Coinhouse** sur un compte vérifié. La clé PGP publiée sur le forum est identique à celle de la boutique Obsidian.
 
-Stratégie : réquisition de Coinvault en priorité (identité, IP), demande à Ocelot Swap avec le hash du dépôt, puis LocalSats.`,
+Stratégie : réquisition de Coinhouse en priorité (identité, IP), demande à ChangeNOW avec le hash du dépôt, puis Hodl Hodl.`,
       },
       { type: 'heading', text: 'Les limites de l’analyse' },
       {

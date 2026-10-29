@@ -27,8 +27,8 @@ export const accAddressPoisoning: ScenarioTemplate = {
     const victimName = fakePerson(r, 'f').name
     const city = fakeCity(r)
 
-    const own = exchange(w, 'coinvault', 'tron')
-    const destKey = r.pick(['huobex', 'kaizen', 'binova'] as const)
+    const own = exchange(w, 'coinhouse', 'tron')
+    const destKey = r.pick(['huobex', 'okx', 'binance'] as const)
     const dest = exchange(w, destKey, 'tron')
 
     const victimE = w.customEntity({ name: victimName, category: 'victim' })
@@ -40,10 +40,10 @@ export const accAddressPoisoning: ScenarioTemplate = {
     // TRX pour l'énergie / la bande passante
     own.withdraw(victim, r.int(150, 400), w.at(-r.int(100, 120) * 24), 'TRX')
 
-    // L'adresse de dépôt personnelle de la victime sur Coinvault
+    // L'adresse de dépôt personnelle de la victime sur Coinhouse
     const deposit = own.newDeposit()
 
-    // Historique : le client paie, la victime transfère vers son dépôt Coinvault
+    // Historique : le client paie, la victime transfère vers son dépôt Coinhouse
     const nMonths = r.int(4, 6)
     const legit: string[] = []
     let lastDepT = 0
@@ -111,8 +111,8 @@ export const accAddressPoisoning: ScenarioTemplate = {
       world: w,
       title: `Copier-coller fatal — ${city}`,
       briefing:
-        `${victimName} (${city}), développeuse indépendante, est payée en USDT (réseau Tron) par un client étranger. Chaque mois, elle transfère ses USDT vers son adresse de dépôt Coinvault pour les convertir en euros.\n\n` +
-        `Le ${fmtDate(tLost.time)}, elle copie l'adresse depuis son historique, comme d'habitude, et envoie ${amt(lost, 'USDT')}. Les fonds ne sont jamais arrivés chez Coinvault.\n\n` +
+        `${victimName} (${city}), développeuse indépendante, est payée en USDT (réseau Tron) par un client étranger. Chaque mois, elle transfère ses USDT vers son adresse de dépôt Coinhouse pour les convertir en euros.\n\n` +
+        `Le ${fmtDate(tLost.time)}, elle copie l'adresse depuis son historique, comme d'habitude, et envoie ${amt(lost, 'USDT')}. Les fonds ne sont jamais arrivés chez Coinhouse.\n\n` +
         `Objectifs : établir le mode opératoire (address poisoning), identifier l'adresse sosie et la transaction qui l'a introduite dans l'historique, et localiser les fonds.`,
       evidence: [
         {
@@ -121,7 +121,7 @@ export const accAddressPoisoning: ScenarioTemplate = {
             `« Je fais ce virement tous les mois, je copie toujours la dernière adresse utilisée dans l'historique de mon application. Je vérifie le début et la fin, ils étaient identiques.\n\n` +
             `Mon adresse Tron : ${A(w, victim)}\n` +
             `Le virement perdu : ${tLost.hash}\n` +
-            `Mon adresse de dépôt Coinvault (copiée depuis le site) : ${A(w, deposit)} »`,
+            `Mon adresse de dépôt Coinhouse (copiée depuis le site) : ${A(w, deposit)} »`,
         },
         {
           id: 'capture', type: 'capture', title: 'Capture — historique de l\'application portefeuille', date: tLost.time - 300,
@@ -133,7 +133,7 @@ export const accAddressPoisoning: ScenarioTemplate = {
             `(adresses tronquées par l'application)`,
         },
         {
-          id: 'note', type: 'note', title: 'Note — réponse de Coinvault', date: w.at(3 * 24), author: 'Coinvault — Service conformité',
+          id: 'note', type: 'note', title: 'Note — réponse de Coinhouse', date: w.at(3 * 24), author: 'Coinhouse — Service conformité',
           body: `Aucun dépôt de ${amt(lost, 'USDT')} n'a été reçu sur l'adresse de dépôt de notre cliente à la date indiquée. Les derniers dépôts reçus sur ${A(w, deposit)} correspondent à ses virements habituels.`,
         },
       ],
@@ -177,16 +177,16 @@ export const accAddressPoisoning: ScenarioTemplate = {
         path: [...legit, tPoison.id, tBigIn.id, tLost.id, tFwd.id, dep.tx.id, ...(dep.sweep ? [dep.sweep.id] : []), tDecoy.id],
         addresses: [poison, collector, hub, deposit, dep.deposit],
         debrief:
-          `1. La victime dépose régulièrement ses USDT sur ${A(w, deposit)} (Coinvault).\n` +
+          `1. La victime dépose régulièrement ses USDT sur ${A(w, deposit)} (Coinhouse).\n` +
           `2. Le réseau surveille les gros flux USDT : il génère une adresse sosie ${A(w, poison)} (mêmes 6 premiers et 5 derniers caractères), la finance en TRX depuis le hub ${A(w, hub)}, puis envoie ${amt(dust, 'USDT')} à la victime juste après un de ses dépôts.\n` +
           `3. Au virement suivant, la victime copie l'adresse sosie depuis son historique et envoie ${amt(lost, 'USDT')}.\n` +
           `4. Les fonds partent en quelques minutes vers le collecteur ${A(w, collector)}, puis ${amt(outV, 'USDT')} sont déposés sur ${dest.entity.name}. ${amt(remaining, 'USDT')} restent sur le collecteur.\n\n` +
           `À retenir : en address poisoning, la « transaction d'empoisonnement » (poussière ou transfert de valeur nulle) précède nécessairement le détournement. Le hub de financement relie souvent des dizaines de sosies : c'est une piste pour identifier d'autres victimes et regrouper les procédures.`,
       },
       hints: [
-        'Comparez l\'adresse de dépôt Coinvault (plainte) avec le destinataire du virement perdu : pas seulement le début et la fin.',
+        'Comparez l\'adresse de dépôt Coinhouse (plainte) avec le destinataire du virement perdu : pas seulement le début et la fin.',
         'Dépliez les flux entrants de la victime et triez par date : cherchez un montant ridiculement faible.',
-        'Deux sosies ont visé la victime : seul celui qui imite l\'adresse de dépôt Coinvault a reçu le virement.',
+        'Deux sosies ont visé la victime : seul celui qui imite l\'adresse de dépôt Coinhouse a reçu le virement.',
         'Remontez les TRX reçus par le sosie : qui finance ses frais ?',
       ],
     }

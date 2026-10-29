@@ -233,7 +233,7 @@ export interface CoinjoinResult {
  * reçoit `denom` sur une adresse neuve et éventuellement un rendu (change toxique).
  */
 export function coinjoin(w: World, o: { chain: ChainId; time: number; denom: number; participants: { from: string; value?: number; mixedTo?: string; changeTo?: string | null }[]; extra?: number; coordinatorFee?: number }): CoinjoinResult {
-  const coord = w.entity('whirl')
+  const coord = w.entity('wasabi')
   const feeAddr = w.addr(o.chain, { entity: coord, label: `${coord.name} — Frais de coordination`, tags: ['liquid'] })
   const spend: { address: string; value?: number }[] = []
   const outputs: { address: string; value: number }[] = []

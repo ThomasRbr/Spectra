@@ -2,7 +2,8 @@ import type { Lesson } from '../model'
 
 // Niveau 0 — Débutant absolu (2/2) : unités, écosystème, explorateurs,
 // premiers réflexes d'enquête.
-// Les entités citées (Coinvault, Binova, Nordex, Kaizen, Huobex, Ocelot Swap…) sont FICTIVES.
+// Les entités citées sont réelles (Coinhouse, Binance, Bitstamp, OKX, ChangeNOW…), sauf Huobex,
+// SatsDesk OTC, AuroraTrade, OrbitCasino, CardHub, Lendora et ArcBridge (fictifs). Les flux sont simulés.
 
 export const LESSONS_L0B: Lesson[] = [
   // ══════════════════════════════════════════════════════════════════════
@@ -293,7 +294,7 @@ Savoir **qui** se trouve derrière une adresse — un particulier, un exchange r
       {
         type: 'terms',
         items: [
-          { term: 'Mineurs (preuve de travail)', def: 'Produisent les blocs Bitcoin et reçoivent la récompense. Souvent regroupés en pools de minage (ex. fictif : DeepPool). Rarement impliqués dans une affaire, mais une transaction « coinbase » signale de l\'argent fraîchement créé.' },
+          { term: 'Mineurs (preuve de travail)', def: 'Produisent les blocs Bitcoin et reçoivent la récompense. Souvent regroupés en pools de minage (ex. : Foundry USA). Rarement impliqués dans une affaire, mais une transaction « coinbase » signale de l\'argent fraîchement créé.' },
           { term: 'Validateurs (preuve d\'enjeu)', def: 'Produisent les blocs sur Ethereum, Tron, etc. Ils n\'ont pas de pouvoir sur une transaction particulière une fois celle-ci confirmée.' },
           { term: 'Nœuds', def: 'Ordinateurs qui conservent et vérifient le registre. Les explorateurs et les outils d\'analyse s\'appuient sur leurs propres nœuds.' },
           { term: 'Développeurs', def: 'Écrivent les logiciels et les smart contracts. Le déployeur d\'un contrat frauduleux est une cible d\'enquête.' },
@@ -303,20 +304,20 @@ Savoir **qui** se trouve derrière une adresse — un particulier, un exchange r
       { type: 'heading', text: 'Les services : la carte d\'enquête' },
       {
         type: 'table',
-        headers: ['Catégorie', 'Rôle', 'Exemple (fictif)', 'Identification client', 'Levier d\'enquête'],
+        headers: ['Catégorie', 'Rôle', 'Exemple', 'Identification client', 'Levier d\'enquête'],
         rows: [
-          ['Exchange régulé', 'Achat/vente contre euros, garde des fonds', 'Coinvault (France)', 'KYC complet', 'Réquisition directe, gel du compte'],
-          ['Exchange mondial', 'Idem, très gros volumes', 'Binova, Kaizen', 'KYC standard', 'Portail dédié aux forces de l\'ordre'],
-          ['Exchange UE', 'Agréé dans un autre État membre', 'Nordex (Estonie)', 'KYC standard', 'Coopération volontaire, DEE'],
-          ['Exchange offshore', 'KYC allégé, juridiction lointaine', 'Huobex (Seychelles)', 'Faible', 'Réponses aléatoires'],
-          ['Échangeur instantané', 'Swap d\'un actif à l\'autre sans compte', 'Ocelot Swap', 'Aucun en général', 'Parfois l\'adresse de destination et l\'IP de la commande'],
-          ['Courtier OTC', 'Gros volumes de gré à gré, crypto ↔ espèces', 'SatsDesk OTC', 'Variable', 'Entraide internationale'],
-          ['Plateforme P2P', 'Mise en relation entre particuliers, séquestre', 'LocalSats', 'Faible', 'Données de l\'annonce et des échanges'],
-          ['Exchange décentralisé (DEX)', 'Échange par smart contract', 'OmniSwap, HelioSwap', 'Aucune', 'Aucun interlocuteur : on suit les événements on-chain'],
-          ['Bridge', 'Transfert d\'une chaîne à une autre', 'ArcBridge', 'Aucune en général', 'Lecture des événements de part et d\'autre'],
-          ['Mixeur', 'Brouillage volontaire des flux', 'Nebula Mixer', 'Aucune', 'Saisies d\'infrastructure, coopération internationale'],
-          ['Émetteur de stablecoin', 'Crée et détruit les jetons', 'Émetteur USDT', 'Ne connaît pas les détenteurs', 'Gel des jetons sur une adresse'],
-          ['Commerçants, casinos', 'Acceptent les cryptos', 'ShieldVPN, OrbitCasino', 'Variable', 'Données client, IP, courriel'],
+          ['Exchange régulé', 'Achat/vente contre euros, garde des fonds', 'Coinhouse (France)', 'KYC complet', 'Réquisition directe, gel du compte'],
+          ['Exchange mondial', 'Idem, très gros volumes', 'Binance, OKX', 'KYC standard', 'Portail dédié aux forces de l\'ordre'],
+          ['Exchange UE', 'Agréé dans un autre État membre', 'Bitstamp (Luxembourg)', 'KYC standard', 'Coopération volontaire, DEE'],
+          ['Exchange offshore', 'KYC allégé, juridiction lointaine', 'Huobex (Seychelles, fictif)', 'Faible', 'Réponses aléatoires'],
+          ['Échangeur instantané', 'Swap d\'un actif à l\'autre sans compte', 'ChangeNOW', 'Aucun en général', 'Parfois l\'adresse de destination et l\'IP de la commande'],
+          ['Courtier OTC', 'Gros volumes de gré à gré, crypto ↔ espèces', 'SatsDesk OTC (fictif)', 'Variable', 'Entraide internationale'],
+          ['Plateforme P2P', 'Mise en relation entre particuliers, séquestre', 'Hodl Hodl', 'Faible', 'Données de l\'annonce et des échanges'],
+          ['Exchange décentralisé (DEX)', 'Échange par smart contract', 'Uniswap, SunSwap', 'Aucune', 'Aucun interlocuteur : on suit les événements on-chain'],
+          ['Bridge', 'Transfert d\'une chaîne à une autre', 'ArcBridge (fictif)', 'Aucune en général', 'Lecture des événements de part et d\'autre'],
+          ['Mixeur', 'Brouillage volontaire des flux', 'Sinbad', 'Aucune', 'Saisies d\'infrastructure, coopération internationale'],
+          ['Émetteur de stablecoin', 'Crée et détruit les jetons', 'Tether', 'Ne connaît pas les détenteurs', 'Gel des jetons sur une adresse'],
+          ['Commerçants, casinos', 'Acceptent les cryptos', 'Mullvad VPN, OrbitCasino (fictif)', 'Variable', 'Données client, IP, courriel'],
         ],
         caption: 'Les noms sont ceux des exercices de SPECTRA. Dans la réalité, vérifiez toujours le statut réglementaire actuel du prestataire.',
       },
@@ -360,12 +361,12 @@ Savoir **qui** se trouve derrière une adresse — un particulier, un exchange r
         type: 'flow',
         nodes: [
           { id: 'v', label: 'Victime', kind: 'victim' },
-          { id: 'cv', label: 'Coinvault', kind: 'exchange', sub: 'Achat USDT' },
+          { id: 'cv', label: 'Coinhouse', kind: 'exchange', sub: 'Achat USDT' },
           { id: 's', label: 'Adresse escroc', kind: 'suspect', sub: 'Auto-hébergée' },
-          { id: 'dex', label: 'HelioSwap', kind: 'dex', sub: 'USDT → TRX' },
+          { id: 'dex', label: 'SunSwap', kind: 'dex', sub: 'USDT → TRX' },
           { id: 'br', label: 'ArcBridge', kind: 'bridge', sub: 'Tron → autre chaîne' },
           { id: 'otc', label: 'SatsDesk OTC', kind: 'service', sub: 'Conversion en espèces' },
-          { id: 'k', label: 'Kaizen Exchange', kind: 'exchange', sub: 'Dépôt' },
+          { id: 'k', label: 'OKX', kind: 'exchange', sub: 'Dépôt' },
         ],
         edges: [
           { from: 'v', to: 'cv', label: '20 000 €' },
@@ -407,16 +408,16 @@ Consultez les listes publiques de l'AMF pour connaître le statut d'un prestatai
         title: 'Services imbriqués et entités sanctionnées',
         md: `Un échangeur sans KYC ou un courtier OTC peut détenir un compte chez un grand exchange : les fonds de ses propres clients transitent alors par ce compte. On parle de **service imbriqué** (*nested service*). La réquisition à l'exchange désignera le service, pas l'utilisateur final.
 
-Certaines plateformes (comme **Grantis** dans les exercices) sont **sanctionnées** : aucune coopération n'est à attendre, mais l'exposition à ces entités est un signal fort à documenter et à signaler.`,
+Certaines plateformes (comme **Garantex** dans les exercices) sont **sanctionnées** : aucune coopération n'est à attendre, mais l'exposition à ces entités est un signal fort à documenter et à signaler.`,
       },
       {
         type: 'case',
         title: 'Cas : qui réquisitionner ?',
         md: `Les 21 400 USDT d'une victime ont été répartis en trois branches :
 
-- **7 380 USDT** déposés sur une adresse de dépôt **Kaizen Exchange** (Singapour) : réquisition via le portail de l'exchange, avec le hash de la transaction de dépôt ; demande de gel du compte.
+- **7 380 USDT** déposés sur une adresse de dépôt **OKX** (Seychelles) : réquisition via le portail de l'exchange, avec le hash de la transaction de dépôt ; demande de gel du compte.
 - **6 000 USDT** envoyés à **SatsDesk OTC** (Hong Kong) : pas de réquisition directe possible ; entraide pénale internationale à envisager, plus longue.
-- **8 000 USDT** échangés sur **HelioSwap** (DEX) contre des TRX puis passés par **ArcBridge** : aucun interlocuteur ; il faut lire les événements du bridge pour retrouver les fonds sur la chaîne d'arrivée.
+- **8 000 USDT** échangés sur **SunSwap** (DEX) contre des TRX puis passés par **ArcBridge** : aucun interlocuteur ; il faut lire les événements du bridge pour retrouver les fonds sur la chaîne d'arrivée.
 
 Trois catégories d'acteurs, trois stratégies différentes. Et une priorité : tant que des USDT restent sur une adresse auto-hébergée, une demande de **gel à l'émetteur** est possible.`,
       },
@@ -509,7 +510,7 @@ Trois catégories d'acteurs, trois stratégies différentes. Et une priorité : 
         explain: 'L\'AMF enregistre/agrée les prestataires et publie leur liste, ainsi que des listes noires de sites non autorisés.',
       },
       {
-        q: 'Un échangeur instantané comme Ocelot Swap, sans KYC, peut-il tout de même être utile à l\'enquête ?',
+        q: 'Un échangeur instantané comme ChangeNOW, sans KYC, peut-il tout de même être utile à l\'enquête ?',
         options: [
           'Non, jamais',
           'Oui : il peut parfois fournir l\'adresse de destination et l\'adresse IP associées à une commande, sur la base du hash de dépôt',
@@ -638,7 +639,7 @@ C'est l'outil de base : avant tout logiciel d'analyse spécialisé, savoir lire 
           { title: 'Première et dernière activité', md: 'Délimitent la période d\'utilisation. Une adresse créée la veille de l\'escroquerie et vidée le lendemain est typique d\'un intermédiaire.' },
           { title: 'Liste des transactions', md: 'Repérez la transaction de la victime (montant, date), puis les sorties qui suivent.' },
           { title: 'Onglets spécifiques (EVM/Tron)', md: 'Transactions natives, transferts de jetons, transactions internes : un solde de 0 ETH n\'exclut pas des milliers d\'USDT.' },
-          { title: 'Étiquettes', md: 'Notez toute étiquette affichée (« Binova: Hot Wallet », « Phishing »…) et sa source, sans la tenir pour acquise.' },
+          { title: 'Étiquettes', md: 'Notez toute étiquette affichée (« Binance: Hot Wallet », « Phishing »…) et sa source, sans la tenir pour acquise.' },
         ],
       },
       { type: 'heading', text: 'Étape 4 : lire une page de transaction' },
@@ -860,7 +861,7 @@ C'est l'outil de base : avant tout logiciel d'analyse spécialisé, savoir lire 
         type: 'table',
         headers: ['À recueillir', 'Pourquoi'],
         rows: [
-          ['Plateforme d\'achat (Coinvault…) et relevés bancaires', 'Point d\'entrée ; réquisition pour obtenir le retrait et son hash'],
+          ['Plateforme d\'achat (Coinhouse…) et relevés bancaires', 'Point d\'entrée ; réquisition pour obtenir le retrait et son hash'],
           ['Adresse(s) de destination, copiée(s) ou en capture', 'Départ de la trace côté auteur'],
           ['Hash de chaque transaction', 'Référence unique ; évite toute confusion entre opérations'],
           ['Actif et réseau (ex. « USDT réseau TRC20 »)', 'Détermine la chaîne et l\'explorateur'],
@@ -901,7 +902,7 @@ C'est l'outil de base : avant tout logiciel d'analyse spécialisé, savoir lire 
           { id: 't', label: 'Tx de la victime', kind: 'tx', sub: 'Point d\'ancrage' },
           { id: 's1', label: 'Adresse de collecte', kind: 'suspect', sub: 'Auteur' },
           { id: 's2', label: 'Adresse intermédiaire', kind: 'wallet' },
-          { id: 'd', label: 'Dépôt Binova', kind: 'deposit', sub: 'Client identifiable' },
+          { id: 'd', label: 'Dépôt Binance', kind: 'deposit', sub: 'Client identifiable' },
           { id: 'r', label: 'Réquisition', kind: 'service', sub: 'Identité, IP, historique' },
         ],
         edges: [
@@ -941,11 +942,11 @@ La leçon « Réquisitions aux prestataires » (niveau 2) détaille le contenu e
         left: {
           title: 'Fait établi',
           md: `- « La transaction \`4e1f…a9c2\`, bloc 868 412, a transféré 0,349 BTC de l'adresse A vers l'adresse B le 14/10/2024 à 10:12 UTC. »
-- « Binova indique, en réponse à réquisition, que l'adresse B est attribuée au compte de M. X. »`,
+- « Binance indique, en réponse à réquisition, que l'adresse B est attribuée au compte de M. X. »`,
         },
         right: {
           title: 'Indice ou hypothèse',
-          md: `- « L'outil X attribue l'adresse B à Binova (non vérifié). »
+          md: `- « L'outil X attribue l'adresse B à Binance (non vérifié). »
 - « La sortie de 0,12 BTC est **probablement** le rendu (heuristique du type d'adresse). »
 - « Les adresses A et C sont **vraisemblablement** contrôlées par la même personne. »`,
         },
@@ -955,11 +956,11 @@ La leçon « Réquisitions aux prestataires » (niveau 2) détaille le contenu e
         title: 'Cas : romance et faux trading',
         md: `**J0.** Mme T. dépose plainte : rencontrée sur un réseau social, une personne l'a convaincue d'investir sur « AuroraTrade ». Elle a envoyé en six semaines **38 500 USDT** sur Tron, en sept versements, à l'adresse indiquée dans l'interface de la plateforme. Le retrait de ses « gains » lui est refusé sans paiement de « taxes ».
 
-**J0 + 2 h.** Identifiants recueillis : sept hash de transactions depuis son compte Coinvault, adresse de destination \`TJx2…Q9wa\`. Vérification sur Tronscan : les sept transferts existent, USDT officiel.
+**J0 + 2 h.** Identifiants recueillis : sept hash de transactions depuis son compte Coinhouse, adresse de destination \`TJx2…Q9wa\`. Vérification sur Tronscan : les sept transferts existent, USDT officiel.
 
 **J0 + 4 h.** Suivi : l'adresse de collecte a reçu des fonds de **31** expéditeurs différents (probables autres victimes) et renvoie tout vers une adresse de consolidation qui détient encore **212 000 USDT**. Demande de gel adressée à l'émetteur via son portail, avec l'accord du magistrat.
 
-**J1.** Le reste des fonds de Mme T. est parti vers des dépôts **Kaizen Exchange** : demande de gel et réquisition via le portail de l'exchange avec les hash de dépôt.
+**J1.** Le reste des fonds de Mme T. est parti vers des dépôts **OKX** : demande de gel et réquisition via le portail de l'exchange avec les hash de dépôt.
 
 **J3.** Gel confirmé par l'émetteur. Rapprochement avec d'autres plaintes grâce aux 31 expéditeurs.`,
       },
@@ -1050,7 +1051,7 @@ La leçon « Réquisitions aux prestataires » (niveau 2) détaille le contenu e
         q: 'Laquelle de ces phrases est correctement rédigée pour un PV ?',
         options: [
           '« L\'adresse B appartient à M. X » (sur la base d\'un label d\'explorateur)',
-          '« L\'outil X attribue l\'adresse B à Binova (attribution non vérifiée ; réquisition en cours) »',
+          '« L\'outil X attribue l\'adresse B à Binance (attribution non vérifiée ; réquisition en cours) »',
           '« L\'adresse B est sûrement celle du chef du réseau »',
           '« L\'adresse B est anonyme »',
         ],

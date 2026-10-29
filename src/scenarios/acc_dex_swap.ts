@@ -7,7 +7,7 @@ import { A, amt, choice, fakeCity, fakeHandle, fakePerson, procedureFor } from '
 export const accDexSwap: ScenarioTemplate = {
   id: 'dex-swap',
   title: 'Drainer et swaps sur DEX',
-  tagline: 'Des ETH volés par un drainer, convertis en stablecoins sur OmniSwap : suivez les jambes du swap.',
+  tagline: 'Des ETH volés par un drainer, convertis en stablecoins sur Uniswap : suivez les jambes du swap.',
   description:
     'Un collectionneur de NFT a signé une transaction « Claim » sur un faux site d\'airdrop. Ses ETH ont été aspirés par un contrat drainer, puis convertis en stablecoins sur un DEX avant d\'être envoyés sur un exchange. Apprenez à lire un swap (routeur, pool, jetons reçus).',
   difficulty: 2,
@@ -23,9 +23,9 @@ export const accDexSwap: ScenarioTemplate = {
     const g = victimP.g
     const city = fakeCity(r)
 
-    const omni = dex(w, 'omniswap', 'eth')
-    const cv = exchange(w, 'coinvault', 'eth')
-    const destKey = r.pick(['binova', 'kaizen', 'huobex', 'nordex'] as const)
+    const omni = dex(w, 'uniswap', 'eth')
+    const cv = exchange(w, 'coinhouse', 'eth')
+    const destKey = r.pick(['binance', 'okx', 'huobex', 'bitstamp'] as const)
     const dest = exchange(w, destKey, 'eth')
 
     const kitE = w.customEntity({ name: 'Kit de drainage « PhantomClaim »', category: 'scam', description: 'Drainer-as-a-service : le fournisseur prélève une commission sur chaque vol.' })
@@ -137,7 +137,7 @@ export const accDexSwap: ScenarioTemplate = {
         },
         {
           id: 'o2', type: 'choice', points: 15,
-          prompt: 'En quels actifs l\'affilié a-t-il converti une partie de ses ETH sur OmniSwap ?',
+          prompt: 'En quels actifs l\'affilié a-t-il converti une partie de ses ETH sur Uniswap ?',
           ...choice(r, 'USDC et DAI', ['USDC uniquement', 'USDC et USDT', 'USDC et WBTC']),
           explanation: 'Trois swaps : deux ETH → USDC et un ETH → DAI. Dans chaque swap, l\'ETH part vers le routeur, qui le transmet au pool ; le pool renvoie le jeton à l\'affilié.',
         },
@@ -162,7 +162,7 @@ export const accDexSwap: ScenarioTemplate = {
             [
               'Les frais de gas remboursés à la victime par le contrat',
               'Un remboursement automatique prévu par le smart contract',
-              'Le dépôt de garantie exigé par OmniSwap avant un swap',
+              'Le dépôt de garantie exigé par Uniswap avant un swap',
             ]),
           explanation: `L'adresse ${A(w, kitFee)} reçoit une commission de chaque vol, y compris d'autres affiliés : c'est une cible prioritaire, car elle relie toutes les campagnes du même kit.`,
         },
@@ -172,14 +172,14 @@ export const accDexSwap: ScenarioTemplate = {
         addresses: [drainer, operator, kitFee, cold, dep.deposit],
         debrief:
           `1. La victime signe « Claim » : ${amt(stolen, 'ETH')} partent vers le contrat drainer ${A(w, drainer)}, qui reverse dans la même transaction ${Math.round(share * 100)} % à l'affilié ${A(w, operator)} et le reste au fournisseur du kit.\n` +
-          `2. L'affilié, qui a aussi drainé ${others.length} autre(s) victime(s), effectue trois swaps sur OmniSwap : ETH → ${amt(sw1.amountOut, 'USDC')}, ETH → ${amt(sw2.amountOut, 'DAI')}, ETH → ${amt(sw3.amountOut, 'USDC')}.\n` +
+          `2. L'affilié, qui a aussi drainé ${others.length} autre(s) victime(s), effectue trois swaps sur Uniswap : ETH → ${amt(sw1.amountOut, 'USDC')}, ETH → ${amt(sw2.amountOut, 'DAI')}, ETH → ${amt(sw3.amountOut, 'USDC')}.\n` +
           `3. Il dépose ${amt(usdcTotal, 'USDC')} sur ${dest.entity.name}, envoie les DAI vers ${A(w, cold)} et garde ${amt(ethKept, 'ETH')}.\n\n` +
           `À retenir : un swap DEX n'est pas une rupture de traçage. Le routeur et le pool sont des contrats publics ; la transaction montre l'actif entrant et l'actif sortant, au profit du même trader. Les stablecoins obtenus (USDC, DAI) se suivent comme n'importe quel jeton, et l'USDC est gelable par son émetteur.`,
       },
       hints: [
         'Commencez par la transaction signée par la victime (dans la plainte) et ouvrez son détail : plusieurs transferts y figurent.',
         'Un swap ETH → jeton se lit en trois jambes : trader → routeur (ETH), routeur → pool (ETH), pool → trader (jeton).',
-        'Dépliez les flux entrants de l\'affilié pour voir les jetons renvoyés par les pools OmniSwap.',
+        'Dépliez les flux entrants de l\'affilié pour voir les jetons renvoyés par les pools Uniswap.',
         'Les jetons obtenus ne prennent pas tous le même chemin : suivez chaque jeton séparément.',
       ],
     }

@@ -12,10 +12,10 @@ const COMPANIES = ['Clinique du Parc', 'Mairie de Saint-Aubin', 'Transports Lero
 
 export const btcRansomwareRaas: ScenarioTemplate = {
   id: 'ransomware-raas',
-  title: 'LockFang : anatomie d\'un RaaS',
+  title: 'LockBit : anatomie d\'un RaaS',
   tagline: 'Une rançon, un partage affilié / opérateur, et le portefeuille qui relie toutes les attaques.',
   description:
-    'Une entreprise française a payé une rançon au groupe LockFang, qui fonctionne en « Ransomware-as-a-Service ». Chaque rançon est partagée entre l\'affilié qui a mené l\'attaque et les opérateurs du rançongiciel. Retrouvez la clé de partage, le portefeuille des opérateurs, l\'ensemble des victimes et la sortie de l\'affilié.',
+    'Une entreprise française a payé une rançon au groupe LockBit, qui fonctionne en « Ransomware-as-a-Service ». Chaque rançon est partagée entre l\'affilié qui a mené l\'attaque et les opérateurs du rançongiciel. Retrouvez la clé de partage, le portefeuille des opérateurs, l\'ensemble des victimes et la sortie de l\'affilié.',
   difficulty: 4,
   chains: ['btc'],
   skills: ['ransomware', 'change', 'mixer', 'exchange_id', 'requisition', 'typologies'],
@@ -27,16 +27,16 @@ export const btcRansomwareRaas: ScenarioTemplate = {
     const city = fakeCity(r)
     const rssi = fakeName(r)
 
-    const lf = w.entity('lockfang', { known: false })
-    const affE: Entity[] = Array.from({ length: r.int(2, 3) }, (_, i) => w.customEntity({ name: `Affilié LockFang n°${i + 1}`, category: 'ransomware' }))
-    const neb = mixer(w, 'nebula', 'btc')
-    const cv = exchange(w, 'coinvault', 'btc')
-    const brokers: ExchangeKit[] = [cv, exchange(w, 'helvetix', 'btc'), exchange(w, 'nordex', 'btc')]
-    const xKey = r.pick(['huobex', 'kaizen', 'binova'] as const)
+    const lf = w.entity('lockbit', { known: false })
+    const affE: Entity[] = Array.from({ length: r.int(2, 3) }, (_, i) => w.customEntity({ name: `Affilié LockBit n°${i + 1}`, category: 'ransomware' }))
+    const neb = mixer(w, 'sinbad', 'btc')
+    const cv = exchange(w, 'coinhouse', 'btc')
+    const brokers: ExchangeKit[] = [cv, exchange(w, 'swissborg', 'btc'), exchange(w, 'bitstamp', 'btc')]
+    const xKey = r.pick(['huobex', 'okx', 'binance'] as const)
     const X = exchange(w, xKey, 'btc')
-    const yKey = r.pick((['huobex', 'kaizen', 'binova'] as const).filter((k) => k !== xKey))
+    const yKey = r.pick((['huobex', 'okx', 'binance'] as const).filter((k) => k !== xKey))
     const Y = exchange(w, yKey, 'btc')
-    const grantis = exchange(w, 'grantis', 'btc')
+    const garantex = exchange(w, 'garantex', 'btc')
 
     const opPct = r.pick([20, 25, 30] as const)
     const p = opPct / 100
@@ -110,16 +110,16 @@ export const btcRansomwareRaas: ScenarioTemplate = {
     // ── Opérateurs : sortie partielle vers un exchange sanctionné ───────────
     const opTotal = w.unspentValue(operator)
     const opRest = w.addr('btc', { entity: lf, kind: 'p2wpkh' })
-    const gDeposit = grantis.newDeposit()
+    const gDeposit = garantex.newDeposit()
     const gValue = r8(Math.floor(opTotal * r.float(0.4, 0.6) * 1000) / 1000)
     const gTx = w.utxoTx({ time: lastSplit + r.float(2, 6) * DAY, from: [operator], to: [{ address: gDeposit, value: gValue }], change: opRest, spendAll: true })
-    grantis.sweep([gDeposit], gTx.time + r.float(2, 12) * HOUR)
+    garantex.sweep([gDeposit], gTx.time + r.float(2, 12) * HOUR)
 
     // ── Bruit ────────────────────────────────────────────────────────────────
     X.noise(14, w.at(-10 * 24), w.at(20 * 24))
     Y.noise(8, w.at(-60 * 24), w.at(20 * 24))
     cv.noise(10, w.at(-60 * 24), w.at(10 * 24))
-    grantis.noise(6, w.at(-30 * 24), w.at(20 * 24))
+    garantex.noise(6, w.at(-30 * 24), w.at(20 * 24))
 
     const portalId = Array.from({ length: 16 }, () => '0123456789ABCDEF'[r.int(0, 15)]).join('')
     const plaintFinal = plaint.payments[plaint.payments.length - 1]
@@ -128,16 +128,16 @@ export const btcRansomwareRaas: ScenarioTemplate = {
 
     return {
       world: w,
-      title: `Rançongiciel LockFang — ${plaint.name}`,
+      title: `Rançongiciel LockBit — ${plaint.name}`,
       briefing:
-        `${plaint.name} (${city}) a été victime du rançongiciel LockFang : serveurs chiffrés, données exfiltrées, menace de publication sur le site vitrine du groupe. Après négociation, la direction a payé la rançon en bitcoins achetés sur Coinvault.\n\n` +
-        `LockFang fonctionne en RaaS (Ransomware-as-a-Service) : des « affiliés » mènent les intrusions avec l'outil fourni par les opérateurs, et chaque rançon est automatiquement partagée entre l'affilié et les opérateurs selon une clé fixe.\n\n` +
+        `${plaint.name} (${city}) a été victime du rançongiciel LockBit : serveurs chiffrés, données exfiltrées, menace de publication sur le site vitrine du groupe. Après négociation, la direction a payé la rançon en bitcoins achetés sur Coinhouse.\n\n` +
+        `LockBit fonctionne en RaaS (Ransomware-as-a-Service) : des « affiliés » mènent les intrusions avec l'outil fourni par les opérateurs, et chaque rançon est automatiquement partagée entre l'affilié et les opérateurs selon une clé fixe.\n\n` +
         `Objectifs : déterminer la clé de partage, identifier l'adresse d'agrégation des opérateurs, recenser les autres victimes et le total des rançons, et suivre la part de l'affilié jusqu'à sa plateforme d'encaissement.`,
       evidence: [
         {
           id: 'rancon', type: 'rancon', title: 'Note de rançon (README_LOCKFANG.txt)', date: plaint.payments[0].time - r.float(5, 9) * DAY,
           body:
-            `~~~ LockFang ~~~\n` +
+            `~~~ LockBit ~~~\n` +
             `Vos fichiers sont chiffrés et nous avons copié ${r.int(180, 900)} Go de vos données.\n` +
             `N'essayez pas de restaurer vous-mêmes, vous perdriez tout.\n\n` +
             `Connectez-vous à notre portail de négociation (Tor) avec l'identifiant : ${portalId}\n` +
@@ -145,13 +145,13 @@ export const btcRansomwareRaas: ScenarioTemplate = {
             `Paiement uniquement en Bitcoin, sur l'adresse unique communiquée dans le portail.`,
         },
         {
-          id: 'chat', type: 'capture', title: 'Extrait du portail de négociation', date: plaintFinal.time - r.float(1, 3) * DAY, author: 'Support LockFang / négociateur de la victime',
+          id: 'chat', type: 'capture', title: 'Extrait du portail de négociation', date: plaintFinal.time - r.float(1, 3) * DAY, author: 'Support LockBit / négociateur de la victime',
           body:
-            `LockFang : Votre prix est ${amt(r4(plaint.paid * r.float(1.6, 2.4)), 'BTC')}. C'est 1 % de votre chiffre d'affaires, nous avons lu vos bilans.\n` +
+            `LockBit : Votre prix est ${amt(r4(plaint.paid * r.float(1.6, 2.4)), 'BTC')}. C'est 1 % de votre chiffre d'affaires, nous avons lu vos bilans.\n` +
             `Victime : Nous ne pouvons pas payer ce montant. Nous proposons ${amt(r4(plaint.paid * 0.6), 'BTC')}.\n` +
-            `LockFang : Notre partenaire qui s'occupe de votre dossier accepte ${amt(r4(plaint.paid), 'BTC')}, dernier mot. L'équipe ne descendra pas plus bas.\n` +
-            `LockFang : Adresse de paiement (unique pour vous) : ${A(w, plaint.ransomAddr)}\n` +
-            `LockFang : Envoyez d'abord un petit montant test si vous voulez.`,
+            `LockBit : Notre partenaire qui s'occupe de votre dossier accepte ${amt(r4(plaint.paid), 'BTC')}, dernier mot. L'équipe ne descendra pas plus bas.\n` +
+            `LockBit : Adresse de paiement (unique pour vous) : ${A(w, plaint.ransomAddr)}\n` +
+            `LockBit : Envoyez d'abord un petit montant test si vous voulez.`,
         },
         {
           id: 'pv', type: 'pv', title: 'Audition du RSSI (extrait)', date: plaintFinal.time + 2 * DAY, author: rssi,
@@ -161,9 +161,9 @@ export const btcRansomwareRaas: ScenarioTemplate = {
             `Le déchiffreur fourni ensuite fonctionnait partiellement. »`,
         },
         {
-          id: 'cert', type: 'note', title: 'Fiche menace CERT — LockFang', date: w.at(-120 * 24), author: 'CERT partenaire',
+          id: 'cert', type: 'note', title: 'Fiche menace CERT — LockBit', date: w.at(-120 * 24), author: 'CERT partenaire',
           body:
-            `LockFang : RaaS actif depuis 2023. Programme d'affiliation : l'affilié reçoit la majorité de chaque rançon, l'équipe centrale une part fixe prélevée automatiquement à chaque paiement.\n` +
+            `LockBit : RaaS actif depuis 2023. Programme d'affiliation : l'affilié reçoit la majorité de chaque rançon, l'équipe centrale une part fixe prélevée automatiquement à chaque paiement.\n` +
             `Adresses de rançon uniques par victime. Les affiliés utilisent fréquemment des mixeurs et des exchanges à KYC faible ; l'équipe centrale a été observée en lien avec des plateformes sanctionnées.`,
         },
       ],
@@ -171,7 +171,7 @@ export const btcRansomwareRaas: ScenarioTemplate = {
       objectives: [
         {
           id: 'o1', type: 'number', points: 20, tolerance: 2, unit: '%',
-          prompt: 'Quelle part (en %) de chaque rançon revient aux opérateurs de LockFang ?',
+          prompt: 'Quelle part (en %) de chaque rançon revient aux opérateurs de LockBit ?',
           answer: opPct,
           hint: 'Examinez la transaction qui dépense l\'adresse de rançon : deux sorties, dans un rapport constant d\'une victime à l\'autre.',
           explanation: `Chaque transaction de partage envoie ${opPct} % (après frais) aux opérateurs et ${100 - opPct} % à l'affilié. Pour ${plaint.name} : ${amt(plaint.opShare, 'BTC')} contre ${amt(plaint.affShare, 'BTC')}.`,
@@ -195,7 +195,7 @@ export const btcRansomwareRaas: ScenarioTemplate = {
           prompt: 'Sur quelle plateforme l\'affilié ayant attaqué l\'entreprise plaignante a-t-il encaissé sa part ?',
           answer: [xKey],
           hint: 'Suivez la part affilié : un saut, un passage partiel par un mixeur, puis la grosse sortie.',
-          explanation: `La part affilié (${amt(plaint.affShare, 'BTC')}) passe par ${A(w, h1).slice(0, 14)}…, envoie ${amt(mixValue, 'BTC')} dans Nebula Mixer, puis ${amt(xValue, 'BTC')} vers une adresse de dépôt ${xName}. Le passage par le mixeur ne concerne qu'une partie des fonds : le reste se suit directement.`,
+          explanation: `La part affilié (${amt(plaint.affShare, 'BTC')}) passe par ${A(w, h1).slice(0, 14)}…, envoie ${amt(mixValue, 'BTC')} dans Sinbad, puis ${amt(xValue, 'BTC')} vers une adresse de dépôt ${xName}. Le passage par le mixeur ne concerne qu'une partie des fonds : le reste se suit directement.`,
         },
         {
           id: 'o5', type: 'choice', points: 15,
@@ -203,11 +203,11 @@ export const btcRansomwareRaas: ScenarioTemplate = {
           ...choice(r,
             'Requérir l\'exchange de l\'affilié et partager l\'adresse des opérateurs avec les partenaires',
             [
-              'Requérir Grantis, plateforme qui a reçu une partie des fonds des opérateurs',
+              'Requérir Garantex, plateforme qui a reçu une partie des fonds des opérateurs',
               'Clore le volet financier : le passage par un mixeur rend tout traçage impossible',
-              'Demander à Nebula Mixer l\'identité du client qui a mixé une partie de la part affilié',
+              'Demander à Sinbad l\'identité du client qui a mixé une partie de la part affilié',
             ]),
-          explanation: `L'exchange de l'affilié (${xName}) est la seule porte d'identification réaliste : identité, IP, gel. ${procedureFor(X.entity)} L'adresse des opérateurs relie toutes les attaques : c'est un renseignement précieux pour les partenaires (Europol, CERT-FR, autres services saisis) et pour rapprocher les procédures. Grantis, sanctionnée, ne coopère pas : l'exposition doit être documentée et signalée. Un mixeur ne répond pas aux réquisitions, et le mixage partiel n'empêche pas de suivre le reste.`,
+          explanation: `L'exchange de l'affilié (${xName}) est la seule porte d'identification réaliste : identité, IP, gel. ${procedureFor(X.entity)} L'adresse des opérateurs relie toutes les attaques : c'est un renseignement précieux pour les partenaires (Europol, CERT-FR, autres services saisis) et pour rapprocher les procédures. Garantex, sanctionnée, ne coopère pas : l'exposition doit être documentée et signalée. Un mixeur ne répond pas aux réquisitions, et le mixage partiel n'empêche pas de suivre le reste.`,
         },
       ],
       truth: {
@@ -218,7 +218,7 @@ export const btcRansomwareRaas: ScenarioTemplate = {
           `2. Quelques heures plus tard, une transaction de partage envoie ${100 - opPct} % à l'affilié et ${opPct} % à ${A(w, operator)}.\n` +
           `3. Cette adresse reçoit la part opérateurs de ${m} rançons :\n${recapVictims}\n   Total : ${amt(totalPaid, 'BTC')}.\n` +
           `4. L'affilié ayant attaqué ${plaint.name} fait un saut, mixe ${amt(mixValue, 'BTC')} chez Nebula, puis dépose ${amt(xValue, 'BTC')} chez ${xName}.\n` +
-          `5. Les opérateurs envoient ${amt(gValue, 'BTC')} vers Grantis (exchange sanctionné) et conservent le reste.\n\n` +
+          `5. Les opérateurs envoient ${amt(gValue, 'BTC')} vers Garantex (exchange sanctionné) et conservent le reste.\n\n` +
           `Leçon : dans un RaaS, la transaction de partage est la signature du modèle économique. Le rapport constant entre les deux sorties révèle la clé de partage, et l'adresse qui reçoit la « petite » part à chaque attaque désigne l'équipe centrale. Elle permet de relier des victimes qui n'ont jamais porté plainte ensemble et de mesurer l'ampleur de l'activité. Côté identification, on cible la sortie de l'affilié vers un exchange coopératif.`,
       },
       hints: [

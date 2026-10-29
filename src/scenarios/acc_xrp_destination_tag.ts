@@ -23,15 +23,15 @@ export const accXrpDestinationTag: ScenarioTemplate = {
     const g = victimP.g
     const city = fakeCity(r)
 
-    const cv = exchange(w, 'coinvault', 'xrp')
-    const destKey = r.pick(['binova', 'kaizen', 'nordex'] as const)
+    const cv = exchange(w, 'coinhouse', 'xrp')
+    const destKey = r.pick(['binance', 'okx', 'bitstamp'] as const)
     const dest = exchange(w, destKey, 'xrp')
 
     const victimE = w.customEntity({ name: victimName, category: 'victim' })
     const victim = w.addr('xrp', { entity: victimE })
     const suspect = w.customEntity({ name: '« XRP Yield Club » (inconnu)', category: 'suspect' })
 
-    // La victime achète ses XRP sur Coinvault
+    // La victime achète ses XRP sur Coinhouse
     const pay1 = Math.round(r.float(6000, 20000) / 100) * 100
     const pay2 = Math.round(r.float(4000, 15000) / 100) * 100
     cv.withdraw(victim, pay1 + r.int(30, 200), w.at(-r.float(20, 40)), 'XRP')
@@ -78,7 +78,7 @@ export const accXrpDestinationTag: ScenarioTemplate = {
       world: w,
       title: `XRP Yield Club — ${city}`,
       briefing:
-        `${victimName} (${city}) a rejoint sur Telegram le « XRP Yield Club », qui promettait 4 % de rendement hebdomadaire sur des XRP « stakés ». ${g('Il', 'Elle')} a envoyé deux virements en XRP depuis son portefeuille personnel, alimenté par Coinvault.\n\n` +
+        `${victimName} (${city}) a rejoint sur Telegram le « XRP Yield Club », qui promettait 4 % de rendement hebdomadaire sur des XRP « stakés ». ${g('Il', 'Elle')} a envoyé deux virements en XRP depuis son portefeuille personnel, alimenté par Coinhouse.\n\n` +
         `Le groupe a disparu. Sur le XRP Ledger, les exchanges utilisent souvent une seule adresse pour tous leurs clients : le compte crédité est désigné par un numéro joint au paiement, le destination tag.\n\n` +
         `Votre mission : identifier l'exchange où les fonds ont été déposés et le destination tag du compte bénéficiaire.`,
       evidence: [

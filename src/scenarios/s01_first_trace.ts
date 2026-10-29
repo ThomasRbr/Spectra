@@ -22,17 +22,17 @@ export const s01FirstTrace: ScenarioTemplate = {
     const g = victimP.g
     const city = fakeCity(r)
 
-    const cv = exchange(w, 'coinvault', 'btc')
-    const destKey = r.pick(['binova', 'nordex', 'kaizen'] as const)
+    const cv = exchange(w, 'coinhouse', 'btc')
+    const destKey = r.pick(['binance', 'bitstamp', 'okx'] as const)
     const dest = exchange(w, destKey, 'btc')
-    const vpn = w.entity('shieldvpn')
-    const vpnAddr = w.addr('btc', { entity: vpn, label: 'ShieldVPN — Paiements' })
+    const vpn = w.entity('mullvad')
+    const vpnAddr = w.addr('btc', { entity: vpn, label: 'Mullvad VPN — Paiements' })
 
     const victimE = w.customEntity({ name: victimName, category: 'victim' })
     const victim = w.addr('btc', { entity: victimE, kind: 'p2wpkh' })
     const suspect = w.customEntity({ name: 'Faux conseiller (inconnu)', category: 'suspect' })
 
-    // Achat initial sur Coinvault
+    // Achat initial sur Coinhouse
     const amount = roundCoin(w, 0.18, 0.95, 0.01)
     const buyT = w.at(-3 * 24 - r.int(0, 30))
     cv.withdraw(victim, +(amount + r.float(0.002, 0.01)).toFixed(6), buyT)
@@ -66,7 +66,7 @@ export const s01FirstTrace: ScenarioTemplate = {
       briefing:
         `Le ${fmtDate(w.at(2 * 24), false)}, ${victimName}, demeurant à ${city}, dépose plainte pour escroquerie.\n\n` +
         `Un individu se présentant comme « conseiller sécurité » de sa banque l'a ${g('convaincu', 'convaincue')} que son compte était piraté et qu'${g('il', 'elle')} devait convertir son épargne en bitcoins puis les transférer vers un « coffre-fort numérique ».\n\n` +
-        `${g('Il', 'Elle')} a acheté ${amt(amount, 'BTC')} sur Coinvault puis les a envoyés depuis son portefeuille personnel. Votre mission : suivre les fonds, identifier la plateforme où ils ont été déposés et l'adresse de dépôt à réquisitionner.`,
+        `${g('Il', 'Elle')} a acheté ${amt(amount, 'BTC')} sur Coinhouse puis les a envoyés depuis son portefeuille personnel. Votre mission : suivre les fonds, identifier la plateforme où ils ont été déposés et l'adresse de dépôt à réquisitionner.`,
       evidence: [
         {
           id: 'plainte',
@@ -76,7 +76,7 @@ export const s01FirstTrace: ScenarioTemplate = {
           author: victimName,
           body:
             `« Le ${fmtDate(w.at(0))}, j'ai reçu un appel du ${fakePhone(r)}. L'homme connaissait mon nom et ma banque. Il m'a dit que mon compte allait être vidé.\n\n` +
-            `Sur ses instructions, j'ai acheté des bitcoins sur Coinvault, je les ai retirés vers mon portefeuille, puis je les ai envoyés à l'adresse qu'il m'a dictée par SMS.\n\n` +
+            `Sur ses instructions, j'ai acheté des bitcoins sur Coinhouse, je les ai retirés vers mon portefeuille, puis je les ai envoyés à l'adresse qu'il m'a dictée par SMS.\n\n` +
             `Mon adresse de portefeuille : ${A(w, victim)}\n` +
             `Identifiant de la transaction fourni par mon application : ${t1.hash} »`,
         },
@@ -117,11 +117,11 @@ export const s01FirstTrace: ScenarioTemplate = {
           ...choice(r,
             'Requérir la plateforme de destination sur l\'adresse de dépôt (KYC, IP, IBAN) et demander un gel',
             [
-              'Requérir Coinvault, plateforme d\'achat de la victime, sur le hot wallet de destination',
+              'Requérir Coinhouse, plateforme d\'achat de la victime, sur le hot wallet de destination',
               'Classer le volet financier : Bitcoin est anonyme, les fonds sont perdus',
               'Requérir d\'abord le fournisseur VPN payé par l\'escroc, qui détient son identité',
             ]),
-          explanation: `La plateforme de destination détient le KYC du titulaire de l'adresse de dépôt. On demande aussi les adresses IP de connexion, les moyens de paiement liés et un gel conservatoire du compte. ${procedureFor(dest.entity)} Coinvault n'est que la plateforme d'achat de la victime ; le VPN, payé en crypto, ne détient souvent qu'une adresse e-mail.`,
+          explanation: `La plateforme de destination détient le KYC du titulaire de l'adresse de dépôt. On demande aussi les adresses IP de connexion, les moyens de paiement liés et un gel conservatoire du compte. ${procedureFor(dest.entity)} Coinhouse n'est que la plateforme d'achat de la victime ; le VPN, payé en crypto, ne détient souvent qu'une adresse e-mail.`,
         },
       ],
       truth: {
@@ -130,7 +130,7 @@ export const s01FirstTrace: ScenarioTemplate = {
         debrief:
           `1. La victime envoie ${amt(amount, 'BTC')} vers ${A(w, s1)} (adresse dictée par SMS).\n` +
           `2. L'escroc transfère la totalité vers une seconde adresse ${A(w, s2)} : c'est un saut sans rendu (tout le solde part).\n` +
-          `3. Il dépose ${amt(depositReceived, 'BTC')} sur une adresse de dépôt ${dest.entity.name}, paie ${amt(vpnValue, 'BTC')} à ShieldVPN et conserve le reste sur une adresse de rendu.\n` +
+          `3. Il dépose ${amt(depositReceived, 'BTC')} sur une adresse de dépôt ${dest.entity.name}, paie ${amt(vpnValue, 'BTC')} à Mullvad VPN et conserve le reste sur une adresse de rendu.\n` +
           `4. ${dest.entity.name} balaie l'adresse de dépôt vers son hot wallet avec d'autres dépôts clients : c'est le point d'arrêt du traçage on-chain.\n\n` +
           `Réflexe : dès qu'un exchange est identifié, on s'arrête au dépôt et on réquisitionne. Suivre le hot wallet n'a plus de sens.`,
       },
