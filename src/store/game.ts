@@ -55,6 +55,50 @@ export interface PathHighlight {
   txIds: string[]
 }
 
+/** Mode temps réel : horloge simulée, les transactions postérieures restent invisibles. */
+export interface LiveClock {
+  now: number
+  start: number
+  /** Dernier fait connu de l'affaire : au-delà, plus rien ne bouge. */
+  end: number
+}
+
+/** Mouvement constaté sur une adresse surveillée quand l'horloge avance. */
+export interface WatchAlert {
+  id: string
+  time: number
+  address: string
+  txId: string
+  dir: 'in' | 'out'
+  usd: number
+}
+
+/** Graphe nommé d'un dossier (plusieurs pistes peuvent être menées en parallèle). */
+export interface GraphView {
+  id: string
+  name: string
+  addrPos: Record<string, Pos>
+  txPos: Record<string, Pos>
+  revealed: Record<string, true>
+  links: ManualLink[]
+}
+
+/** Constatations exportables d'un dossier, pour les partager entre enquêteurs. */
+export interface CaseExport {
+  format: 'spectra-case'
+  version: 1
+  templateId: string
+  seed: number
+  coverage: Coverage
+  exportedAt: string
+  flags: Record<string, Flag>
+  notes: Record<string, string>
+  links: ManualLink[]
+  watch: string[]
+  views: GraphView[]
+  addresses: Record<string, string>
+}
+
 export interface LogEntry {
   t: number
   text: string
@@ -83,6 +127,13 @@ interface GameState {
   links: ManualLink[]
   trace: ActiveTrace | null
   pathHighlight: PathHighlight | null
+  live: LiveClock | null
+  watch: string[]
+  alerts: WatchAlert[]
+  /** Graphes inactifs du dossier ; le graphe actif est dans addrPos/txPos/revealed/links. */
+  views: GraphView[]
+  viewId: string
+  viewName: string
   minUsd: number
   showTruth: boolean
   score?: CaseScore
@@ -93,7 +144,7 @@ interface GameState {
   history: GraphSnapshot[]
   xpNote?: string
 
-  start(templateId: string, seed: number, opts?: { mode?: Mode; coverage?: Coverage }): void
+  start(templateId: string, seed: number, opts?: { mode?: Mode; coverage?: Coverage; live?: boolean }): void
   resume(saved: SavedCase): boolean
   quit(): void
   addAddress(id: string, near?: string, side?: 1 | -1): void
@@ -125,6 +176,15 @@ interface GameState {
   runPath(from: string, to: string): boolean
   /** Révèle un ensemble de transactions en une seule étape d'annulation. */
   revealSet(txIds: string[], undoLabel: string, logText: string): void
+  /** Avance l'horloge du mode temps réel (jamais en arrière). */
+  advanceClock(to: number): void
+  toggleWatch(id: string): void
+  newView(copy: boolean): void
+  switchView(id: string): void
+  renameView(id: string, name: string): void
+  deleteView(id: string): void
+  exportCase(): CaseExport | null
+  importCase(data: CaseExport): string
 }
 
 interface GraphSnapshot {
@@ -152,6 +212,12 @@ export interface SavedCase {
   log: LogEntry[]
   links?: ManualLink[]
   trace?: { source: TraceSource; opts: TraceOptions }
+  live?: LiveClock
+  watch?: string[]
+  alerts?: WatchAlert[]
+  views?: GraphView[]
+  viewId?: string
+  viewName?: string
   /** Temps d'analyse actif (ms) au moment de la sauvegarde. */
   elapsed?: number
 }
@@ -188,6 +254,23 @@ function applyCoverage(w: World) {
   }
 }
 
+/**
+ * Fenêtre du mode temps réel : l'horloge démarre 30 minutes après le premier
+ * mouvement des fonds qui touche une adresse du dossier, et s'arrête au
+ * dernier fait de l'affaire.
+ */
+function liveWindow(inst: ScenarioInstance): LiveClock {
+  const w = inst.world
+  const end = Math.max(...[...w.txs.values()].map((t) => t.time))
+  const seeds = new Set(inst.seeds)
+  const truth = inst.truth.path.map((id) => w.txs.get(id)).filter((t): t is NonNullable<typeof t> => !!t).sort((a, b) => a.time - b.time)
+  const touches = (t: (typeof truth)[number]) =>
+    t.inputs.some((i) => seeds.has(i.address)) || t.outputs.some((o) => seeds.has(o.address)) || t.transfers.some((x) => seeds.has(x.from) || seeds.has(x.to))
+  const first = truth.find(touches) ?? truth[0]
+  const start = Math.min(end, first ? first.time + 1800 : end)
+  return { now: start, start, end }
+}
+
 function label(w: World, id: string): string {
   const at = attribution(w, id)
   return at.label ?? shortAddr(w.get(id).addr)
@@ -214,6 +297,12 @@ export const useGame = create<GameState>()((set, get) => ({
   links: [],
   trace: null,
   pathHighlight: null,
+  live: null,
+  watch: [],
+  alerts: [],
+  views: [],
+  viewId: 'v1',
+  viewName: 'Graphe principal',
   minUsd: 0,
   showTruth: false,
   focus: null,
@@ -226,15 +315,17 @@ export const useGame = create<GameState>()((set, get) => ({
     const inst = template.generate(seed)
     const coverage = opts.coverage ?? 'full'
     if (coverage === 'partial') applyCoverage(inst.world)
+    const live = opts.live ? liveWindow(inst) : null
+    if (live) inst.world.setHorizon(live.now)
     const addrPos: Record<string, Pos> = {}
     inst.seeds.forEach((s, i) => (addrPos[s] = { x: 0, y: i * 110 - ((inst.seeds.length - 1) * 110) / 2 }))
     set({
       template, inst, seed, mode: opts.mode ?? 'standard', coverage, startedAt: Date.now(), finishedAt: undefined,
       addrPos, txPos: {}, revealed: {}, selection: inst.seeds[0] ? { kind: 'address', id: inst.seeds[0] } : null,
       multi: [], flags: {}, notes: {}, answers: {}, hintsUsed: 0, objHints: [], score: undefined, xpGained: undefined,
-      log: [{ t: Date.now(), text: `Ouverture du dossier « ${inst.title} » (graine ${seed})`, kind: 'system' }],
+      log: [{ t: Date.now(), text: `Ouverture du dossier « ${inst.title} » (graine ${seed})${live ? ` en temps réel, horloge au ${fmtClock(live.now)}` : ''}`, kind: 'system' }],
       showTruth: false, focus: null, layoutTick: 0, minUsd: 0, links: [], history: [], xpNote: undefined,
-      trace: null, pathHighlight: null,
+      trace: null, pathHighlight: null, live, watch: [], alerts: [], views: [], viewId: 'v1', viewName: 'Graphe principal',
     })
   },
 
@@ -248,6 +339,8 @@ export const useGame = create<GameState>()((set, get) => ({
     const txPos = Object.fromEntries(Object.entries(saved.txPos).filter(([k]) => inst.world.txs.has(k)))
     const revealed = Object.fromEntries(Object.entries(saved.revealed).filter(([k]) => inst.world.txs.has(k))) as Record<string, true>
     const w = inst.world
+    const live = saved.live ?? null
+    if (live) w.setHorizon(live.now)
     const flags = Object.fromEntries(Object.entries(saved.flags).filter(([k]) => w.addresses.has(k))) as Record<string, Flag>
     const notes = Object.fromEntries(Object.entries(saved.notes).filter(([k]) => w.addresses.has(k) || w.txs.has(k)))
     const answers: Record<string, Answer> = {}
@@ -271,6 +364,8 @@ export const useGame = create<GameState>()((set, get) => ({
       hintsUsed: saved.hintsUsed, objHints: saved.objHints, log: saved.log, selection: null, multi: [], score: undefined,
       links: (saved.links ?? []).filter((l) => inst.world.addresses.has(l.source) && inst.world.addresses.has(l.target)),
       showTruth: false, focus: null, layoutTick: 0, trace, pathHighlight: null,
+      live, watch: (saved.watch ?? []).filter((a) => w.addresses.has(a)), alerts: (saved.alerts ?? []).filter((a) => w.txs.has(a.txId)),
+      views: (saved.views ?? []).map((v) => cleanView(w, v)), viewId: saved.viewId ?? 'v1', viewName: saved.viewName ?? 'Graphe principal',
     })
     return true
   },
@@ -374,9 +469,13 @@ export const useGame = create<GameState>()((set, get) => ({
   revealTx(txId, withCounterparts = true) {
     const s = get()
     if (!s.inst) return
-    snapshot('ajout de transaction')
     const w = s.inst.world
     const tx = w.tx(txId)
+    if (!w.visible(tx)) {
+      useUi.getState().notify(`Transaction pas encore confirmée à l'heure de l'horloge (${fmtClock(w.horizon)}).`)
+      return
+    }
+    snapshot('ajout de transaction')
     const addrPos = { ...s.addrPos }
     const txPos = { ...s.txPos }
     const revealed = { ...s.revealed, [txId]: true as const }
@@ -619,6 +718,124 @@ export const useGame = create<GameState>()((set, get) => ({
     return true
   },
 
+  advanceClock(to) {
+    const s = get()
+    if (!s.inst || !s.live) return
+    const w = s.inst.world
+    const from = s.live.now
+    const now = Math.min(s.live.end, Math.max(from, Math.round(to)))
+    if (now === from) return
+    w.setHorizon(now)
+    const alerts: WatchAlert[] = []
+    for (const id of s.watch) {
+      for (const tx of w.txsOf(id)) {
+        if (tx.time <= from || tx.time > now) continue
+        const out = w.flowOut(tx, id).reduce((a, f) => a + usd(f.asset, f.value), 0)
+        const inn = w.flowIn(tx, id).reduce((a, f) => a + usd(f.asset, f.value), 0)
+        alerts.push({ id: `${tx.id}|${id}`, time: tx.time, address: id, txId: tx.id, dir: out > inn ? 'out' : 'in', usd: Math.abs(out - inn) || Math.max(out, inn) })
+      }
+    }
+    alerts.sort((a, b) => a.time - b.time)
+    const trace = s.trace ? { ...s.trace, result: traceFunds(w, s.trace.source, s.trace.opts) } : null
+    set({ live: { ...s.live, now }, alerts: [...s.alerts, ...alerts].slice(-300), trace })
+    get().addLog(`Horloge avancée au ${fmtClock(now)}${alerts.length ? ` : ${alerts.length} mouvement(s) sur les adresses surveillées` : ''}`, 'tool')
+    if (alerts.length) {
+      const a = alerts[alerts.length - 1]
+      useUi.getState().notify(`⚠ ${label(w, a.address)} ${a.dir === 'out' ? 'envoie' : 'reçoit'} ${fmtUsd0(a.usd)}${alerts.length > 1 ? ` (+ ${alerts.length - 1} autre(s) mouvement(s))` : ''}`)
+    } else if (now === s.live.end) useUi.getState().notify('Fin des faits connus : plus aucune transaction après cette date.')
+  },
+
+  toggleWatch(id) {
+    const s = get()
+    if (!s.inst) return
+    const on = !s.watch.includes(id)
+    set({ watch: on ? [...s.watch, id] : s.watch.filter((x) => x !== id) })
+    get().addLog(`${on ? 'Surveillance activée' : 'Surveillance levée'} : ${label(s.inst.world, id)}`, 'tool')
+  },
+
+  newView(copy) {
+    const s = get()
+    if (!s.inst) return
+    const id = `v${Date.now().toString(36)}`
+    const name = copy ? `${s.viewName} (copie)` : `Piste ${s.views.length + 2}`
+    const seeds: Record<string, Pos> = {}
+    s.inst.seeds.forEach((a, i) => (seeds[a] = { x: 0, y: i * 110 }))
+    set({
+      views: [...s.views, currentView(s)],
+      viewId: id, viewName: name, history: [], selection: null, multi: [],
+      ...(copy ? {} : { addrPos: seeds, txPos: {}, revealed: {}, links: [] }),
+    })
+    get().addLog(`Nouveau graphe « ${name} »${copy ? ' (copie)' : ''}`, 'graph')
+  },
+
+  switchView(id) {
+    const s = get()
+    const target = s.views.find((v) => v.id === id)
+    if (!target || id === s.viewId) return
+    set({
+      views: [...s.views.filter((v) => v.id !== id), currentView(s)],
+      viewId: target.id, viewName: target.name, addrPos: target.addrPos, txPos: target.txPos, revealed: target.revealed, links: target.links,
+      history: [], selection: null, multi: [], layoutTick: s.layoutTick + 1,
+    })
+  },
+
+  renameView(id, name) {
+    const n = name.trim().slice(0, 40)
+    if (!n) return
+    if (id === get().viewId) set({ viewName: n })
+    else set((s) => ({ views: s.views.map((v) => (v.id === id ? { ...v, name: n } : v)) }))
+  },
+
+  deleteView(id) {
+    const s = get()
+    if (id !== s.viewId) {
+      set({ views: s.views.filter((v) => v.id !== id) })
+      return
+    }
+    const next = s.views[0]
+    if (!next) return
+    set({
+      views: s.views.slice(1), viewId: next.id, viewName: next.name, addrPos: next.addrPos, txPos: next.txPos, revealed: next.revealed, links: next.links,
+      history: [], selection: null, multi: [], layoutTick: s.layoutTick + 1,
+    })
+    get().addLog(`Graphe « ${s.viewName} » supprimé`, 'graph')
+  },
+
+  exportCase() {
+    const s = get()
+    if (!s.inst || !s.template) return null
+    const w = s.inst.world
+    const ids = new Set([...Object.keys(s.flags), ...Object.keys(s.notes).filter((k) => w.addresses.has(k)), ...s.watch])
+    return {
+      format: 'spectra-case', version: 1, templateId: s.template.id, seed: s.seed, coverage: s.coverage, exportedAt: new Date().toISOString(),
+      flags: s.flags, notes: s.notes, links: s.links, watch: s.watch, views: [currentView(s), ...s.views],
+      addresses: Object.fromEntries([...ids].map((id) => [id, w.get(id).addr])),
+    }
+  },
+
+  importCase(data) {
+    const s = get()
+    if (!s.inst || !s.template) return 'Aucun dossier ouvert.'
+    if (data?.format !== 'spectra-case') return 'Fichier non reconnu : ce n\'est pas un export de dossier SPECTRA.'
+    if (data.templateId !== s.template.id || data.seed !== s.seed) return `Cet export concerne une autre affaire (${data.templateId}, graine ${data.seed}).`
+    const w = s.inst.world
+    const flags = { ...s.flags }
+    for (const [k, v] of Object.entries(data.flags ?? {})) if (w.addresses.has(k) && v in FLAG_META) flags[k] = v
+    const notes = { ...s.notes }
+    for (const [k, v] of Object.entries(data.notes ?? {})) {
+      if (!(w.addresses.has(k) || w.txs.has(k)) || typeof v !== 'string') continue
+      notes[k] = notes[k] && notes[k] !== v ? `${notes[k]}\n— Import —\n${v}` : v
+    }
+    const links = [...s.links]
+    for (const l of data.links ?? []) if (w.addresses.has(l.source) && w.addresses.has(l.target) && !links.some((x) => x.source === l.source && x.target === l.target)) links.push(l)
+    const watch = [...new Set([...s.watch, ...(data.watch ?? []).filter((a) => w.addresses.has(a))])]
+    const imported = (data.views ?? []).map((v, i) => ({ ...cleanView(w, v), id: `v${Date.now().toString(36)}${i}`, name: `${v.name} (importé)` }))
+    set({ flags, notes, links, watch, views: [...s.views, ...imported] })
+    const n = Object.keys(data.flags ?? {}).length
+    get().addLog(`Import de constatations : ${n} marquage(s), ${Object.keys(data.notes ?? {}).length} note(s), ${imported.length} graphe(s)`, 'tool')
+    return ''
+  },
+
   revealSet(txIds, undoLabel, logText) {
     if (get().inst) revealMany(txIds, undoLabel, logText)
   },
@@ -632,6 +849,21 @@ function snapshot(label: string) {
   const s = useGame.getState()
   const snap: GraphSnapshot = { addrPos: s.addrPos, txPos: s.txPos, revealed: s.revealed, links: s.links, label }
   useGame.setState({ history: [...s.history, snap].slice(-60) })
+}
+
+function currentView(s: GameState): GraphView {
+  return { id: s.viewId, name: s.viewName, addrPos: s.addrPos, txPos: s.txPos, revealed: s.revealed, links: s.links }
+}
+
+/** Ne garde d'un graphe sauvegardé ou importé que ce qui existe (et est déjà visible). */
+function cleanView(w: World, v: GraphView): GraphView {
+  return {
+    id: String(v.id), name: String(v.name ?? 'Graphe').slice(0, 40),
+    addrPos: Object.fromEntries(Object.entries(v.addrPos ?? {}).filter(([k]) => w.addresses.has(k))),
+    txPos: Object.fromEntries(Object.entries(v.txPos ?? {}).filter(([k]) => w.txs.has(k) && w.visible(w.tx(k)))),
+    revealed: Object.fromEntries(Object.entries(v.revealed ?? {}).filter(([k]) => w.txs.has(k) && w.visible(w.tx(k)))) as Record<string, true>,
+    links: (v.links ?? []).filter((l) => w.addresses.has(l.source) && w.addresses.has(l.target)),
+  }
 }
 
 const MAX_REVEAL = 220
@@ -651,6 +883,7 @@ function revealMany(txIds: string[], undoLabel: string, logText: string) {
 }
 
 const fmtUsd0 = (v: number) => `${Math.round(v).toLocaleString('fr-FR')} $`
+const fmtClock = (t: number) => new Date(t * 1000).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 function currentSave(s: GameState): SavedCase | null {
   if (!s.inst || !s.template || s.score) return null
@@ -659,6 +892,7 @@ function currentSave(s: GameState): SavedCase | null {
     addrPos: s.addrPos, txPos: s.txPos, revealed: s.revealed, flags: s.flags, notes: s.notes, answers: s.answers,
     hintsUsed: s.hintsUsed, objHints: s.objHints, log: s.log, links: s.links, elapsed: Date.now() - s.startedAt,
     trace: s.trace ? { source: s.trace.source, opts: s.trace.opts } : undefined,
+    live: s.live ?? undefined, watch: s.watch, alerts: s.alerts, views: s.views, viewId: s.viewId, viewName: s.viewName,
   }
 }
 

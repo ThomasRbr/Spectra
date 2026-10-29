@@ -170,6 +170,13 @@ export class World {
   readonly spentBy = new Map<string, string>()
   /** Adresses dont l'attribution directe est masquée (mode « couverture partielle »). */
   readonly hiddenAttribution = new Set<string>()
+  /**
+   * Mode temps réel : les transactions postérieures à l'horizon ne sont « pas
+   * encore minées » et restent invisibles pour tous les outils d'analyse.
+   */
+  horizon = Infinity
+  /** Incrémenté à chaque déplacement de l'horizon (invalide les caches d'analyse). */
+  epoch = 0
   private unspent = new Map<string, Utxo[]>()
   private bal = new Map<string, number>()
   private used = new Set<string>()
@@ -564,7 +571,29 @@ export class World {
   }
 
   txsOf(id: string): Tx[] {
-    return (this.byAddr.get(id) ?? []).map((t) => this.txs.get(t)!).sort((a, b) => a.time - b.time)
+    return (this.byAddr.get(id) ?? []).map((t) => this.txs.get(t)!).filter((t) => t.time <= this.horizon).sort((a, b) => a.time - b.time)
+  }
+
+  setHorizon(t: number): void {
+    if (t === this.horizon) return
+    this.horizon = t
+    this.epoch++
+  }
+
+  visible(tx: Tx): boolean {
+    return tx.time <= this.horizon
+  }
+
+  /** Transactions visibles à l'horizon courant. */
+  visibleTxs(): Tx[] {
+    const all = [...this.txs.values()]
+    return this.horizon === Infinity ? all : all.filter((t) => t.time <= this.horizon)
+  }
+
+  /** Transaction qui dépense une sortie, si elle est déjà visible. */
+  spender(txId: string, n: number): string | undefined {
+    const s = this.spentBy.get(`${txId}:${n}`)
+    return s && this.txs.get(s)!.time <= this.horizon ? s : undefined
   }
 
   /** Montants reçus/envoyés par une adresse dans une transaction. */

@@ -87,6 +87,12 @@ Ce qu'il faut savoir :
         answer: 1,
         explain: `L'émetteur ne contrôle que son propre jeton. Les autres actifs de l'adresse nécessitent une autre mesure (saisie technique si la clé est accessible, gel au prochain service).`,
       },
+      {
+        type: 'callout',
+        kind: 'tip',
+        title: "S'entraîner à la course au gel : le mode temps réel",
+        md: "Au lancement d'une mission, choisissez le déroulement **Temps réel**. L'horloge démarre juste après le premier mouvement des fonds, et les transactions postérieures restent invisibles : historique, traçage, clusters, corrélation. Placez les adresses qui détiennent encore des fonds sous **surveillance** (bouton *Surveiller* de l'inspecteur), puis avancez l'horloge depuis la barre supérieure. Chaque mouvement d'une adresse surveillée déclenche une alerte, listée dans l'onglet *Veille* du dossier. Les fonds « encore détenus » du traçage sont alors ceux que l'on peut encore faire geler.",
+      },
       { type: 'heading', text: 'Le cadre juridique de la saisie' },
       {
         type: 'text',
@@ -475,6 +481,12 @@ Exemple : une adresse reçoit 10 000 USDT de la victime, puis 30 000 USDT d'autr
 - **Légende** : couleur par type d'entité ; distinction visuelle entre attribution **confirmée** et attribution **d'outil**, entre lien **constaté** (trait plein) et lien **inféré** (pointillé).
 - **Honnêteté graphique** : pas d'épaisseurs de flèche trompeuses, pas d'entité omise qui changerait l'interprétation (par exemple d'autres sources de fonds importantes).
 - Chaque nœud et chaque flèche renvoie à des identifiants listés en annexe.`,
+      },
+      {
+        type: 'callout',
+        kind: 'tip',
+        title: "Dans l'espace d'enquête : graphes et constatations",
+        md: "La barre au-dessus du graphe permet de mener **plusieurs pistes** dans des graphes séparés (nouveau graphe vide, ou copie du graphe actif ; double-clic pour renommer). Le menu *Constatations* exporte le dossier en JSON (marquages, notes, liens, graphes), à réimporter par un collègue sur la même affaire, et les adresses en CSV pour un tableur. Le rapport reprend le **diagramme de flux** du traçage, et précise, en temps réel, la date de situation et les adresses surveillées.",
       },
       { type: 'heading', text: 'Reproductibilité et chaîne de preuve' },
       {

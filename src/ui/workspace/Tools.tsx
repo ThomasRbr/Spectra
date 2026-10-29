@@ -15,6 +15,7 @@ import { CADRE_LABEL, requisitionText, type Cadre } from '../../lib/requisition'
 import { LESSONS, TRACKS } from '../../academy'
 import { ChainBadge, CopyButton, DifficultyBadge, Icon, Modal, ProgressBar, RichText, fmtDuration, fmtTime } from '../common'
 import { AddrLine } from './Inspector'
+import { flowDiagramSvg } from './Synthesis'
 
 // ── Corrélateur montant / temps ──────────────────────────────────────────
 
@@ -188,7 +189,7 @@ export function SearchPalette() {
     if (!w || q.trim().length < 4) return { addrs: [] as string[], txs: [] as string[], ents: [] as { id: string; addrs: string[] }[] }
     const s = q.trim().toLowerCase()
     const addrs = [...w.addresses.values()].filter((a) => a.addr.toLowerCase().includes(s)).slice(0, 12).map((a) => a.id)
-    const txs = [...w.txs.values()].filter((t) => t.hash.toLowerCase().includes(s)).slice(0, 8).map((t) => t.id)
+    const txs = w.visibleTxs().filter((t) => t.hash.toLowerCase().includes(s)).slice(0, 8).map((t) => t.id)
     const ents = [...w.entities.values()].filter((e) => e.known && e.name.toLowerCase().includes(s)).map((e) => ({
       id: e.id,
       addrs: [...w.addresses.values()].filter((a) => a.entityId === e.id && attribution(w, a.id).entity && (a.tags.includes('hot') || a.contract || a.tags.includes('liquid'))).slice(0, 6).map((a) => a.id),
@@ -577,6 +578,7 @@ export function ReportModal() {
       ? `<div class="box">Source : fonds reçus par <span class="mono">${w.get(tr.source.address).addr}</span> dans la transaction <span class="mono">${w.tx(tr.source.txId).hash}</span>, soit ${amounts(tr.result.sourceAmounts)} (${fmtUsd(tr.result.sourceUsd)}).<br>
 Méthode d'attribution : <b>${TRACE_METHODS[tr.opts.method].label}</b>. ${esc(TRACE_METHODS[tr.opts.method].help)}<br>
 Paramètres : ${tr.opts.maxHops ?? 10} sauts au plus, seuil de suivi ${fmtUsd(tr.opts.minUsd ?? 10)}, arrêt sur les services identifiés : ${tr.opts.stopAtServices === false ? 'non' : 'oui'}${tr.opts.until ? `, situation au ${new Date(tr.opts.until * 1000).toLocaleString('fr-FR')}` : ''}. Les montants attribués dépendent de la méthode retenue et ne préjugent pas de l'appréciation du magistrat.</div>
+<div class="box">${flowDiagramSvg(tr.result, { light: true, sourceLabel: attribution(w, tr.source.address).label ?? shortAddr(w.get(tr.source.address).addr, 6) })}</div>
 <table><tr><th>Destination</th><th>Montant</th><th>Part</th><th>Adresses d'entrée</th></tr>${tr.result.endpoints.map((e) => `<tr><td>${esc(e.entity.name)}</td><td>${amounts(e.amounts)} (${fmtUsd(e.usd)})</td><td>${share(e.usd)}</td><td class="mono">${e.addresses.map((a) => w.get(a).addr).join('<br>')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Aucun service identifié atteint.</td></tr>'}</table>
 ${tr.result.stillHeld.length ? `<table><tr><th>Fonds encore détenus (non attribués)</th><th>Montant</th><th>Part</th></tr>${tr.result.stillHeld.slice(0, 20).map((n) => `<tr><td class="mono">${w.get(n.id).addr}</td><td>${amounts(n.held)} (${fmtUsd(n.heldUsd)})</td><td>${share(n.heldUsd)}</td></tr>`).join('')}</table>` : ''}`
       : '<div class="muted">Aucun traçage des fonds réalisé.</div>'
@@ -595,7 +597,7 @@ table{width:100%;border-collapse:collapse;margin-top:8px}td,th{border:1px solid 
 <div class="head"><div><div class="muted">${esc(profile.unit)}</div><h1>Rapport d'analyse blockchain</h1><div>${esc(g.inst!.title)}</div></div>
 <div style="text-align:right"><div>Rédacteur : ${esc(profile.name)}</div><div>Date : ${new Date().toLocaleDateString('fr-FR')}</div><div class="muted">Exercice SPECTRA · ${esc(g.template!.title)} · graine ${g.seed}</div></div></div>
 <h2>1. Contexte</h2><div>${esc(g.inst!.briefing).replace(/\n\n/g, '<br><br>')}</div>
-<h2>2. Méthodologie</h2><div class="box">Analyse réalisée à partir des données publiques des registres concernés (${g.template!.chains.map((c) => CHAINS[c].name).join(', ')}). Heuristiques employées : suivi des flux, détection du rendu (type d'adresse, montants ronds, adresses neuves), regroupement par entrées communes (hors CoinJoin), attribution par base de données, corrélation montant/temps. Ces heuristiques sont probabilistes ; les rattachements présentés constituent des hypothèses d'enquête à corroborer (réquisitions, éléments techniques, auditions).</div>
+<h2>2. Méthodologie</h2><div class="box">Analyse réalisée à partir des données publiques des registres concernés (${g.template!.chains.map((c) => CHAINS[c].name).join(', ')}). Heuristiques employées : suivi des flux, détection du rendu (type d'adresse, montants ronds, adresses neuves), regroupement par entrées communes (hors CoinJoin), attribution par base de données, empreinte des logiciels de portefeuille, comportement des adresses de dépôt, corrélation montant/temps, analyse post-mix. Ces heuristiques sont probabilistes ; les rattachements présentés constituent des hypothèses d'enquête à corroborer (réquisitions, éléments techniques, auditions).${g.live ? `<br>Situation arrêtée au <b>${new Date(g.live.now * 1000).toLocaleString('fr-FR')}</b> : les mouvements postérieurs ne sont pas pris en compte.${g.watch.length ? ` Adresses placées sous surveillance : ${g.watch.map((a) => `<span class="mono">${w.get(a).addr}</span>`).join(', ')}.` : ''}` : ''}</div>
 <h2>3. Conclusions</h2><table><tr><th>#</th><th>Question</th><th>Constatation</th></tr>${answers}</table>
 <h2>4. Traçage des fonds</h2>${traceHtml}
 <h2>5. Adresses d'intérêt</h2>${rows ? `<table><tr><th>Qualification</th><th>Adresse</th><th>Réseau</th><th>Attribution</th><th>Observations</th></tr>${rows}</table>` : '<div class="muted">Aucune adresse marquée.</div>'}

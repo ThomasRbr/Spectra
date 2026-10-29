@@ -185,6 +185,12 @@ Contrôle arithmétique : 19 × 0,05015 = 0,95285 ; 0,95285 + 0,0025 + 0,04435 +
 
 Réflexe systématique : quand un cluster grossit brutalement, recherchez la transaction qui l'a fait grossir. Si c'est un CoinJoin (ou un PayJoin suspecté), **scindez** le cluster et notez la correction dans votre rapport.`,
     },
+    {
+      type: 'callout',
+      kind: 'tip',
+      title: "Dans l'espace d'enquête : l'analyse post-mix",
+      md: "L'inspecteur d'un CoinJoin affiche une carte **Analyse post-mix**. Elle rapproche chaque apport de son rendu par le calcul (apport − dénomination − frais), retrouve le rendu toxique des Tx0, y compris en amont d'un remix, et liste les dépenses des sorties mixées. Une dépense qui réunit une sortie mixée et une adresse liée à un participant est signalée comme **rattachée**. Un regroupement de sorties mixées sans lien avec un participant est signalé comme faux positif possible : il prouve un propriétaire commun, pas son identité.",
+    },
     { type: 'heading', text: 'PayJoin : quand la CIOH ment sans le dire' },
     {
       type: 'compare',
@@ -531,6 +537,12 @@ Conclusion : **confiance élevée** que ces retraits proviennent des dépôts de
       ],
       answer: 1,
       explain: 'Une destination n\'est discriminante que si elle est propre à un utilisateur (adresse personnelle, adresse de dépôt d\'exchange). Un routeur de DEX, un bridge ou un hot wallet sont partagés par tous.',
+    },
+    {
+      type: 'callout',
+      kind: 'tip',
+      title: "Dans l'espace d'enquête : le démixage d'un pool",
+      md: "Clic droit sur l'adresse qui a déposé ▸ *Démixer ses dépôts dans un pool*, ou bouton dans l'inspecteur d'un dépôt. L'outil liste ses dépôts, l'**ensemble d'anonymat** (dépôts de tiers aux mêmes dénominations sur la période) et les groupes de retraits. Un groupe est **rattaché** quand les retraits convergent vers un collecteur qui reçoit aussi le reliquat non mixé du déposant. Il est **écarté** si un retrait précède le premier dépôt, ou s'il compte plus de retraits que le suspect n'a fait de dépôts à cette dénomination. La fenêtre d'examen est réglable.",
     },
     { type: 'heading', text: 'Les variantes récentes' },
     {

@@ -12,15 +12,19 @@ import { entityLogo } from '../logos'
 import { FundingPanel, TracePanel, openTracer } from './Tracer'
 import { DepositPanel, FingerprintCard, SwapMatchPanel, WalletUsage } from './Heuristics'
 import { instantSwapDeposit } from '../../engine/heuristics'
+import { WatchButton } from './Live'
+import { CoinjoinDemixCard, openDemix } from './Demix'
+import { BalanceChart } from './Synthesis'
 
 export function Inspector() {
   const selection = useGame((s) => s.selection)
   const inst = useGame((s) => s.inst)
+  const clock = useGame((s) => s.live?.now ?? 0)
   if (!inst) return null
   const w = inst.world
   if (!selection) return <Empty icon="MousePointerClick" title="Aucune sélection" sub="Cliquez un nœud ou une transaction du graphe pour afficher son analyse détaillée." />
-  if (selection.kind === 'address') return <AddressInspector key={selection.id} w={w} id={selection.id} />
-  if (selection.kind === 'tx') return <TxInspector key={selection.id} w={w} id={selection.id} />
+  if (selection.kind === 'address') return <AddressInspector key={`${selection.id}@${clock}`} w={w} id={selection.id} />
+  if (selection.kind === 'tx') return <TxInspector key={`${selection.id}@${clock}`} w={w} id={selection.id} />
   return <EdgeInspector w={w} txIds={selection.txIds} source={selection.source} target={selection.target} />
 }
 
@@ -96,7 +100,7 @@ function AddressInspector({ w, id }: { w: World; id: string }) {
           <span className="flex-1 break-all font-mono text-[11px] leading-4 text-ink-100">{a.addr}</span>
           <CopyButton text={a.addr} />
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-1.5">
+        <div className="mt-3 grid grid-cols-2 gap-1.5">
           <button className="btn-outline !px-2 !py-1 text-xs" onClick={() => useGame.getState().expand(id, 'in')}>
             <Icon name="ArrowDownLeft" size={13} className="text-emerald-400" /> Entrées
           </button>
@@ -104,6 +108,7 @@ function AddressInspector({ w, id }: { w: World; id: string }) {
             <Icon name="ArrowUpRight" size={13} className="text-rose-400" /> Sorties
           </button>
           <FlagMenu id={id} />
+          <WatchButton id={id} />
         </div>
         {risk.reasons.length > 0 && (
           <div className="mt-2.5 space-y-0.5">
@@ -198,6 +203,7 @@ function TxList({ w, id }: { w: World; id: string }) {
   const rows = txs.filter((tx) => dir === 'all' || (dir === 'in' ? w.flowIn(tx, id).length : w.flowOut(tx, id).length))
   return (
     <div>
+      <BalanceChart w={w} id={id} />
       <div className="mb-2 flex gap-1">
         {(['all', 'in', 'out'] as const).map((d) => (
           <button key={d} onClick={() => setDir(d)} className={`chip ${dir === d ? 'bg-accent/15 text-accent' : 'bg-ink-800 text-ink-300 hover:text-white'}`}>
@@ -541,7 +547,10 @@ function TxInspector({ w, id }: { w: World; id: string }) {
                 </>
               )}
             </dl>
-            {tx.bridge.otherTx && (
+            {tx.bridge.otherTx && !w.visible(w.tx(tx.bridge.otherTx)) && (
+              <div className="mt-2 rounded-lg border border-dashed border-violet-400/30 px-2 py-1.5 text-center text-[11px] text-violet-200">Arrivée pas encore confirmée sur {CHAINS[tx.bridge.otherChain].name} à l'heure de l'horloge.</div>
+            )}
+            {tx.bridge.otherTx && w.visible(w.tx(tx.bridge.otherTx)) && (
               <button className="btn-outline mt-2 w-full !py-1 text-xs" onClick={() => {
                 useGame.getState().revealTx(tx.bridge!.otherTx!, true)
                 useGame.getState().select({ kind: 'tx', id: tx.bridge!.otherTx! })
@@ -559,6 +568,12 @@ function TxInspector({ w, id }: { w: World; id: string }) {
             <div className="mb-1 flex items-center gap-1.5 font-semibold text-rose-300"><Icon name="Shuffle" size={13} /> CoinJoin</div>
             {cj.equalCount} sorties de <span className="font-mono text-white">{cj.denom} {native}</span> : impossible de relier une entrée à une sortie mixée par les montants. L'heuristique des entrées communes est désactivée pour cette transaction. Cherchez les erreurs post-mix (regroupement, rendu toxique).
           </div>
+        )}
+        {cj.is && <CoinjoinDemixCard w={w} txId={tx.id} />}
+        {tx.model === 'account' && tx.transfers.some((t) => w.get(t.to).contract?.type === 'mixer') && (
+          <button className="btn-outline mt-3 w-full !py-1.5 text-xs !border-rose-400/40 text-rose-200" onClick={() => openDemix(tx.transfers.find((t) => w.get(t.to).contract?.type === 'mixer')!.from)}>
+            <Icon name="ScanSearch" size={13} /> Démixer les dépôts de cette adresse
+          </button>
         )}
 
         {tx.model === 'utxo' ? (
@@ -596,7 +611,7 @@ function TxInspector({ w, id }: { w: World; id: string }) {
               <div className="space-y-0.5 rounded-lg border border-ink-700/60 p-1">
                 {tx.outputs.map((o) => {
                   const c = change.find((x) => x.n === o.n)
-                  const spent = w.spentBy.get(`${tx.id}:${o.n}`)
+                  const spent = w.spender(tx.id, o.n)
                   return (
                     <div key={o.n}>
                       <AddrLine w={w} id={o.address} compact right={

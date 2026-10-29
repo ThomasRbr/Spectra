@@ -10,6 +10,10 @@ import { Empty, EntityChip, Icon, Modal, fmtTime } from '../common'
 import { AddrLine } from './Inspector'
 import { SwapMatchPanel, openPeel } from './Heuristics'
 import { attribution } from '../../engine/analysis'
+import { poolDeposits } from '../../engine/demix'
+import { openDemix } from './Demix'
+import { FlowDiagram } from './Synthesis'
+import { shortAddr as short } from '../../engine/addressgen'
 import { depositAnalysis } from '../../engine/heuristics'
 
 const METHODS = Object.keys(TRACE_METHODS) as TraceMethod[]
@@ -71,6 +75,7 @@ export function TracerModal() {
   const st = useUi((s) => s.tracer)
   const inst = useGame((s) => s.inst)
   const trace = useGame((s) => s.trace)
+  const clock = useGame((s) => s.live?.now)
   const w = inst?.world
   const [src, setSrc] = useState<TraceSource | null>(null)
   const [method, setMethod] = useState<TraceMethod>('fifo')
@@ -90,11 +95,11 @@ export function TracerModal() {
     setCompare(false)
   }, [st.open, st.preset, trace])
 
-  const list = useMemo(() => (w && src ? receipts(w, src.address) : []), [w, src?.address])
+  const list = useMemo(() => (w && src ? receipts(w, src.address) : []), [w, src?.address, clock])
   const comparison = useMemo(() => {
     if (!w || !src || !compare) return null
     return Object.fromEntries(METHODS.map((m) => [m, traceFunds(w, src, { method: m, maxHops, minUsd, stopAtServices, until })])) as Record<TraceMethod, TraceResult>
-  }, [w, src, compare, maxHops, minUsd, stopAtServices, until])
+  }, [w, src, compare, maxHops, minUsd, stopAtServices, until, clock])
 
   if (!w) return null
   const close = () => useUi.getState().set({ tracer: { open: false } })
@@ -217,6 +222,8 @@ function TraceResultView({ w, res, onShow }: { w: World; res: TraceResult; onSho
         <Card label="Encore détenus" value={fmtUsd(res.stillHeld.reduce((s, n) => s + n.heldUsd, 0))} sub={`${res.stillHeld.length} adresse(s) non attribuée(s)`} accent="#facc15" />
         <Card label="Non suivis" value={fmtUsd(lostUsd)} sub={`frais ${fmtUsd(res.lost.feesUsd)} · seuil ${fmtUsd(res.lost.belowThresholdUsd)}${res.lost.depthUsd ? ` · profondeur ${fmtUsd(res.lost.depthUsd)}` : ''}`} accent="#94a3b8" />
       </div>
+
+      <FlowDiagram res={res} sourceLabel={attribution(w, res.source.address).label ?? short(w.get(res.source.address).addr, 6)} />
 
       <div>
         <div className="label mb-1.5">Destinations ({res.endpoints.length})</div>
@@ -349,6 +356,7 @@ export function TracePanel({ w, id }: { w: World; id: string }) {
       )}
       <button className="btn-ghost w-full" onClick={() => openTracer({ address: id })}><Icon name="Route" size={14} /> Tracer les fonds reçus par cette adresse</button>
       {CHAINS[w.get(id).chain].model === 'utxo' && <button className="btn-ghost w-full" onClick={() => openPeel(id)}><Icon name="ListTree" size={14} /> Suivre comme peel chain</button>}
+      {poolDeposits(w, id).length > 0 && <button className="btn-ghost w-full text-rose-200" onClick={() => openDemix(id)}><Icon name="ScanSearch" size={14} /> Démixer ses dépôts dans un pool</button>}
     </div>
   )
 }

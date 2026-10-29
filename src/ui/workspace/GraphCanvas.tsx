@@ -13,6 +13,8 @@ import { Icon } from '../common'
 import { entityLogo } from '../logos'
 import { findPathFromSelection, openTracer, openTracerFromSelection } from './Tracer'
 import { openPeel } from './Heuristics'
+import { openDemix } from './Demix'
+import { poolDeposits } from '../../engine/demix'
 import { TRACE_METHODS } from '../../engine/tracing'
 
 /** Cadre tout le graphe sans zoomer exagérément quand il y a peu de nœuds. */
@@ -104,6 +106,7 @@ const STYLE: cytoscape.Stylesheet[] = [
   { selector: 'edge:selected', style: { 'line-color': '#22d3ee', 'target-arrow-color': '#22d3ee', opacity: 1, color: '#fff' } },
   { selector: 'edge.traced', style: { 'line-color': '#2dd4bf', 'target-arrow-color': '#2dd4bf', opacity: 1, 'line-style': 'solid', 'z-index': 9, width: 'data(wt)' } as never },
   { selector: 'node.tracednode', style: { 'underlay-color': '#2dd4bf', 'underlay-opacity': 0.45, 'underlay-padding': 7 } as never },
+  { selector: 'node.watched', style: { 'outline-color': '#fb7185', 'outline-width': 2, 'outline-offset': 4, 'outline-style': 'dashed' } as never },
   { selector: 'edge.truth', style: { 'line-color': '#fbbf24', 'target-arrow-color': '#fbbf24', opacity: 1, 'line-style': 'solid', 'z-index': 10, width: 'data(wt)' } as never },
   { selector: 'node.truthnode', style: { 'underlay-color': '#fbbf24', 'underlay-opacity': 0.5, 'underlay-padding': 8 } as never },
   { selector: '.dim', style: { opacity: 0.12 } },
@@ -132,6 +135,7 @@ export function GraphCanvas() {
   const showTruth = useGame((s) => s.showTruth)
   const trace = useGame((s) => s.trace)
   const pathHl = useGame((s) => s.pathHighlight)
+  const watch = useGame((s) => s.watch)
   const focus = useGame((s) => s.focus)
   const selection = useGame((s) => s.selection)
   const layoutTick = useGame((s) => s.layoutTick)
@@ -254,6 +258,7 @@ export function GraphCanvas() {
         }
         cy.getElementById(key).toggleClass('truthnode', truthAddr.has(id))
         cy.getElementById(key).toggleClass('tracednode', tracedAddr(id))
+        cy.getElementById(key).toggleClass('watched', watch.includes(id))
       }
       for (const [id, p] of Object.entries(txPos)) {
         const key = tKey(id)
@@ -321,7 +326,7 @@ export function GraphCanvas() {
         cy.center(cy.nodes())
       })
     }
-  }, [w, inst, addrPos, txPos, edges, xlinks, flags, showTruth, trace, pathHl])
+  }, [w, inst, addrPos, txPos, edges, xlinks, flags, showTruth, trace, pathHl, watch])
 
   // Animation après réorganisation
   useEffect(() => {
@@ -559,6 +564,7 @@ function NodeMenu({ menu, onClose }: { menu: Menu; onClose: () => void }) {
           {item('Route', 'Tracer les fonds reçus', () => openTracer({ address: id }), '#2dd4bf')}
           {g.multi.length === 2 && g.multi.includes(id) && item('Waypoints', 'Chemin entre les 2 adresses sélectionnées', findPathFromSelection, '#2dd4bf')}
           {CHAINS[w.get(id).chain].model === 'utxo' && item('ListTree', 'Suivre la peel chain', () => openPeel(id), '#2dd4bf')}
+          {poolDeposits(w, id).length > 0 && item('ScanSearch', 'Démixer ses dépôts dans un pool', () => openDemix(id), '#fb7185')}
           {CHAINS[w.get(id).chain].model === 'utxo' && item('Network', 'Ajouter le cluster', () => {
             const members = clusterOf(w, id).filter((m) => m !== id).slice(0, 25)
             members.forEach((m) => useGame.getState().addAddress(m, menu.key, 1))
@@ -568,6 +574,7 @@ function NodeMenu({ menu, onClose }: { menu: Menu; onClose: () => void }) {
             <div key={f}>{item(flags[id] === f ? 'CircleCheck' : 'Flag', `${flags[id] === f ? 'Retirer' : 'Marquer'} : ${FLAG_META[f].label}`, () => g.flag(id, flags[id] === f ? null : f), FLAG_META[f].color)}</div>
           ))}
           <div className="mx-2 my-1 h-px bg-ink-700" />
+          {item(g.watch.includes(id) ? 'EyeOff' : 'Eye', g.watch.includes(id) ? 'Ne plus surveiller' : 'Surveiller l\'adresse', () => g.toggleWatch(id), '#fb7185')}
           {item('Copy', 'Copier l\'adresse', () => navigator.clipboard?.writeText(w.get(id).addr).catch(() => undefined))}
           {item('Trash2', 'Retirer du graphe', () => g.removeNode(menu.key))}
         </>

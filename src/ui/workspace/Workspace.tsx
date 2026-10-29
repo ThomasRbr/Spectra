@@ -11,6 +11,9 @@ import { Dossier } from './Dossier'
 import { Timeline } from './Timeline'
 import { TracerModal, findPathFromSelection, openTracerFromSelection } from './Tracer'
 import { PeelModal } from './Heuristics'
+import { LiveClockBar } from './Live'
+import { DemixModal } from './Demix'
+import { CaseBar } from './CaseBar'
 import { Briefing, ConfirmSubmit, Correlator, Debrief, HintModal, ReportModal, RequisitionModal, SearchPalette, ShortcutsModal } from './Tools'
 
 function useClock(startedAt: number, stopped?: number) {
@@ -30,6 +33,7 @@ export function Workspace() {
   const finishedAt = useGame((s) => s.finishedAt)
   const mode = useGame((s) => s.mode)
   const coverage = useGame((s) => s.coverage)
+  const live = useGame((s) => !!s.live)
   const score = useGame((s) => s.score)
   const timelineOpen = useUi((s) => s.timelineOpen)
   const leftOpen = useUi((s) => s.leftOpen)
@@ -97,7 +101,7 @@ export function Workspace() {
     useUi.getState().setPage('missions')
   }
   const replay = () => {
-    useGame.getState().start(template.id, randomSeed(), { mode, coverage })
+    useGame.getState().start(template.id, randomSeed(), { mode, coverage, live })
     useUi.getState().set({ briefingOpen: true, timeRange: null, leftTab: 'evidence' })
   }
 
@@ -118,8 +122,10 @@ export function Workspace() {
           <div className="hidden gap-1 xl:flex">{template.chains.map((c) => <ChainBadge key={c} chain={c} compact />)}</div>
           {mode === 'examen' && <span className="chip bg-rose-500/15 text-rose-300">Examen</span>}
           {coverage === 'partial' && <span className="chip bg-orange-500/15 text-orange-300">Attribution partielle</span>}
+          {live && <span className="chip bg-rose-500/15 text-rose-300">Temps réel</span>}
         </div>
         <div className="ml-auto flex items-center gap-1">
+          <LiveClockBar />
           <div className={`mr-2 flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-mono text-[12.5px] ${finishedAt ? 'border-emerald-400/30 text-emerald-300' : 'border-ink-600 text-ink-100'}`}>
             <Icon name="Timer" size={13} className={finishedAt ? '' : 'text-accent'} /> {fmtDuration(elapsed)}
           </div>
@@ -149,6 +155,7 @@ export function Workspace() {
           <Dossier />
         </aside>
         <main className="flex min-w-0 flex-1 flex-col">
+          <CaseBar />
           <div className="relative min-h-0 flex-1">
             <GraphCanvas />
             <Debrief onReplay={replay} onExit={exit} />
@@ -168,6 +175,7 @@ export function Workspace() {
       <Correlator />
       <TracerModal />
       <PeelModal />
+      <DemixModal />
       <SearchPalette />
       <RequisitionModal />
       <HintModal />

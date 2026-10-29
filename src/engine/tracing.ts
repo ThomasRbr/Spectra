@@ -98,12 +98,12 @@ const PASS = new Set<EntityCategory>(['individual', 'suspect', 'victim'])
 const POOL_TYPES = new Set(['router', 'pool'])
 const MAX_TAINTED_TX = 6000
 
-const sortedCache = new WeakMap<World, { list: Tx[]; rank: Map<string, number> }>()
+const sortedCache = new WeakMap<World, { epoch: number; list: Tx[]; rank: Map<string, number> }>()
 function sortedTxs(w: World): { list: Tx[]; rank: Map<string, number> } {
   let s = sortedCache.get(w)
-  if (!s) {
-    const list = [...w.txs.values()].sort((a, b) => a.time - b.time)
-    s = { list, rank: new Map(list.map((t, i) => [t.id, i])) }
+  if (!s || s.epoch !== w.epoch) {
+    const list = w.visibleTxs().sort((a, b) => a.time - b.time)
+    s = { epoch: w.epoch, list, rank: new Map(list.map((t, i) => [t.id, i])) }
     sortedCache.set(w, s)
   }
   return s
@@ -557,7 +557,7 @@ function successors(w: World, tx: Tx, id: string): { addr: string; time: number;
   if (tx.bridge?.direction === 'out' && tx.bridge.otherTx && (tx.signer === id || tx.inputs.some((i) => i.address === id) || tx.transfers.some((t) => t.from === id))) {
     const other = w.txs.get(tx.bridge.otherTx)
     const r = tx.bridge.recipient
-    if (other && r) out.push({ addr: r, time: other.time, txIds: [tx.id, other.id] })
+    if (other && r && w.visible(other)) out.push({ addr: r, time: other.time, txIds: [tx.id, other.id] })
   }
   return out
 }
@@ -604,7 +604,7 @@ export function fundingTree(w: World, id: string, depth = 5): FundingStep[] {
     let viaBridge = false
     if (first.bridge?.direction === 'in' && first.bridge.otherTx) {
       const other = w.txs.get(first.bridge.otherTx)
-      const origin = other ? (other.model === 'utxo' ? other.inputs[0]?.address : other.signer ?? other.transfers[0]?.from) : undefined
+      const origin = other && w.visible(other) ? (other.model === 'utxo' ? other.inputs[0]?.address : other.signer ?? other.transfers[0]?.from) : undefined
       if (origin) {
         funder = origin
         viaBridge = true

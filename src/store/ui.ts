@@ -34,10 +34,11 @@ interface UiState {
   leftOpen: boolean
   rightOpen: boolean
   shortcutsOpen: boolean
-  leftTab: 'objectives' | 'evidence' | 'journal' | 'flags'
+  leftTab: 'objectives' | 'evidence' | 'journal' | 'flags' | 'watch'
   correlator: { open: boolean; preset?: CorrelatorPreset }
   tracer: { open: boolean; preset?: TraceSource }
   peel: { open: boolean; address?: string }
+  demix: { open: boolean; address?: string }
   requisition: { open: boolean; entityId?: string; addresses?: string[] }
   reportOpen: boolean
   briefingOpen: boolean
@@ -82,6 +83,7 @@ export const useUi = create<UiState>()((set) => ({
   correlator: { open: false },
   tracer: { open: false },
   peel: { open: false },
+  demix: { open: false },
   requisition: { open: false },
   reportOpen: false,
   briefingOpen: false,

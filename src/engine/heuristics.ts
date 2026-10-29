@@ -203,7 +203,7 @@ export function matchInstantSwap(w: World, txId: string, address: string): SwapM
   const own = (id: string) => attribution(w, id).entity?.id === entity!.id
   const scored: (Omit<SwapCandidate, 'prob'> & { s: number })[] = []
   const t1 = tx.time + SWAP_WINDOW_H * H
-  for (const p of w.txs.values()) {
+  for (const p of w.visibleTxs()) {
     if (p.time <= tx.time || p.time > t1 || p.id === tx.id) continue
     const legs: { from: string; to: string; asset: AssetId; value: number }[] = []
     if (p.model === 'utxo') {

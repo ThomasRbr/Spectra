@@ -29,11 +29,11 @@ export interface ClusterIndex {
   members: Map<string, string[]>
 }
 
-const clusterCache = new WeakMap<World, ClusterIndex>()
+const clusterCache = new WeakMap<World, { epoch: number; idx: ClusterIndex }>()
 
 export function clusters(w: World): ClusterIndex {
   const cached = clusterCache.get(w)
-  if (cached) return cached
+  if (cached && cached.epoch === w.epoch) return cached.idx
   const parent = new Map<string, string>()
   const find = (x: string): string => {
     let p = parent.get(x) ?? x
@@ -48,7 +48,7 @@ export function clusters(w: World): ClusterIndex {
     const rb = find(b)
     if (ra !== rb) parent.set(ra, rb)
   }
-  for (const tx of w.txs.values()) {
+  for (const tx of w.visibleTxs()) {
     if (tx.model !== 'utxo' || tx.inputs.length < 2) continue
     if (detectCoinjoin(tx).is) continue // l'heuristique ne s'applique pas aux CoinJoin
     const first = tx.inputs[0].address
@@ -64,7 +64,7 @@ export function clusters(w: World): ClusterIndex {
     members.set(r, l)
   }
   const idx = { of, members }
-  clusterCache.set(w, idx)
+  clusterCache.set(w, { epoch: w.epoch, idx })
   return idx
 }
 
@@ -203,7 +203,7 @@ export function changeAnalysis(w: World, tx: Tx): ChangeCandidate[] {
     if (hist[0]?.id === tx.id) reasons.push({ text: 'Adresse neuve (première apparition)', weight: 0.6 })
     else if (!inAddrs.has(o.address)) reasons.push({ text: 'Adresse déjà utilisée auparavant', weight: -1.5 })
     if (o.value < minIn && tx.inputs.length > 1) reasons.push({ text: 'Inférieure à la plus petite entrée (entrée superflue sinon)', weight: 0.5 })
-    const spender = w.spentBy.get(`${tx.id}:${o.n}`)
+    const spender = w.spender(tx.id, o.n)
     if (spender && cl.of.get(o.address) === inCluster && !inAddrs.has(o.address)) reasons.push({ text: 'Dépensée plus tard avec des adresses du même cluster', weight: 2.5 })
     const sfp = spender && fp ? txFingerprint(w, w.tx(spender)) : null
     if (fp && sfp && !inAddrs.has(o.address)) {
@@ -365,7 +365,7 @@ export interface CorrelationHit {
 export function correlate(w: World, q: CorrelationQuery): CorrelationHit[] {
   const hits: CorrelationHit[] = []
   const t1 = q.time + q.windowH * 3600
-  for (const tx of w.txs.values()) {
+  for (const tx of w.visibleTxs()) {
     if (!q.chains.includes(tx.chain) || tx.time < q.time || tx.time > t1 || tx.id === q.excludeTx) continue
     const legs: { from: string; to: string; value: number; asset: string; usd: number }[] = []
     if (tx.model === 'utxo') {

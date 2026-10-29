@@ -9,12 +9,15 @@ import { useUi } from '../../store/ui'
 import { evaluate, OBJECTIVE_HINT_RATIO } from '../../lib/scoring'
 import { Icon, Tabs, fmtTime } from '../common'
 import { AddrLine } from './Inspector'
+import { WatchPanel } from './Live'
 
 export function Dossier() {
   const tab = useUi((s) => s.leftTab)
   const inst = useGame((s) => s.inst)
   const answers = useGame((s) => s.answers)
   const flags = useGame((s) => s.flags)
+  const watched = useGame((s) => s.watch.length)
+  const live = useGame((s) => !!s.live)
   if (!inst) return null
   const answered = inst.objectives.filter((o) => answers[o.id] !== undefined && answers[o.id] !== '' && !(Array.isArray(answers[o.id]) && (answers[o.id] as string[]).length === 0)).length
   return (
@@ -28,6 +31,7 @@ export function Dossier() {
             { id: 'objectives', label: `Objectifs ${answered}/${inst.objectives.length}`, icon: 'Target' },
             { id: 'evidence', label: 'Pièces', icon: 'FolderOpen', count: inst.evidence.length },
             { id: 'flags', label: 'Marqués', icon: 'Flag', count: Object.keys(flags).length },
+            ...(live || watched ? [{ id: 'watch' as const, label: 'Veille', icon: 'Eye', count: watched }] : []),
             { id: 'journal', label: 'Journal', icon: 'History' },
           ]}
         />
@@ -36,6 +40,7 @@ export function Dossier() {
         {tab === 'objectives' && <Objectives />}
         {tab === 'evidence' && <EvidenceList />}
         {tab === 'flags' && <FlagList />}
+        {tab === 'watch' && <WatchPanel />}
         {tab === 'journal' && <Journal />}
       </div>
     </div>

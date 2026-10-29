@@ -10,7 +10,7 @@ import { bestByTemplate, useProfile } from '../../store/profile'
 import { ChainBadge, DifficultyBadge, Icon, Modal, ProgressBar } from '../common'
 import { LESSONS, TRACKS } from '../../academy'
 
-export function launchCase(templateId: string, seed: number, mode: Mode = 'standard', coverage: Coverage = 'full') {
+export function launchCase(templateId: string, seed: number, mode: Mode = 'standard', coverage: Coverage = 'full', live = false) {
   const g = useGame.getState()
   const saved = loadSavedCase()
   const running = (g.inst && !g.score) || saved
@@ -18,7 +18,7 @@ export function launchCase(templateId: string, seed: number, mode: Mode = 'stand
     const title = g.template?.title ?? (saved ? scenarioById(saved.templateId)?.title : undefined) ?? 'en cours'
     if (!confirm(`Une enquête est en cours (« ${title} »). L'abandonner pour ouvrir ce nouveau dossier ?`)) return
   }
-  g.start(templateId, seed, { mode, coverage })
+  g.start(templateId, seed, { mode, coverage, live })
   useUi.getState().set({ page: 'workspace', briefingOpen: true, timeRange: null, leftTab: 'evidence' })
 }
 
@@ -160,6 +160,7 @@ export function LaunchModal(props: { s: ScenarioTemplate | null; onClose: () => 
 function LaunchModalInner({ s, onClose, seed: fixedSeed }: { s: ScenarioTemplate | null; onClose: () => void; seed?: number }) {
   const [mode, setMode] = useState<Mode>('standard')
   const [coverage, setCoverage] = useState<Coverage>('full')
+  const [timing, setTiming] = useState<'past' | 'live'>('past')
   const [seedText, setSeedText] = useState('')
   if (!s) return null
   const lessons = (s.lessons ?? []).map((id) => LESSONS.find((l) => l.id === id)).filter(Boolean)
@@ -200,6 +201,12 @@ function LaunchModalInner({ s, onClose, seed: fixedSeed }: { s: ScenarioTemplate
           { v: 'partial', t: 'Partielle', d: '60 % des dépôts non étiquetés · XP ×1,25' },
         ]} />
       </div>
+      <div className="mt-3">
+        <OptionGroup label="Déroulement" value={timing} onChange={setTiming} options={[
+          { v: 'past', t: 'Rétrospectif', d: 'Toute l\'histoire est déjà sur la chaîne' },
+          { v: 'live', t: 'Temps réel', d: 'Horloge simulée : les fonds bougent pendant l\'enquête' },
+        ]} />
+      </div>
       {fixedSeed === undefined && (
         <label className="mt-3 block">
           <span className="label">Graine (optionnel)</span>
@@ -209,7 +216,7 @@ function LaunchModalInner({ s, onClose, seed: fixedSeed }: { s: ScenarioTemplate
       <button className="btn-primary mt-5 w-full !py-2.5 text-[14px]" onClick={() => {
         const seed = fixedSeed ?? (seedText ? Number(seedText) : randomSeed())
         onClose()
-        launchCase(s.id, seed, mode, coverage)
+        launchCase(s.id, seed, mode, coverage, timing === 'live')
       }}>
         <Icon name="Play" size={16} /> Ouvrir le dossier
       </button>
