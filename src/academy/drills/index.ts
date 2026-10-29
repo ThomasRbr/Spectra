@@ -6,6 +6,7 @@ import { ciohClusterDrill, coinjoinSpot } from './cioh'
 import { depositVsHot, tokenVsNative, xrpTag } from './accounts'
 import { requisitionTarget, riskCategory } from './risk'
 import { typology } from './typology'
+import { depositPattern, peelRead, poolDemix, swapMatch, taintMethod, walletFingerprint } from './tracing'
 
 /** Registre des exercices générés. */
 export const DRILLS: DrillDef[] = [
@@ -23,4 +24,10 @@ export const DRILLS: DrillDef[] = [
   riskCategory,
   typology,
   requisitionTarget,
+  taintMethod,
+  depositPattern,
+  peelRead,
+  swapMatch,
+  poolDemix,
+  walletFingerprint,
 ]

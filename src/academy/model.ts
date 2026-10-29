@@ -10,7 +10,7 @@ export const LEVELS: Record<Level, { label: string; short: string; color: string
   0: { label: 'Débutant absolu', short: 'N0', color: '#94a3b8', description: 'Aucun prérequis : monnaie numérique, clés, blockchain, explorateurs.' },
   1: { label: 'Initié', short: 'N1', color: '#34d399', description: 'Lire une transaction Bitcoin ou Ethereum, comprendre exchanges et stablecoins.' },
   2: { label: 'Intermédiaire', short: 'N2', color: '#facc15', description: 'Heuristiques, clustering, attribution, typologies, premières réquisitions.' },
-  3: { label: 'Confirmé', short: 'N3', color: '#fb923c', description: 'Bridges, chain hopping, mixeurs, fraudes DeFi, gel et saisie, rapport.' },
+  3: { label: 'Confirmé', short: 'N3', color: '#fb923c', description: 'Bridges, chain hopping, mixeurs, fraudes DeFi, réglementation, gel et saisie, traçage outillé, rapport.' },
   4: { label: 'Avancé', short: 'N4', color: '#f43f5e', description: 'CoinJoin, pools de confidentialité, Monero, Lightning, L2, hacks DeFi.' },
   5: { label: 'Expert', short: 'N5', color: '#a78bfa', description: 'Analyse comportementale, démixage, acteurs étatiques, expertise judiciaire.' },
 }
@@ -167,6 +167,12 @@ export type DrillId =
   | 'risk-category' // catégorie de risque d'une contrepartie
   | 'typology' // reconnaître une typologie à partir d'un récit
   | 'requisition-target' // qui réquisitionner, par quelle voie ?
+  | 'taint-method' // part marquée selon FIFO, LIFO, prorata ou poison
+  | 'deposit-pattern' // adresse de dépôt reconnue à son comportement (modèle à comptes)
+  | 'swap-match' // paiement d'un échangeur instantané correspondant à un dépôt
+  | 'peel-read' // totaliser les pelures d'une peel chain
+  | 'pool-demix' // retraits d'un pool rattachables au déposant
+  | 'wallet-fingerprint' // rendu départagé par l'empreinte du logiciel
 
 export interface DrillItem {
   prompt: string
@@ -261,7 +267,9 @@ export const CURRICULUM: CurriculumEntry[] = [
   { id: 'rug-pulls', title: 'Rug pulls et fraudes aux jetons', level: 3, track: 'typologies' },
   { id: 'ransomware', title: 'Rançongiciels et modèle RaaS', level: 3, track: 'typologies' },
   { id: 'darknet', title: 'Marchés du darknet', level: 3, track: 'typologies' },
+  { id: 'cadre-reglementaire', title: 'Le cadre réglementaire : MiCA, TFR, GAFI, sanctions', level: 3, track: 'enquete' },
   { id: 'gel-saisie', title: 'Gel et saisie des crypto-actifs', level: 3, track: 'enquete' },
+  { id: 'tracage-outille', title: 'Traçage assisté : utiliser et contester un outil d\'analyse', level: 3, track: 'methodo' },
   { id: 'rapport', title: 'Rédiger un rapport d\'analyse blockchain', level: 3, track: 'enquete' },
   // Niveau 4 — Avancé
   { id: 'coinjoin', title: 'CoinJoin : reconnaître et analyser', level: 4, track: 'confidentialite' },
