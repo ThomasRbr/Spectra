@@ -110,6 +110,12 @@ Le **comportement ultérieur** est souvent l'indice le plus parlant :
       {
         type: 'callout',
         kind: 'tip',
+        title: 'Dans l\'espace d\'enquête : la carte « Empreinte du portefeuille »',
+        md: `L'inspecteur d'une transaction Bitcoin affiche sa version, son \`nLockTime\`, le signalement RBF, l'ordre des sorties, le taux de frais et les familles de logiciels compatibles. Il la compare aussi à la transaction qui a financé l'entrée. L'analyse de rendu intègre la comparaison avec la transaction qui **redépense** chaque sortie (« même empreinte » ou « autre logiciel »). L'onglet *Cluster* d'une adresse résume l'empreinte de toutes ses dépenses : plusieurs empreintes pour une même adresse trahissent un changement de logiciel ou de main.`,
+      },
+      {
+        type: 'callout',
+        kind: 'tip',
         title: 'Tester la rondeur en euros',
         md: `Beaucoup de paiements sont fixés en monnaie fiduciaire. Une sortie de \`0,00812345 BTC\` n'a rien de rond… mais au cours du jour (61 560 €/BTC dans cet exemple) elle vaut **500,08 €**. Convertissez toujours les deux sorties à la date de la transaction avant de conclure : la sortie qui « tombe » sur un montant rond en euros, en dollars ou en USDT est probablement le paiement.`,
       },
@@ -700,6 +706,12 @@ C'est aussi sa faiblesse : chaque pelure arrivée chez un service régulé est u
           { title: 'Prioriser', md: 'Services coopératifs et capables de geler d\'abord ; montants élevés ; pelures les plus anciennes (risque de purge des données techniques).' },
           { title: 'Repérer la fin', md: 'Reste résiduel faible, consolidation, passage par un mixeur ou un CoinJoin : notez où et pourquoi la chaîne s\'arrête.' },
         ],
+      },
+      {
+        type: 'callout',
+        kind: 'tip',
+        title: 'Dans l\'espace d\'enquête : le détecteur de peel chain',
+        md: `Clic droit sur l'adresse de départ ▸ *Suivre la peel chain* (ou onglet *Traçage* de l'inspecteur). L'outil avance par la plus grosse sortie tant que le motif se répète et produit directement le tableau des pelures : date, montant, destination, attribution, reste, et probabilité que la sortie suivie soit bien le rendu. Les sauts dont le rendu est incertain sont signalés en orange : ce sont ceux à vérifier à la main. Il indique aussi pourquoi la chaîne s'arrête et regroupe les pelures par service pour préparer les réquisitions.`,
       },
       {
         type: 'table',

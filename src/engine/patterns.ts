@@ -252,12 +252,12 @@ export function coinjoin(w: World, o: { chain: ChainId; time: number; denom: num
   all.forEach((p, idx) => {
     const v = p.value ?? w.unspentValue(p.from, o.time)
     spend.push({ address: p.from, value: p.value })
-    const m = p.mixedTo ?? w.addr(o.chain, { kind: 'p2wpkh', entity: w.get(p.from).entityId })
+    const m = p.mixedTo ?? w.addr(o.chain, { kind: 'p2wpkh', entity: w.get(p.from).entityId, wallet: w.get(p.from).wallet })
     outputs.push({ address: m, value: o.denom })
     const rest = v - o.denom - mf - share
     let ch: string | undefined
     if (rest > 0.00001 && p.changeTo !== null) {
-      ch = p.changeTo ?? w.addr(o.chain, { kind: w.get(p.from).kind, entity: w.get(p.from).entityId })
+      ch = p.changeTo ?? w.addr(o.chain, { kind: w.get(p.from).kind, entity: w.get(p.from).entityId, wallet: w.get(p.from).wallet })
       outputs.push({ address: ch, value: rest })
     }
     if (idx < o.participants.length) {
@@ -438,7 +438,7 @@ export function peelChain(w: World, o: { start: string; steps: number; time: num
     if (bal <= 0.0002) break
     const peelValue = roundAsset(nativeOf(src.chain), bal * w.rng.float(f0, f1))
     const peelTo = o.peelTarget(i, peelValue, t)
-    const next = w.addr(src.chain, { entity: src.entityId, kind: o.nextKind === 'mixed' ? undefined : src.kind })
+    const next = w.addr(src.chain, { entity: src.entityId, kind: o.nextKind === 'mixed' ? undefined : src.kind, wallet: src.wallet })
     const tx = w.utxoTx({ time: t, from: [cur], to: [{ address: peelTo, value: peelValue }], change: next, spendAll: true, tags: ['peel'] })
     steps.push({ tx, hop: cur, next, peelTo, peelValue })
     cur = next

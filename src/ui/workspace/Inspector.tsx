@@ -10,6 +10,8 @@ import { aKey, tKey } from '../../lib/graph'
 import { ChainBadge, CopyButton, Empty, EntityChip, EntityIcon, Icon, Logo, RiskGauge, Stat, Tabs, fmtTime } from '../common'
 import { entityLogo } from '../logos'
 import { FundingPanel, TracePanel, openTracer } from './Tracer'
+import { DepositPanel, FingerprintCard, SwapMatchPanel, WalletUsage } from './Heuristics'
+import { instantSwapDeposit } from '../../engine/heuristics'
 
 export function Inspector() {
   const selection = useGame((s) => s.selection)
@@ -131,7 +133,7 @@ function AddressInspector({ w, id }: { w: World; id: string }) {
           tabs={[
             { id: 'txs', label: 'Historique', icon: 'List' },
             { id: 'exposure', label: 'Exposition', icon: 'Radar' },
-            { id: 'cluster', label: 'Cluster', icon: 'Network' },
+            { id: 'cluster', label: isUtxo ? 'Cluster' : 'Dépôt', icon: 'Network' },
             { id: 'entity', label: 'Entité', icon: 'Building2' },
             { id: 'trace', label: 'Traçage', icon: 'Route' },
             { id: 'funding', label: 'Financement', icon: 'Sprout' },
@@ -142,7 +144,7 @@ function AddressInspector({ w, id }: { w: World; id: string }) {
       <div className="min-h-0 flex-1 overflow-y-auto p-3 pt-2">
         {tab === 'txs' && <TxList w={w} id={id} />}
         {tab === 'exposure' && <ExposurePanel w={w} id={id} />}
-        {tab === 'cluster' && (isUtxo ? <ClusterPanel w={w} id={id} /> : <Empty icon="Network" title="Pas de clustering par entrées communes" sub="Sur le modèle à comptes, chaque adresse est un compte. Pistes de rattachement : financeur du gas, dépôts vers une même adresse d'exchange, interactions répétées, horaires." />)}
+        {tab === 'cluster' && (isUtxo ? <ClusterPanel w={w} id={id} /> : <DepositPanel w={w} id={id} />)}
         {tab === 'entity' && <EntityPanel w={w} id={id} />}
         {tab === 'trace' && <TracePanel w={w} id={id} />}
         {tab === 'funding' && <FundingPanel w={w} id={id} />}
@@ -360,6 +362,7 @@ function ClusterPanel({ w, id }: { w: World; id: string }) {
           {members.length > limit && <button className="btn-ghost w-full text-xs" onClick={() => setLimit((l) => l + 50)}>Afficher plus</button>}
         </div>
       )}
+      <WalletUsage w={w} id={id} />
     </div>
   )
 }
@@ -441,6 +444,7 @@ function TxInspector({ w, id }: { w: World; id: string }) {
   const [openReason, setOpenReason] = useState<number | null>(null)
   const native = CHAINS[tx.chain].native
   const totalUsd = w.txUsd(tx)
+  const swapDeposit = useMemo(() => instantSwapDeposit(w, tx), [w, tx])
   const preset = () => {
     // Montant de référence : ce qui entre dans un service (dépôt) si identifiable
     let ref = totalUsd
@@ -548,6 +552,8 @@ function TxInspector({ w, id }: { w: World; id: string }) {
           </div>
         )}
 
+        {swapDeposit && <SwapMatchPanel w={w} txId={tx.id} address={swapDeposit} />}
+
         {cj.is && (
           <div className="mt-3 rounded-xl border border-rose-400/30 bg-rose-400/5 p-3 text-[11.5px] leading-relaxed text-ink-200">
             <div className="mb-1 flex items-center gap-1.5 font-semibold text-rose-300"><Icon name="Shuffle" size={13} /> CoinJoin</div>
@@ -641,6 +647,7 @@ function TxInspector({ w, id }: { w: World; id: string }) {
                 })}
               </div>
             </div>
+            <FingerprintCard w={w} tx={tx} />
             {change.length > 0 && (
               <div className="rounded-lg border border-ink-700/60 bg-ink-850/40 p-2 text-[10.5px] leading-relaxed text-ink-400">
                 <Icon name="Info" size={11} className="mr-1 inline" /> Les heuristiques de rendu sont probabilistes : un portefeuille bien configuré peut les déjouer. Corroborez par le comportement ultérieur des sorties.

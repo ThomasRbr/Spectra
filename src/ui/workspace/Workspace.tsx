@@ -10,6 +10,7 @@ import { Inspector } from './Inspector'
 import { Dossier } from './Dossier'
 import { Timeline } from './Timeline'
 import { TracerModal, findPathFromSelection, openTracerFromSelection } from './Tracer'
+import { PeelModal } from './Heuristics'
 import { Briefing, ConfirmSubmit, Correlator, Debrief, HintModal, ReportModal, RequisitionModal, SearchPalette, ShortcutsModal } from './Tools'
 
 function useClock(startedAt: number, stopped?: number) {
@@ -166,6 +167,7 @@ export function Workspace() {
       <Briefing />
       <Correlator />
       <TracerModal />
+      <PeelModal />
       <SearchPalette />
       <RequisitionModal />
       <HintModal />

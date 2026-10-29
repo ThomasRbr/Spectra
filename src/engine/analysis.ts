@@ -2,7 +2,8 @@
 // CoinJoin, attribution, exposition au risque et corrélation inter-chaînes.
 import { CHAINS, type ChainId, usd } from './chains'
 import { CATEGORY, RISK_META, type Entity, type EntityCategory, type RiskLevel } from './entities'
-import type { Tx, World } from './world'
+import { WALLET_PROFILES, type Tx, type WalletProfile, type World } from './world'
+import type { AddrKind } from './addressgen'
 
 // ── CoinJoin ───────────────────────────────────────────────────────────────
 
@@ -103,6 +104,60 @@ export function attribution(w: World, id: string): Attribution {
   return { source: 'none' }
 }
 
+// ── Empreinte de portefeuille (UTXO) ────────────────────────────────────────
+
+export type OutputOrder = 'bip69' | 'random' | 'unknown'
+
+export interface Fingerprint {
+  version: number
+  locktime: number
+  locktimeKind: 'height' | 'zero'
+  rbf: boolean
+  /** Ordre des sorties : trié BIP 69, manifestement aléatoire, ou indécidable (moins de 3 sorties triées). */
+  order: OutputOrder
+  /** Taux de frais estimé, en sat/vB. */
+  feeRate: number
+  inputKinds: AddrKind[]
+  /** Familles de logiciels compatibles avec ces champs. */
+  families: WalletProfile[]
+}
+
+/** Ce qu'on lit dans les champs techniques d'une transaction UTXO (version, nLockTime, nSequence, ordre des sorties, frais). */
+export function txFingerprint(w: World, tx: Tx): Fingerprint | null {
+  if (tx.model !== 'utxo' || !tx.fp) return null
+  const outs = tx.outputs
+  let order: OutputOrder = 'unknown'
+  if (outs.length >= 2) {
+    const sorted = outs.every((o, i) => i === 0 || outs[i - 1].value < o.value || (outs[i - 1].value === o.value && w.get(outs[i - 1].address).addr <= w.get(o.address).addr))
+    order = !sorted ? 'random' : outs.length >= 3 ? 'bip69' : 'unknown'
+  }
+  const locktimeKind = tx.fp.locktime > 0 ? 'height' : 'zero'
+  const vbytes = 11 + tx.inputs.length * 68 + tx.outputs.length * 31
+  const cj = detectCoinjoin(tx).is
+  const families = WALLET_PROFILES.filter((p) => (p.id === 'coinjoin') === cj &&
+    p.version === tx.fp!.version && p.locktime === locktimeKind && p.rbf === tx.fp!.rbf && (order === 'unknown' || p.bip69 === (order === 'bip69')))
+  return {
+    version: tx.fp.version,
+    locktime: tx.fp.locktime,
+    locktimeKind,
+    rbf: tx.fp.rbf,
+    order,
+    feeRate: Math.round((tx.fee * 1e8) / vbytes),
+    inputKinds: [...new Set(tx.inputs.map((i) => w.get(i.address).kind))],
+    families,
+  }
+}
+
+/** Différences d'empreinte entre deux transactions (vide = compatibles). */
+export function fingerprintDiff(a: Fingerprint, b: Fingerprint): string[] {
+  const d: string[] = []
+  if (a.version !== b.version) d.push(`version ${a.version} / ${b.version}`)
+  if (a.locktimeKind !== b.locktimeKind) d.push('nLockTime (hauteur de bloc / 0)')
+  if (a.rbf !== b.rbf) d.push('signalement RBF')
+  if ((a.order === 'bip69' && b.order === 'random') || (a.order === 'random' && b.order === 'bip69')) d.push('ordre des sorties (BIP 69)')
+  return d
+}
+
 // ── Détection de l'adresse de rendu ─────────────────────────────────────────
 
 export interface ChangeReason {
@@ -133,6 +188,7 @@ export function changeAnalysis(w: World, tx: Tx): ChangeCandidate[] {
   const cl = clusters(w)
   const inCluster = cl.of.get(tx.inputs[0].address)
   const roundOut = tx.outputs.map((o) => decimals(o.value) <= 4)
+  const fp = txFingerprint(w, tx)
   const out = tx.outputs.map((o, idx) => {
     const reasons: ChangeReason[] = []
     const a = w.get(o.address)
@@ -149,6 +205,12 @@ export function changeAnalysis(w: World, tx: Tx): ChangeCandidate[] {
     if (o.value < minIn && tx.inputs.length > 1) reasons.push({ text: 'Inférieure à la plus petite entrée (entrée superflue sinon)', weight: 0.5 })
     const spender = w.spentBy.get(`${tx.id}:${o.n}`)
     if (spender && cl.of.get(o.address) === inCluster && !inAddrs.has(o.address)) reasons.push({ text: 'Dépensée plus tard avec des adresses du même cluster', weight: 2.5 })
+    const sfp = spender && fp ? txFingerprint(w, w.tx(spender)) : null
+    if (fp && sfp && !inAddrs.has(o.address)) {
+      const diff = fingerprintDiff(fp, sfp)
+      if (!diff.length) reasons.push({ text: 'Dépensée ensuite par un logiciel de même empreinte', weight: 1.8 })
+      else reasons.push({ text: `Dépensée ensuite par un autre logiciel (${diff.join(', ')})`, weight: -2 })
+    }
     const attr = attribution(w, o.address)
     if (attr.entity && attr.entity.category === 'exchange') reasons.push({ text: `Adresse attribuée à ${attr.entity.name}`, weight: -3 })
     const score = reasons.reduce((s, r) => s + r.weight, 0)

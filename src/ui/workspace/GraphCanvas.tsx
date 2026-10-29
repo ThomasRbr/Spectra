@@ -12,6 +12,7 @@ import { aKey, computeEdges, extraLinks, idOf, isAKey, tKey } from '../../lib/gr
 import { Icon } from '../common'
 import { entityLogo } from '../logos'
 import { findPathFromSelection, openTracer, openTracerFromSelection } from './Tracer'
+import { openPeel } from './Heuristics'
 import { TRACE_METHODS } from '../../engine/tracing'
 
 /** Cadre tout le graphe sans zoomer exagérément quand il y a peu de nœuds. */
@@ -557,6 +558,7 @@ function NodeMenu({ menu, onClose }: { menu: Menu; onClose: () => void }) {
           {item('ArrowDownLeft', 'Déplier les entrées', () => g.expand(id, 'in'))}
           {item('Route', 'Tracer les fonds reçus', () => openTracer({ address: id }), '#2dd4bf')}
           {g.multi.length === 2 && g.multi.includes(id) && item('Waypoints', 'Chemin entre les 2 adresses sélectionnées', findPathFromSelection, '#2dd4bf')}
+          {CHAINS[w.get(id).chain].model === 'utxo' && item('ListTree', 'Suivre la peel chain', () => openPeel(id), '#2dd4bf')}
           {CHAINS[w.get(id).chain].model === 'utxo' && item('Network', 'Ajouter le cluster', () => {
             const members = clusterOf(w, id).filter((m) => m !== id).slice(0, 25)
             members.forEach((m) => useGame.getState().addAddress(m, menu.key, 1))

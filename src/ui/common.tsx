@@ -139,7 +139,7 @@ export function Modal({ open, onClose, title, children, width = 'max-w-2xl', ico
 
 export function Tabs<T extends string>({ tabs, value, onChange, size = 'sm' }: { tabs: { id: T; label: string; icon?: string; count?: number }[]; value: T; onChange: (t: T) => void; size?: 'sm' | 'xs' }) {
   return (
-    <div className="flex gap-0.5 rounded-lg bg-ink-950/60 p-0.5 border border-ink-700/60">
+    <div className={`flex gap-0.5 rounded-lg bg-ink-950/60 p-0.5 border border-ink-700/60 ${size === 'xs' ? 'flex-wrap' : ''}`}>
       {tabs.map((t) => (
         <button
           key={t.id}

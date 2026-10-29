@@ -436,6 +436,12 @@ La bonne nouvelle : chaque saut a un **opérateur**, un **protocole** ou une **t
         ],
       },
       {
+        type: 'callout',
+        kind: 'tip',
+        title: 'Dans l\'espace d\'enquête : les « sorties probables »',
+        md: `Quand un dépôt chez un échangeur instantané est identifié (inspecteur de la transaction, ou bouton *Sorties probables* sur la destination dans l'outil de traçage), SPECTRA applique automatiquement les étapes 1 à 5 : il examine tous les paiements du même service dans les 4 heures, garde ceux dont le montant correspond aux frais habituels et les classe par probabilité. Un candidat très au-dessus des autres renforce l'hypothèse ; plusieurs candidats proches la fragilisent. *Lier* pose un lien de corrélation dans le graphe, l'icône de traçage poursuit le suivi depuis le paiement. Les étapes 6 et 7 restent à faire.`,
+      },
+      {
         type: 'case',
         title: 'Cas pratique — 0,8215 BTC chez ChangeNOW',
         md: `Dépôt de 0,8215 BTC à 14:02 UTC (confirmé à 14:09) sur une adresse de dépôt ChangeNOW. Cours de référence : environ 24,1 ETH pour 1 BTC → 19,80 ETH bruts. Après 0,5 à 2 % de frais : fourchette de **19,40 à 19,70 ETH**.

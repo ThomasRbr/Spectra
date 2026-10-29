@@ -37,6 +37,7 @@ interface UiState {
   leftTab: 'objectives' | 'evidence' | 'journal' | 'flags'
   correlator: { open: boolean; preset?: CorrelatorPreset }
   tracer: { open: boolean; preset?: TraceSource }
+  peel: { open: boolean; address?: string }
   requisition: { open: boolean; entityId?: string; addresses?: string[] }
   reportOpen: boolean
   briefingOpen: boolean
@@ -80,6 +81,7 @@ export const useUi = create<UiState>()((set) => ({
   leftTab: 'objectives',
   correlator: { open: false },
   tracer: { open: false },
+  peel: { open: false },
   requisition: { open: false },
   reportOpen: false,
   briefingOpen: false,

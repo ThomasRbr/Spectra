@@ -123,6 +123,8 @@ interface GameState {
   clearTrace(): void
   revealTrace(): void
   runPath(from: string, to: string): boolean
+  /** Révèle un ensemble de transactions en une seule étape d'annulation. */
+  revealSet(txIds: string[], undoLabel: string, logText: string): void
 }
 
 interface GraphSnapshot {
@@ -615,6 +617,10 @@ export const useGame = create<GameState>()((set, get) => ({
     set({ pathHighlight: { from, to, txIds: p.txIds } })
     revealMany(p.txIds, 'chemin', `Chemin trouvé ${label(w, from)} → ${label(w, to)} : ${p.addresses.length - 1} saut(s)`)
     return true
+  },
+
+  revealSet(txIds, undoLabel, logText) {
+    if (get().inst) revealMany(txIds, undoLabel, logText)
   },
 
   addLog(text, kind = 'system') {

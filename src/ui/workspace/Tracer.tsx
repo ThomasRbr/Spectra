@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { fmtAsset, fmtUsd, usd, type AssetId } from '../../engine/chains'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { CHAINS, fmtAsset, fmtUsd, usd, type AssetId } from '../../engine/chains'
 import { CATEGORY } from '../../engine/entities'
 import { shortAddr } from '../../engine/addressgen'
 import { TRACE_METHODS, fundingTree, traceFunds, type TraceMethod, type TraceResult, type TraceSource } from '../../engine/tracing'
@@ -8,6 +8,9 @@ import { useGame } from '../../store/game'
 import { useUi } from '../../store/ui'
 import { Empty, EntityChip, Icon, Modal, fmtTime } from '../common'
 import { AddrLine } from './Inspector'
+import { SwapMatchPanel, openPeel } from './Heuristics'
+import { attribution } from '../../engine/analysis'
+import { depositAnalysis } from '../../engine/heuristics'
 
 const METHODS = Object.keys(TRACE_METHODS) as TraceMethod[]
 
@@ -188,6 +191,24 @@ function TraceResultView({ w, res, onShow }: { w: World; res: TraceResult; onSho
   const endsUsd = res.endpoints.reduce((s, e) => s + e.usd, 0)
   const lostUsd = res.lost.belowThresholdUsd + res.lost.feesUsd + res.lost.depthUsd + res.lost.inTransitUsd
   const req = (entityId: string, addresses: string[]) => useUi.getState().set({ tracer: { open: false }, requisition: { open: true, entityId, addresses } })
+  const [swapOpen, setSwapOpen] = useState<string | null>(null)
+  // Adresses non attribuées du flux qui se comportent comme des adresses de dépôt du service atteint
+  const viaDeposit = useMemo(() => {
+    const m = new Map<string, string[]>()
+    for (const e of res.endpoints) {
+      const entry = new Set(e.addresses)
+      const found = [...res.byAddress.keys()].filter((a) => {
+        if (attribution(w, a).entity || !w.txsOf(a).some((t) => t.transfers.some((x) => x.from === a && entry.has(x.to)))) return false
+        const v = depositAnalysis(w, a)
+        return v.role === 'deposit' && !!v.target && entry.has(v.target)
+      })
+      if (found.length) m.set(e.entity.id, found)
+    }
+    return m
+  }, [w, res])
+  /** Dépôts (transaction, adresse) d'une destination, pour le rapprochement des échangeurs instantanés. */
+  const deposits = (e: TraceResult['endpoints'][number]) =>
+    e.addresses.flatMap((a) => e.txIds.filter((t) => w.flowIn(w.tx(t), a).length).slice(0, 1).map((t) => ({ txId: t, address: a }))).slice(0, 4)
   return (
     <div className="mt-4 space-y-4">
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -209,17 +230,33 @@ function TraceResultView({ w, res, onShow }: { w: World; res: TraceResult; onSho
               </thead>
               <tbody>
                 {res.endpoints.map((e) => (
-                  <tr key={e.entity.id} className="border-t border-ink-700/50 align-top hover:bg-ink-800/60">
+                  <Fragment key={e.entity.id}>
+                  <tr className="border-t border-ink-700/50 align-top hover:bg-ink-800/60">
                     <td className="px-2.5 py-1.5"><EntityChip entity={e.entity} /><div className="mt-0.5 text-[10.5px] text-ink-400">{CATEGORY[e.entity.category].label}</div></td>
                     <td className="px-2 py-1.5 font-mono text-ink-100">{fmtUsd(e.usd)}<div className="text-[10.5px] text-ink-400">{amountsLine(e.amounts)}</div></td>
                     <td className="px-2 py-1.5 font-mono text-ink-200">{pct(e.usd, res.sourceUsd)}</td>
-                    <td className="max-w-[260px] px-2 py-1">{e.addresses.slice(0, 3).map((a) => <AddrLine key={a} w={w} id={a} compact />)}{e.addresses.length > 3 && <div className="px-2 text-[10.5px] text-ink-400">+ {e.addresses.length - 3} autre(s)</div>}</td>
+                    <td className="max-w-[260px] px-2 py-1">
+                      {e.addresses.slice(0, 3).map((a) => <AddrLine key={a} w={w} id={a} compact />)}{e.addresses.length > 3 && <div className="px-2 text-[10.5px] text-ink-400">+ {e.addresses.length - 3} autre(s)</div>}
+                      {viaDeposit.get(e.entity.id)?.map((a) => <AddrLine key={a} w={w} id={a} compact right={<span className="chip bg-accent/10 !text-[9.5px] text-accent" title="Adresse non attribuée qui reverse tout vers ce service (onglet Dépôt de l'inspecteur)">dépôt probable</span>} />)}
+                    </td>
                     <td className="px-2 py-1.5">
                       {e.entity.compliance && (
-                        <button className="btn-ghost !px-2 !py-1 text-[11px]" onClick={() => req(e.entity.id, e.addresses)}><Icon name="FileText" size={12} /> Réquisition</button>
+                        <button className="btn-ghost !px-2 !py-1 text-[11px]" onClick={() => req(e.entity.id, [...(viaDeposit.get(e.entity.id) ?? []), ...e.addresses])}><Icon name="FileText" size={12} /> Réquisition</button>
+                      )}
+                      {e.entity.category === 'instant_exchanger' && (
+                        <button className={`btn-ghost !px-2 !py-1 text-[11px] ${swapOpen === e.entity.id ? 'text-orange-200' : ''}`} onClick={() => setSwapOpen(swapOpen === e.entity.id ? null : e.entity.id)}><Icon name="Repeat" size={12} /> Sorties probables</button>
                       )}
                     </td>
                   </tr>
+                  {swapOpen === e.entity.id && (
+                    <tr className="bg-orange-400/[0.04]">
+                      <td colSpan={5} className="space-y-2 px-2.5 py-2">
+                        <div className="text-[11px] text-ink-300">Le lien on-chain s'arrête ici : rapprochement de chaque dépôt avec les paiements de {e.entity.name} (montant frais déduits, délai).</div>
+                        {deposits(e).map((d) => <SwapMatchPanel key={d.txId + d.address} w={w} txId={d.txId} address={d.address} compact />)}
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -279,7 +316,7 @@ function Comparison({ results }: { results: Record<TraceMethod, TraceResult> }) 
   )
 }
 
-function Card({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
+export function Card({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
     <div className="rounded-xl border border-ink-700/60 bg-ink-850/50 p-2.5">
       <div className="text-[10.5px] uppercase tracking-wide text-ink-400">{label}</div>
@@ -311,6 +348,7 @@ export function TracePanel({ w, id }: { w: World; id: string }) {
         </div>
       )}
       <button className="btn-ghost w-full" onClick={() => openTracer({ address: id })}><Icon name="Route" size={14} /> Tracer les fonds reçus par cette adresse</button>
+      {CHAINS[w.get(id).chain].model === 'utxo' && <button className="btn-ghost w-full" onClick={() => openPeel(id)}><Icon name="ListTree" size={14} /> Suivre comme peel chain</button>}
     </div>
   )
 }

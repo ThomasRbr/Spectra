@@ -18,6 +18,8 @@ export interface Address {
   label?: string
   contract?: ContractInfo
   tags: string[]
+  /** Portefeuille logiciel qui contrôle l'adresse (vérité terrain : détermine l'empreinte des transactions). */
+  wallet: string
 }
 
 export interface TxIO {
@@ -44,6 +46,14 @@ export interface BridgeInfo {
   recipient?: string
 }
 
+/** Champs techniques d'une transaction UTXO, fixés par le logiciel de portefeuille. */
+export interface TxFingerprint {
+  version: 1 | 2
+  locktime: number
+  /** Signalement « replace-by-fee » (nSequence < 0xfffffffe). */
+  rbf: boolean
+}
+
 export interface Tx {
   id: string
   hash: string
@@ -61,6 +71,7 @@ export interface Tx {
   memo?: string
   tags: string[]
   bridge?: BridgeInfo
+  fp?: TxFingerprint
 }
 
 interface Utxo {
@@ -80,7 +91,32 @@ export interface AddrOpts {
   contract?: ContractInfo
   tags?: string[]
   addr?: string
+  /** Portefeuille logiciel (par défaut : celui de l'entité, sinon l'adresse elle-même). */
+  wallet?: string
 }
+
+/** Familles de logiciels de portefeuille, reconnaissables aux champs techniques de leurs transactions. */
+export interface WalletProfile {
+  id: 'desktop' | 'sorted' | 'mobile' | 'legacy' | 'service' | 'coinjoin'
+  label: string
+  version: 1 | 2
+  /** nLockTime à la hauteur courante (protection « anti-fee-sniping ») ou à 0. */
+  locktime: 'height' | 'zero'
+  rbf: boolean
+  /** Entrées et sorties triées selon le BIP 69. */
+  bip69: boolean
+}
+
+export const WALLET_PROFILES: WalletProfile[] = [
+  { id: 'desktop', label: 'Portefeuille de bureau (anti-fee-sniping, RBF)', version: 2, locktime: 'height', rbf: true, bip69: false },
+  { id: 'sorted', label: 'Portefeuille de bureau à sorties triées (BIP 69)', version: 2, locktime: 'height', rbf: true, bip69: true },
+  { id: 'mobile', label: 'Portefeuille mobile (RBF, nLockTime à 0)', version: 2, locktime: 'zero', rbf: true, bip69: false },
+  { id: 'legacy', label: 'Ancien logiciel (version 1, sans RBF)', version: 1, locktime: 'zero', rbf: false, bip69: false },
+  { id: 'service', label: 'Plateforme de service (sans RBF, nLockTime à 0)', version: 2, locktime: 'zero', rbf: false, bip69: false },
+  { id: 'coinjoin', label: 'Coordinateur CoinJoin', version: 1, locktime: 'zero', rbf: false, bip69: false },
+]
+
+const SERVICE_WALLETS = new Set<EntityCategory>(['exchange', 'instant_exchanger', 'otc', 'p2p', 'mixer', 'darknet', 'gambling', 'merchant', 'sanctioned', 'coinjoin'])
 
 export interface UtxoTxOpts {
   time: number
@@ -194,8 +230,18 @@ export class World {
     const id = `${chain}:${s}`
     this.used.add(id)
     const entityId = typeof opts.entity === 'string' ? opts.entity : opts.entity?.id
-    this.addresses.set(id, { id, chain, addr: s, kind, entityId, label: opts.label, contract: opts.contract, tags: opts.tags ?? [] })
+    this.addresses.set(id, { id, chain, addr: s, kind, entityId, label: opts.label, contract: opts.contract, tags: opts.tags ?? [], wallet: opts.wallet ?? entityId ?? id })
     return id
+  }
+
+  /** Famille de logiciel du portefeuille qui contrôle une adresse (déterministe, sans tirage aléatoire). */
+  walletProfile(id: string): WalletProfile {
+    const a = this.get(id)
+    const e = a.entityId ? this.entities.get(a.entityId) : undefined
+    if (e && SERVICE_WALLETS.has(e.category)) return WALLET_PROFILES[4]
+    let h = 2166136261
+    for (let i = 0; i < a.wallet.length; i++) h = Math.imul(h ^ a.wallet.charCodeAt(i), 16777619) >>> 0
+    return WALLET_PROFILES[h % 4]
   }
 
   /** Plusieurs adresses du même type (même portefeuille). */
@@ -328,13 +374,15 @@ export class World {
       let changeAddr = o.change
       if (!changeAddr) {
         const src = this.get(from[0])
-        changeAddr = this.addr(chain, { entity: src.entityId, kind: src.kind })
+        changeAddr = this.addr(chain, { entity: src.entityId, kind: src.kind, wallet: src.wallet })
       }
       outs.push({ address: changeAddr, value: change })
     } else if (change > 0) {
       fee += change
     }
     this.rng.shuffle(outs)
+    const prof = this.walletProfile(from[0] ?? firstTo)
+    if (prof.bip69) outs.sort((a, b) => a.value - b.value || (this.get(a.address).addr < this.get(b.address).addr ? -1 : 1))
 
     const outputs: TxIO[] = outs.map((x, n) => ({ address: x.address, value: x.value, n }))
     for (const out of outputs) {
@@ -347,6 +395,7 @@ export class World {
       id, hash, chain, time: o.time, block: this.blockOf(chain, o.time), model: 'utxo',
       inputs, outputs, transfers: [], fee, feeAsset: CHAINS[chain].native, method: o.method, tags: o.tags ?? [],
     }
+    tx.fp = fingerprintOf(prof, tx.block)
     this.register(tx)
     return tx
   }
@@ -410,6 +459,7 @@ export class World {
       inputs, outputs, transfers: [], fee: inTotal - outTotal, feeAsset: CHAINS[chain].native,
       method: o.method, tags: o.tags ?? [],
     }
+    tx.fp = fingerprintOf(o.tags?.includes('coinjoin') ? WALLET_PROFILES[5] : this.walletProfile(o.spend[0].address), tx.block)
     this.register(tx)
     return tx
   }
@@ -578,6 +628,10 @@ export class World {
     const e = this.get(id).entityId
     return e ? this.entities.get(e) : undefined
   }
+}
+
+function fingerprintOf(p: WalletProfile, block: number): TxFingerprint {
+  return { version: p.version, locktime: p.locktime === 'height' ? block - 1 : 0, rbf: p.rbf }
 }
 
 function defaultAccountFee(rng: Rng, chain: ChainId, legs: number): number {

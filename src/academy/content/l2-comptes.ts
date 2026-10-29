@@ -309,6 +309,12 @@ L'enquêteur note les montants et leur contre-valeur à chaque étape (perte d'e
 C'est le couple **adresse + identifiant** qui désigne le compte client. Pour l'enquêteur, l'identifiant joue exactement le rôle de l'adresse de dépôt unique sur Bitcoin.`,
       },
       {
+        type: 'callout',
+        kind: 'tip',
+        title: 'Reconnaître une adresse de dépôt sur Ethereum ou Tron',
+        md: `Sans entrées communes, le rattachement d'une adresse de dépôt à sa plateforme repose sur son **comportement** : elle reverse la totalité de ce qu'elle reçoit, rapidement, vers un même portefeuille collecteur, qui reçoit les mêmes reversements de nombreuses autres adresses. Dans l'espace d'enquête, l'onglet *Dépôt* de l'inspecteur applique ce raisonnement, donne les raisons et liste les adresses sœurs. Si le collecteur est attribué, l'adresse de dépôt désigne un compte client : c'est elle qu'il faut citer dans la réquisition.`,
+      },
+      {
         type: 'flow',
         nodes: [
           { id: 'v1', label: 'Victime 1', kind: 'victim', sub: 'rPq3…7Ksd' },
