@@ -1,7 +1,7 @@
-export type ChainId = 'btc' | 'ltc' | 'eth' | 'bsc' | 'tron' | 'xrp' | 'sol' | 'xmr'
+export type ChainId = 'btc' | 'ltc' | 'eth' | 'bsc' | 'tron' | 'xrp' | 'sol' | 'xmr' | 'ton' | 'arb' | 'base'
 export type ChainModel = 'utxo' | 'account' | 'opaque'
 export type AssetId =
-  | 'BTC' | 'LTC' | 'ETH' | 'BNB' | 'TRX' | 'XRP' | 'SOL' | 'XMR'
+  | 'BTC' | 'LTC' | 'ETH' | 'BNB' | 'TRX' | 'XRP' | 'SOL' | 'XMR' | 'TON'
   | 'USDT' | 'USDC' | 'DAI' | 'WBTC'
 
 export interface ChainMeta {
@@ -28,7 +28,22 @@ export const CHAINS: Record<ChainId, ChainMeta> = {
   xrp: { id: 'xrp', name: 'XRP Ledger', short: 'XRP', native: 'XRP', model: 'account', color: '#23c4f8', blockTime: 4, baseHeight: 87000000, explorer: 'xrpscan', tokens: [] },
   sol: { id: 'sol', name: 'Solana', short: 'SOL', native: 'SOL', model: 'account', color: '#14f195', blockTime: 0.4, baseHeight: 260000000, explorer: 'solscan', tokens: ['USDT', 'USDC'], tokenStandard: 'SPL' },
   xmr: { id: 'xmr', name: 'Monero', short: 'XMR', native: 'XMR', model: 'opaque', color: '#ff6600', blockTime: 120, baseHeight: 3150000, explorer: 'xmrchain', tokens: [] },
+  // TON : hauteur = numéro de bloc de la masterchain ; jetons au standard Jetton (TEP-74).
+  ton: { id: 'ton', name: 'TON', short: 'TON', native: 'TON', model: 'account', color: '#0098ea', blockTime: 5, baseHeight: 36000000, explorer: 'tonviewer', tokens: ['USDT'], tokenStandard: 'Jetton' },
+  // Rollups optimistes d'Ethereum : mêmes adresses 0x, gas payé en ETH.
+  arb: { id: 'arb', name: 'Arbitrum One', short: 'ARB', native: 'ETH', model: 'account', color: '#28a0f0', blockTime: 0.25, baseHeight: 170000000, explorer: 'arbiscan', tokens: ['USDT', 'USDC'], tokenStandard: 'ERC-20' },
+  base: { id: 'base', name: 'Base', short: 'BASE', native: 'ETH', model: 'account', color: '#0052ff', blockTime: 2, baseHeight: 9000000, explorer: 'basescan', tokens: ['USDC', 'USDT'], tokenStandard: 'ERC-20' },
 }
+
+/** Chaînes compatibles EVM : une même clé privée donne la même adresse 0x sur chacune. */
+export const EVM_CHAINS: readonly ChainId[] = ['eth', 'bsc', 'arb', 'base']
+
+export function isEvm(chain: ChainId): boolean {
+  return EVM_CHAINS.includes(chain)
+}
+
+/** Taux de change figé EUR → USD (espèces des DAB crypto, préjudices en euros). */
+export const EUR_USD = 1.08
 
 export interface AssetMeta {
   id: AssetId
@@ -49,6 +64,7 @@ export const ASSETS: Record<AssetId, AssetMeta> = {
   XRP: { id: 'XRP', name: 'XRP', usd: 0.58, color: '#23c4f8', decimals: 2 },
   SOL: { id: 'SOL', name: 'Solana', usd: 158, color: '#14f195', decimals: 4 },
   XMR: { id: 'XMR', name: 'Monero', usd: 162, color: '#ff6600', decimals: 6 },
+  TON: { id: 'TON', name: 'Toncoin', usd: 5.4, color: '#0098ea', decimals: 4 },
   USDT: { id: 'USDT', name: 'Tether USD', usd: 1, color: '#26a17b', decimals: 2, stable: true },
   USDC: { id: 'USDC', name: 'USD Coin', usd: 1, color: '#2775ca', decimals: 2, stable: true },
   DAI: { id: 'DAI', name: 'Dai', usd: 1, color: '#f5ac37', decimals: 2, stable: true },

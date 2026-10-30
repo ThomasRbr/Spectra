@@ -1,5 +1,5 @@
 import { Rng } from './rng'
-import { CHAINS, type AssetId, type ChainId, usd } from './chains'
+import { CHAINS, type AssetId, type ChainId, isEvm, usd } from './chains'
 import { type AddrKind, defaultKind, genAddress, genTxHash } from './addressgen'
 import { ENTITY_CATALOG, type Entity, type EntityCategory, type RiskLevel, CATEGORY } from './entities'
 
@@ -20,6 +20,29 @@ export interface Address {
   tags: string[]
   /** Portefeuille logiciel qui contrôle l'adresse (vérité terrain : détermine l'empreinte des transactions). */
   wallet: string
+  /** Adresse dérivée d'un portefeuille HD (vérité terrain : ne s'affiche qu'après dérivation par l'enquêteur). */
+  hd?: { wallet: string; path: string }
+}
+
+/** Portefeuille HD (BIP 32/44/49/84/86) ou seed EVM, enregistré dans le monde (voir `hd.ts`). */
+export interface HdWalletData {
+  id: string
+  type: 'bip32' | 'evm-seed'
+  chain: ChainId
+  /** Type d'adresse dérivé (p2wpkh, p2sh, p2pkh, p2tr ; eoa pour une seed EVM). */
+  kind: AddrKind
+  /** Clé publique étendue (xpub/ypub/zpub) ou, pour une seed EVM, la phrase de démonstration. */
+  xpub: string
+  purpose: 44 | 49 | 84 | 86
+  coin: number
+  account: number
+  /** Graine interne de dérivation (déterministe, sans lien avec une vraie clé). */
+  seed: number
+  entityId?: string
+  label?: string
+  wallet: string
+  /** `${branche}/${index}` → id de l'adresse dérivée. */
+  derived: Map<string, string>
 }
 
 export interface TxIO {
@@ -175,6 +198,8 @@ export class World {
    * encore minées » et restent invisibles pour tous les outils d'analyse.
    */
   horizon = Infinity
+  /** Portefeuilles HD enregistrés (id → données), voir `hd.ts`. */
+  readonly hd = new Map<string, HdWalletData>()
   /** Incrémenté à chaque déplacement de l'horizon (invalide les caches d'analyse). */
   epoch = 0
   private unspent = new Map<string, Utxo[]>()
@@ -238,6 +263,20 @@ export class World {
     this.used.add(id)
     const entityId = typeof opts.entity === 'string' ? opts.entity : opts.entity?.id
     this.addresses.set(id, { id, chain, addr: s, kind, entityId, label: opts.label, contract: opts.contract, tags: opts.tags ?? [], wallet: opts.wallet ?? entityId ?? id })
+    return id
+  }
+
+  /**
+   * Enregistre la MÊME adresse 0x sur une autre chaîne EVM (même clé privée,
+   * même compte externe). Idempotent, sans tirage aléatoire.
+   */
+  addrSameEoa(fromId: string, chain: ChainId, opts: { label?: string; tags?: string[] } = {}): string {
+    const src = this.get(fromId)
+    if (!isEvm(src.chain) || !isEvm(chain)) throw new Error(`addrSameEoa : ${src.chain} → ${chain} n'est pas un couple de chaînes EVM`)
+    const id = `${chain}:${src.addr}`
+    if (this.addresses.has(id)) return id
+    this.used.add(id)
+    this.addresses.set(id, { id, chain, addr: src.addr, kind: src.kind, entityId: src.entityId, label: opts.label ?? src.label, contract: src.contract, tags: opts.tags ?? [], wallet: src.wallet })
     return id
   }
 
@@ -507,7 +546,7 @@ export class World {
       time: o.time,
       signer: o.from,
       legs: [{ from: o.from, to: o.to, value: o.value, asset }],
-      method: o.method ?? (asset === CHAINS[a.chain].native ? 'transfer' : 'transfer (token)'),
+      method: o.method ?? (asset === CHAINS[a.chain].native ? 'transfer' : a.chain === 'ton' ? 'jetton transfer' : 'transfer (token)'),
       tags: o.tags,
       memo: o.memo,
       fee: o.fee,
@@ -675,6 +714,12 @@ function defaultAccountFee(rng: Rng, chain: ChainId, legs: number): number {
       return 0.000012
     case 'sol':
       return 0.000005
+    case 'arb':
+      return +(rng.float(0.000004, 0.00004) * (legs > 1 ? 2.2 : 1)).toFixed(7)
+    case 'base':
+      return +(rng.float(0.000001, 0.00002) * (legs > 1 ? 2.2 : 1)).toFixed(7)
+    case 'ton':
+      return +(rng.float(0.003, 0.012) * (legs > 1 ? 3 : 1)).toFixed(4)
     default:
       return 0
   }

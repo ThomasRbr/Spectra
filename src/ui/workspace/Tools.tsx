@@ -48,7 +48,7 @@ export function Correlator() {
   }, [w, ran, time, usdV, chains, windowH, tol, entityId, st.preset])
 
   if (!w) return null
-  const services = [...w.entities.values()].filter((e) => e.known && (e.id === entityId || ['instant_exchanger', 'mixer', 'exchange', 'bridge', 'otc', 'privacy_pool', 'coinjoin', 'sanctioned', 'p2p', 'dex'].includes(e.category)))
+  const services = [...w.entities.values()].filter((e) => e.known && (e.id === entityId || ['instant_exchanger', 'mixer', 'exchange', 'bridge', 'otc', 'privacy_pool', 'coinjoin', 'sanctioned', 'p2p', 'dex', 'wallet_service', 'atm', 'nft_marketplace'].includes(e.category)))
   const close = () => useUi.getState().set({ correlator: { open: false } })
   const toLocal = (t: number) => {
     const d = new Date(t * 1000)

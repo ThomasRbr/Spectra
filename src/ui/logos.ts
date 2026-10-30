@@ -24,6 +24,9 @@ import bsc from '@web3icons/core/svgs/networks/background/binance-smart-chain.sv
 import tron from '@web3icons/core/svgs/networks/background/tron.svg.js'
 import xrp from '@web3icons/core/svgs/networks/background/xrp.svg.js'
 import solana from '@web3icons/core/svgs/networks/background/solana.svg.js'
+import ton from '@web3icons/core/svgs/networks/background/ton.svg.js'
+import arbitrum from '@web3icons/core/svgs/networks/background/arbitrum-one.svg.js'
+import base from '@web3icons/core/svgs/networks/background/base.svg.js'
 import type { ChainId } from '../engine/chains'
 
 const uri = (svg: string) => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
@@ -47,6 +50,8 @@ const ENTITY_LOGOS: Record<string, string> = {
   tornado: uri(torn),
   tether: uri(usdt),
   mullvad: uri(onBrand(siMullvad)),
+  arbitrum_bridge: uri(arbitrum),
+  base_bridge: uri(base),
 }
 
 export const CHAIN_LOGOS: Record<ChainId, string> = {
@@ -58,6 +63,9 @@ export const CHAIN_LOGOS: Record<ChainId, string> = {
   xrp: uri(xrp),
   sol: uri(solana),
   xmr: uri(xmr),
+  ton: uri(ton),
+  arb: uri(arbitrum),
+  base: uri(base),
 }
 
 /** Logo de l'entité du catalogue, si elle en a un. */

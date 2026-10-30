@@ -9,7 +9,7 @@ export type EntityCategory =
   | 'exchange' | 'instant_exchanger' | 'mixer' | 'coinjoin' | 'privacy_pool'
   | 'bridge' | 'dex' | 'defi' | 'darknet' | 'ransomware' | 'scam'
   | 'sanctioned' | 'gambling' | 'p2p' | 'merchant' | 'mining' | 'hack'
-  | 'otc' | 'wallet_service' | 'token_issuer'
+  | 'otc' | 'wallet_service' | 'token_issuer' | 'atm' | 'nft_marketplace'
   | 'victim' | 'suspect' | 'individual'
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'severe'
@@ -66,6 +66,8 @@ export const CATEGORY: Record<EntityCategory, CategoryMeta> = {
   otc: { label: 'Courtier OTC', color: '#0ea5e9', icon: 'Briefcase', risk: 'medium' },
   wallet_service: { label: 'Service de portefeuille', color: '#64748b', icon: 'Wallet', risk: 'low' },
   token_issuer: { label: 'Émetteur de stablecoin', color: '#26a17b', icon: 'BadgeDollarSign', risk: 'low' },
+  atm: { label: 'DAB crypto (distributeur)', color: '#f59e0b', icon: 'Banknote', risk: 'medium' },
+  nft_marketplace: { label: 'Place de marché NFT', color: '#c084fc', icon: 'Image', risk: 'low' },
   victim: { label: 'Victime', color: '#4ade80', icon: 'HeartHandshake', risk: 'low' },
   suspect: { label: 'Suspect', color: '#f472b6', icon: 'UserX', risk: 'high' },
   individual: { label: 'Particulier', color: '#94a3b8', icon: 'User', risk: 'low' },
@@ -202,5 +204,59 @@ export const ENTITY_CATALOG: Record<string, Template> = {
     name: 'Tether', category: 'token_issuer', risk: 'low',
     description: 'Émetteur du stablecoin USDT. Capable de geler (blacklister) une adresse sur demande des autorités.',
     compliance: { contact: 'Portail des forces de l\'ordre de Tether', cooperation: 'voluntary', responseDays: [1, 7], canFreeze: true, kyc: 'aucun', notes: 'Le gel d\'USDT sur une adresse est rapide et très efficace : à demander dès l\'identification.' },
+  },
+
+  // ── Espèces, Lightning, TON, NFT, L2 ─────────────────────────────────────
+  // Fictif : exploitant de DAB crypto en France.
+  cryptoguichet: {
+    name: 'CryptoGuichet', category: 'atm', risk: 'medium', country: 'France',
+    description: 'Exploitant (fictif) d\'un réseau de distributeurs automatiques de crypto-actifs (DAB crypto) installés chez des buralistes et dans des centres commerciaux : achat de bitcoin ou d\'USDT contre espèces, et vente contre espèces sur certains appareils. Les achats partent d\'un portefeuille chaud unique de l\'exploitant ; chaque vente génère une adresse de réception propre au ticket.',
+    compliance: {
+      contact: 'Service conformité de CryptoGuichet (réquisition judiciaire)', cooperation: 'direct', responseDays: [2, 8], canFreeze: false, kyc: 'standard', regulator: 'AMF (enregistrement PSAN)',
+      notes: 'Seuils internes de l\'exploitant (fictifs) : numéro de téléphone vérifié par SMS dès la première opération ; pièce d\'identité et selfie au-delà de 1 000 € par opération ou en cumul glissant sur 30 jours ; plafond de 5 000 € par jour. Données disponibles sur réquisition : numéro de téléphone, identité le cas échéant, ticket (montant en espèces, cours appliqué, adresse de destination), identifiant et emplacement de l\'appareil, vidéosurveillance de l\'appareil (conservation courte, environ 30 jours : à demander sans délai).',
+    },
+  },
+  // Fictif : portefeuille Lightning custodial.
+  voltpocket: {
+    name: 'VoltPocket', category: 'wallet_service', risk: 'medium', country: 'Lituanie',
+    description: 'Portefeuille Lightning custodial (fictif) : l\'utilisateur dépose des bitcoins on-chain sur une adresse fournie par le service, puis paie et reçoit des factures Lightning. Les paiements Lightning entre clients ou vers d\'autres nœuds n\'apparaissent pas sur la blockchain : seuls les dépôts et les retraits on-chain sont visibles. Le service, lui, enregistre chaque paiement (montant, date, facture, compte).',
+    compliance: { contact: 'Service conformité de VoltPocket', cooperation: 'eio', responseDays: [15, 45], canFreeze: true, kyc: 'faible', regulator: 'Enregistrement local (Lituanie)', notes: 'KYC allégé sous un plafond de solde. Sur DEE : identifiants du compte, adresses IP, historique des paiements Lightning (factures, hash de paiement), dépôts et retraits on-chain.' },
+  },
+  // Fictif : fournisseur de liquidité Lightning.
+  lumen_lsp: {
+    name: 'Lumen LSP', category: 'wallet_service', risk: 'low', country: 'Allemagne',
+    description: 'Fournisseur de services Lightning (LSP, fictif) : ouvre et maintient des canaux avec les portefeuilles mobiles non custodiaux de ses clients. Il voit les canaux qu\'il partage et les paiements qu\'il route, mais ne détient pas les fonds de ses clients.',
+    compliance: { contact: 'Service juridique de Lumen LSP', cooperation: 'eio', responseDays: [20, 60], canFreeze: false, kyc: 'aucun', regulator: 'BaFin (déclaration)', notes: 'Pas de compte client : données limitées aux canaux (financement, dates d\'ouverture et de fermeture, identifiant de nœud du client) et éventuellement aux adresses IP de connexion.' },
+  },
+  // Fictif : portefeuille TON custodial intégré à une messagerie.
+  tonpocket: {
+    name: 'TonPocket', category: 'wallet_service', risk: 'medium', country: 'Émirats arabes unis',
+    description: 'Portefeuille custodial (fictif) intégré à la messagerie Telegram sous forme de mini-application : TON et USDT (jetton) achetés, envoyés et reçus depuis une conversation. Les dépôts arrivent sur une adresse partagée du service et le client est identifié par le commentaire (memo) de la transaction ; les transferts entre utilisateurs du service restent internes (invisibles on-chain).',
+    compliance: { contact: 'Service conformité de TonPocket', cooperation: 'voluntary', responseDays: [10, 40], canFreeze: true, kyc: 'faible', notes: 'Identifiant et pseudonyme Telegram du compte, numéro de téléphone associé, historique interne. KYC complet seulement au-delà d\'un plafond.' },
+  },
+  // Fictif : place de marché NFT.
+  mosaique: {
+    name: 'Mosaïque Market', category: 'nft_marketplace', risk: 'low', country: 'France',
+    description: 'Place de marché NFT (fictive) sur Ethereum et Base : l\'acheteur paie le contrat de la place de marché, qui reverse le prix au vendeur moins une commission et des redevances au créateur. Des ventes croisées entre portefeuilles d\'une même personne (wash trading) peuvent servir à justifier l\'origine de fonds.',
+    compliance: { contact: 'Service conformité de Mosaïque Market', cooperation: 'direct', responseDays: [5, 15], canFreeze: false, kyc: 'faible', regulator: 'AMF (enregistrement PSAN)', notes: 'Compte facultatif : données souvent limitées à l\'adresse e-mail, aux adresses IP et aux portefeuilles connectés.' },
+  },
+  // Fictif : plateforme de lancement de jetons.
+  moonpad: {
+    name: 'MoonPad', category: 'defi', risk: 'medium',
+    description: 'Plateforme de lancement de jetons (fictive) : n\'importe qui crée un jeton en quelques clics, vendu sur une courbe de prix automatique jusqu\'à son introduction sur un DEX. Très utilisée pour les memecoins, et donc pour les « rug pulls » où le créateur revend tout d\'un coup.',
+  },
+  // Fictif : modèle de fausse plateforme de rendement (Ponzi).
+  yieldnova: {
+    name: 'YieldNova (faux)', category: 'scam', risk: 'severe', known: false,
+    description: 'Fausse plateforme de rendement (fictive) promettant 1 à 3 % par jour sur des dépôts en USDT : les « intérêts » des premiers investisseurs sont payés avec les dépôts des suivants (schéma de Ponzi), jusqu\'à la fermeture du site et la disparition des fonds.',
+  },
+  // Bridges canoniques officiels des rollups (infrastructure réelle, neutre).
+  arbitrum_bridge: {
+    name: 'Arbitrum Bridge', category: 'bridge', risk: 'low',
+    description: 'Bridge canonique officiel d\'Arbitrum One (rollup optimiste d\'Ethereum). Dépôt Ethereum → Arbitrum : crédité sur le L2 en une dizaine de minutes. Retrait Arbitrum → Ethereum : initié sur le L2, exécutable sur Ethereum seulement après la période de contestation d\'environ 7 jours. Même adresse 0x de part et d\'autre si l\'utilisateur ne choisit pas un autre destinataire.',
+  },
+  base_bridge: {
+    name: 'Base Bridge', category: 'bridge', risk: 'low',
+    description: 'Bridge canonique officiel de Base (rollup optimiste d\'Ethereum, OP Stack). Dépôt Ethereum → Base : crédité sur le L2 en quelques minutes. Retrait Base → Ethereum : initié sur Base, prouvé puis finalisé sur Ethereum après la période de contestation d\'environ 7 jours. Même adresse 0x de part et d\'autre si l\'utilisateur ne choisit pas un autre destinataire.',
   },
 }
