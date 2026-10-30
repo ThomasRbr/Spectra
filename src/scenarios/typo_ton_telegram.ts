@@ -46,7 +46,7 @@ export const tonTelegramScam: ScenarioTemplate = {
   difficulty: 2,
   chains: ['ton'],
   skills: ['lecture_tx', 'tokens', 'memo', 'exchange_id', 'requisition', 'typologies'],
-  estMinutes: 20,
+  estMinutes: 40,
   lessons: ['ton-telegram', 'xrp-memos', 'exchanges', 'requisitions', 'typologies'],
   generate(seed) {
     const w = new World(seed)
@@ -184,6 +184,9 @@ export const tonTelegramScam: ScenarioTemplate = {
     const destName = dest.entity.name
     const nVictims = nOthers + 1
     const vLossUsd = usd('TON', vTon) + vUsdt
+    // Paiements de victimes provenant directement d'un retrait d'exchange (identifiables par réquisition)
+    const fromExchange = pays.filter((p) => w.txsOf(p.victim).some((t) => t.time < p.tx.time && t.transfers.some((x) => x.to === p.victim && [...kits.values()].some((k) => k.hot === x.from))))
+    const nExVictims = new Set(fromExchange.map((p) => p.victim)).size
 
     return {
       world: w,
@@ -191,7 +194,7 @@ export const tonTelegramScam: ScenarioTemplate = {
       briefing:
         `${victimName}, demeurant à ${city}, dépose plainte pour escroquerie. Sur Telegram, ${g('il', 'elle')} a lancé la mini-application du bot @${bot}_bot, qui promettait un « boost » de +${boostPct} % en sept jours sur les TON et les USDT déposés, au titre d'un prétendu airdrop. Après un premier petit « gain », ${g('il', 'elle')} a renvoyé des USDT ; puis le bot a cessé de répondre.\n\n` +
         `Sur la blockchain TON, les paiements portent souvent un commentaire en clair. Les services qui utilisent une adresse unique pour tous leurs clients (exchanges, portefeuilles intégrés à Telegram) identifient le compte crédité grâce à ce commentaire : sans lui, impossible de savoir à qui le dépôt profite.\n\n` +
-        `Objectifs : identifier l'adresse de collecte du bot, mesurer la collecte, suivre les fonds jusqu'aux services de sortie et relever le commentaire qui désigne le compte de l'escroc.`,
+        `Objectifs : identifier l'adresse de collecte du bot, mesurer la collecte et le nombre de victimes, suivre les fonds jusqu'aux services de sortie et relever les commentaires qui désignent les comptes de l'escroc.`,
       evidence: [
         {
           id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: lastPay + 2 * DAY, author: victimName,
@@ -231,42 +234,14 @@ export const tonTelegramScam: ScenarioTemplate = {
       seeds: [victimAddr],
       objectives: [
         {
-          id: 'o1', type: 'address', points: 15,
+          id: 'o1', type: 'address', points: 10,
           prompt: 'Quelle est l\'adresse de collecte du bot, qui reçoit les paiements des victimes ?',
           answer: [collect],
           hint: 'Ouvrez la transaction citée dans la plainte : le destinataire est l\'adresse de collecte, quelle que soit la forme sous laquelle la mini-application l\'affiche.',
           explanation: `${A(w, collect)} reçoit les paiements de ${nVictims} portefeuilles distincts, chacun accompagné d'un identifiant Telegram en commentaire. La mini-application affichait ${collectEq} : c'est la forme bounceable de la même adresse.`,
         },
         {
-          id: 'o2', type: 'amount', points: 15, unit: 'USD', tolerance: 0.02,
-          prompt: 'Quel montant total (en dollars) l\'adresse de collecte a-t-elle reçu des victimes ?',
-          answer: collectedUsd,
-          hint: 'L\'adresse de collecte ne reçoit rien d\'autre que les paiements des victimes : son total reçu, TON et USDT confondus, répond à la question.',
-          explanation: `${pays.length} paiements : ${amt(collectedTon, 'TON')} et ${amt(collectedUsdt, 'USDT')}, soit ${usd0(collectedUsd)} au cours de l'exercice (1 TON = 5,40 $). Les faux « bonus » renvoyés à ${bonusOthers.length + 1} victimes (${amt(bonusOut, 'TON')}) sont des sorties : ils ne réduisent pas la collecte et font partie du mécanisme (mettre en confiance pour obtenir un second versement).`,
-        },
-        {
-          id: 'o3', type: 'entity', points: 10,
-          prompt: 'Hors exchange, vers quel service une partie des TON a-t-elle été envoyée ?',
-          answer: ['tonpocket'],
-          hint: 'Suivez les fonds sortis de l\'adresse de collecte : ils passent par une adresse relais, puis partent vers deux adresses attribuées à des services différents.',
-          explanation: `Le relais ${A(w, relay)} envoie ${amt(toPocket, 'TON')} à l'adresse partagée de TonPocket avec le commentaire ${pocketMemo}. Ce commentaire désigne un compte client TonPocket : ${procedureFor(pocket.entity)}`,
-        },
-        {
-          id: 'o4', type: 'entity', points: 15,
-          prompt: 'Sur quel exchange le reste des fonds a-t-il été déposé ?',
-          answer: [destKey],
-          hint: 'Le relais effectue trois dépôts (TON et USDT) vers une même adresse, étiquetée comme hot wallet d\'un exchange.',
-          explanation: `Trois dépôts du relais (${amt(u1, 'USDT')}, ${amt(exTonV, 'TON')}, ${amt(u2, 'USDT')}, soit ${usd0(depositedUsd)}) arrivent sur l'adresse partagée de l'exchange ${destName}, étiquetée comme son hot wallet.`,
-        },
-        {
-          id: 'o5', type: 'number', points: 20, tolerance: 0, unit: 'commentaire',
-          prompt: 'Quel commentaire accompagne les dépôts de l\'escroc sur l\'exchange (identifiant de son compte) ?',
-          answer: Number(exMemo),
-          hint: 'Ouvrez le détail des dépôts du relais vers le hot wallet de l\'exchange. Ne confondez pas avec l\'identifiant Telegram des victimes ni avec le commentaire du dépôt TonPocket.',
-          explanation: `Les trois dépôts portent le commentaire ${exMemo}. Les autres dépôts reçus au même moment par ${destName} portent d'autres commentaires : ce sont d'autres clients. Le nombre ${victimTg} n'est que l'identifiant Telegram de la victime, saisi à la demande du bot ; ${pocketMemo} désigne le compte TonPocket.`,
-        },
-        {
-          id: 'o6', type: 'choice', points: 10,
+          id: 'o6', type: 'choice', points: 8,
           prompt: `La mini-application affichait l'adresse ${collectEq.slice(0, 10)}…, l'explorateur montre ${A(w, collect).slice(0, 10)}…. Que faut-il en conclure ?`,
           ...choice(r,
             'Même compte sous deux formes (bounceable « EQ », non-bounceable « UQ ») : citer les deux et la forme brute',
@@ -275,10 +250,67 @@ export const tonTelegramScam: ScenarioTemplate = {
               'La forme « EQ » désigne la version testnet de l\'adresse : seuls les paiements sur « UQ » ont une valeur réelle',
               'La forme « EQ » est celle de Telegram : la messagerie détient donc les fonds et peut les restituer sur demande',
             ]),
+          hint: 'Relisez la note de l\'analyste sur les différentes formes d\'une adresse TON, et comparez les caractères centraux des deux écritures.',
           explanation: `Sur TON, la forme « user-friendly » encode le compte (workchain + hash) avec un drapeau : « EQ » bounceable, « UQ » non-bounceable, et une somme de contrôle. ${collectEq} et ${A(w, collect)} désignent le même portefeuille. Une réquisition ou une demande de signalement doit citer la forme brute et les deux formes courantes, pour éviter qu'un service ne réponde « adresse inconnue ».`,
         },
         {
-          id: 'o7', type: 'choice', points: 15,
+          id: 'o9', type: 'number', points: 9, tolerance: 0, unit: 'portefeuilles',
+          prompt: 'Combien de portefeuilles distincts (plaignant compris) ont envoyé des fonds à l\'adresse de collecte ?',
+          answer: nVictims,
+          hint: 'Listez les transactions entrantes de l\'adresse de collecte et comptez les expéditeurs différents : certains ont payé deux fois.',
+          explanation: `${nVictims} portefeuilles pour ${pays.length} paiements : certaines victimes ont payé deux fois, souvent après un faux « bonus ». Chaque paiement porte un identifiant Telegram différent en commentaire, ce qui confirme qu'il s'agit d'autant de comptes victimes. ${nExVictims} de ces portefeuilles ont été alimentés juste avant par un retrait d'exchange : leurs titulaires sont identifiables par réquisition, pour être entendus et rattachés à la procédure.`,
+        },
+        {
+          id: 'o2', type: 'amount', points: 9, unit: 'USD', tolerance: 0.02,
+          prompt: 'Quel montant total (en dollars) l\'adresse de collecte a-t-elle reçu des victimes ?',
+          answer: collectedUsd,
+          hint: 'L\'adresse de collecte ne reçoit rien d\'autre que les paiements des victimes : son total reçu, TON et USDT confondus, répond à la question.',
+          explanation: `${pays.length} paiements : ${amt(collectedTon, 'TON')} et ${amt(collectedUsdt, 'USDT')}, soit ${usd0(collectedUsd)} au cours de l'exercice (1 TON = 5,40 $). Les faux « bonus » renvoyés à ${bonusOthers.length + 1} victimes (${amt(bonusOut, 'TON')}) sont des sorties : ils ne réduisent pas la collecte et font partie du mécanisme (mettre en confiance pour obtenir un second versement).`,
+        },
+        {
+          id: 'o11', type: 'amount', points: 8, unit: 'TON', tolerance: 0.01,
+          prompt: 'Quel montant total de TON l\'adresse de collecte a-t-elle renvoyé aux victimes sous forme de faux « bonus » ?',
+          answer: bonusOut,
+          hint: 'Repérez les petites sorties de l\'adresse de collecte vers des portefeuilles de victimes, avec un commentaire promotionnel.',
+          explanation: `${bonusOthers.length + 1} « bonus » (${[bonus, ...bonusOthers.map((t) => t.transfers[0].value)].map((v) => amt(v, 'TON')).join(', ')}), soit ${amt(bonusOut, 'TON')}, tous accompagnés du commentaire « ${bot} 🎁 boost payout ». C'est le ressort de la chaîne de Ponzi miniature : un faux gain rapide pour obtenir un second versement, souvent plus élevé. Dans le calcul du préjudice, ces sommes se déduisent des pertes des victimes concernées, mais pas de la collecte brute.`,
+        },
+        {
+          id: 'o8', type: 'address', points: 9,
+          prompt: 'Par quelle adresse relais les fonds collectés transitent-ils avant d\'atteindre les services de sortie ?',
+          answer: [relay],
+          hint: 'Écartez les petits « bonus » renvoyés aux victimes : la seule grosse sortie de l\'adresse de collecte, en TON puis en USDT, mène au relais.',
+          explanation: `Le ${fmtDate(mvTon.time)}, l'adresse de collecte transfère ${amt(moveTon, 'TON')} puis ${amt(collectedUsdt, 'USDT')} vers ${A(w, relay)}, à quelques minutes d'intervalle et sans commentaire. Le relais n'a pas d'autre activité : il sert à couper le lien direct entre l'adresse affichée par la mini-application, désormais signalée, et les comptes des services de sortie. Il ne conserve rien : tout repart dans les heures suivantes.`,
+        },
+        {
+          id: 'o3', type: 'entity', points: 8,
+          prompt: 'Hors exchange, vers quel service une partie des TON a-t-elle été envoyée ?',
+          answer: ['tonpocket'],
+          hint: 'Suivez les fonds sortis de l\'adresse de collecte : ils passent par une adresse relais, puis partent vers deux adresses attribuées à des services différents.',
+          explanation: `Le relais ${A(w, relay)} envoie ${amt(toPocket, 'TON')} à l'adresse partagée de TonPocket avec le commentaire ${pocketMemo}. Ce commentaire désigne un compte client TonPocket : ${procedureFor(pocket.entity)}`,
+        },
+        {
+          id: 'o10', type: 'number', points: 9, tolerance: 0, unit: 'commentaire',
+          prompt: 'Quel commentaire désigne le compte TonPocket crédité par le relais ?',
+          answer: Number(pocketMemo),
+          hint: 'Ouvrez le transfert du relais vers l\'adresse partagée de TonPocket et lisez le champ « Commentaire (memo) ».',
+          explanation: `Le dépôt de ${amt(toPocket, 'TON')} sur l'adresse partagée de TonPocket porte le commentaire ${pocketMemo}. C'est l'identifiant du compte client à indiquer dans la demande adressée au portefeuille custodial, avec le hash ${pocketTx.hash.slice(0, 12)}…, la date et le montant. Un portefeuille intégré à Telegram reste un prestataire distinct de la messagerie : c'est lui, et non Telegram, qui détient les fonds et connaît son client.`,
+        },
+        {
+          id: 'o4', type: 'entity', points: 9,
+          prompt: 'Sur quel exchange le reste des fonds a-t-il été déposé ?',
+          answer: [destKey],
+          hint: 'Le relais effectue trois dépôts (TON et USDT) vers une même adresse, étiquetée comme hot wallet d\'un exchange.',
+          explanation: `Trois dépôts du relais (${amt(u1, 'USDT')}, ${amt(exTonV, 'TON')}, ${amt(u2, 'USDT')}, soit ${usd0(depositedUsd)}) arrivent sur l'adresse partagée de l'exchange ${destName}, étiquetée comme son hot wallet.`,
+        },
+        {
+          id: 'o5', type: 'number', points: 12, tolerance: 0, unit: 'commentaire',
+          prompt: 'Quel commentaire accompagne les dépôts de l\'escroc sur l\'exchange (identifiant de son compte) ?',
+          answer: Number(exMemo),
+          hint: 'Ouvrez le détail des dépôts du relais vers le hot wallet de l\'exchange. Ne confondez pas avec l\'identifiant Telegram des victimes ni avec le commentaire du dépôt TonPocket.',
+          explanation: `Les trois dépôts portent le commentaire ${exMemo}. Les autres dépôts reçus au même moment par ${destName} portent d'autres commentaires : ce sont d'autres clients. Le nombre ${victimTg} n'est que l'identifiant Telegram de la victime, saisi à la demande du bot ; ${pocketMemo} désigne le compte TonPocket.`,
+        },
+        {
+          id: 'o7', type: 'choice', points: 9,
           prompt: 'Pourquoi la réquisition à l\'exchange doit-elle impérativement mentionner le commentaire des dépôts ?',
           ...choice(r,
             'L\'adresse est partagée par tous les clients : seul le commentaire, avec hash, date et montant, désigne le compte',
@@ -287,7 +319,21 @@ export const tonTelegramScam: ScenarioTemplate = {
               'Sans commentaire, l\'exchange est tenu de considérer la réquisition comme irrecevable au regard du règlement MiCA',
               'Le commentaire contient le numéro de téléphone du titulaire, ce qui dispense de demander les données KYC',
             ]),
+          hint: 'Combien de clients de l\'exchange déposent sur cette même adresse ? Qu\'est-ce qui distingue le dépôt de l\'un de celui d\'un autre ?',
           explanation: `${destName} reçoit sur ${A(w, dest.hot)} les dépôts de très nombreux clients. La réquisition vise le commentaire ${exMemo} et cite les hash ${dep1.hash.slice(0, 12)}…, ${dep2.hash.slice(0, 12)}… et ${dep3.hash.slice(0, 12)}…, leurs dates et montants. ${procedureFor(dest.entity)} Demandez aussi le gel du solde du compte.`,
+        },
+        {
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Comment identifier les autres victimes du bot ?',
+          ...choice(r,
+            'Requérir les exchanges qui ont alimenté certains portefeuilles victimes juste avant leur paiement, et rapprocher les identifiants Telegram portés en commentaire des plaintes enregistrées',
+            [
+              'Écrire au bot depuis un compte d\'enquête pour lui demander la liste de ses utilisateurs',
+              'Demander à l\'exchange de sortie la liste de tous ses clients ayant déposé le même jour',
+              'Publier l\'adresse de collecte sur le canal du bot pour inviter les victimes à se signaler',
+            ]),
+          hint: 'Qui connaît l\'identité des expéditeurs ? Que contiennent les commentaires des paiements reçus ?',
+          explanation: `Les portefeuilles victimes sont non custodiaux, mais ${nExVictims} d'entre eux ont reçu leurs TON ou USDT d'un retrait d'exchange peu avant de payer : une réquisition ciblée (hash, adresse, date) identifie le client. Les identifiants Telegram en commentaire, publics, permettent de rapprocher des plaintes déjà déposées ailleurs. Contacter le bot alerterait l'escroc, une demande massive à l'exchange serait disproportionnée, et publier sur le canal du bot n'a aucun sens procédural.`,
         },
       ],
       truth: {
@@ -296,7 +342,7 @@ export const tonTelegramScam: ScenarioTemplate = {
         debrief:
           `1. Le bot @${bot}_bot affiche l'adresse ${collectEq} (forme bounceable de ${A(w, collect)}) et exige l'identifiant Telegram de la victime en commentaire, pour donner l'illusion d'un compte crédité.\n` +
           `2. ${nVictims} portefeuilles y envoient ${pays.length} paiements : ${amt(collectedTon, 'TON')} et ${amt(collectedUsdt, 'USDT')} (${usd0(collectedUsd)}). ${bonusOthers.length + 1} victimes, dont ${victimName}, reçoivent un faux « bonus » pour les inciter à renvoyer des fonds.\n` +
-          `3. Le ${fmtDate(tMove, false)}, les fonds passent sur le relais ${A(w, relay)}.\n` +
+          `3. Le ${fmtDate(tMove, false)}, les fonds passent sur le relais ${A(w, relay)} ; quelques TON (${amt(keepTon, 'TON')}) restent sur l'adresse de collecte pour les frais.\n` +
           `4. Le relais envoie ${amt(toPocket, 'TON')} à TonPocket (commentaire ${pocketMemo}) et dépose ${amt(exTonV, 'TON')} et ${amt(collectedUsdt, 'USDT')} sur ${destName} (commentaire ${exMemo}).\n\n` +
           `À retenir : sur TON, comme sur XRP, les services utilisent souvent une adresse partagée et identifient le client par le commentaire. Trois commentaires circulent dans ce dossier, avec des sens très différents : l'identifiant Telegram de la victime (sans valeur pour la réquisition), le compte TonPocket et le compte ${destName} de l'escroc. Deux réquisitions sont possibles, chacune citant le commentaire, les hash, dates et montants. Pensez à décliner l'adresse sous ses différentes formes (EQ, UQ, brute).`,
       },
@@ -305,6 +351,7 @@ export const tonTelegramScam: ScenarioTemplate = {
         'L\'adresse de collecte ne fait que deux types de sorties : des petits « bonus » aux victimes et le transfert vers un relais.',
         'Depuis le relais, les fonds partent vers deux adresses partagées. Dans le détail de chaque transaction, lisez le champ « Commentaire (memo) ».',
         'L\'exchange reçoit de nombreux dépôts au même moment : ne retenez que ceux qui viennent du relais.',
+        'Pour les autres victimes, regardez d\'où viennent les fonds des portefeuilles payeurs : certains sortent tout juste d\'un exchange.',
       ],
     }
   },

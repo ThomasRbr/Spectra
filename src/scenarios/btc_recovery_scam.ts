@@ -29,7 +29,7 @@ export const btcRecoveryScam: ScenarioTemplate = {
   difficulty: 2,
   chains: ['btc'],
   skills: ['cioh', 'change', 'osint', 'typologies', 'requisition'],
-  estMinutes: 25,
+  estMinutes: 45,
   lessons: ['typologies', 'clustering', 'change-heuristics', 'osint', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -157,6 +157,9 @@ export const btcRecoveryScam: ScenarioTemplate = {
     const given = fees.slice(0, n - 1)
     const rxCount = Rx.length
     const victimTotal = r8(total1 + totalFees)
+    // Préjudice des autres victimes du « cabinet » (adresses de frais regroupées avec celles de la victime)
+    const rxTotal = r8(Rx.reduce((s, a) => s + (w.summary(a).received.BTC ?? 0), 0))
+    const rxPays = Rx.reduce((s, a) => s + w.summary(a).nIn, 0)
     const deV = /^[AEIOUYÉÈ]/i.test(vp.name) ? `d'${vp.name}` : `de ${vp.name}`
     const dePLAT = /^[AEIOUYÉ]/i.test(PLAT) ? `d'${PLAT}` : `de ${PLAT}`
 
@@ -214,42 +217,83 @@ export const btcRecoveryScam: ScenarioTemplate = {
       seeds: [],
       objectives: [
         {
-          id: 'o1', type: 'addresses', points: 20,
+          id: 'o1', type: 'addresses', points: 12,
           prompt: `Sélectionnez toutes les adresses sur lesquelles ${vp.name} a versé les « frais » réclamés par le cabinet.`,
           answer: [...R],
           hint: 'Les premières adresses figurent dans les messages. Pour la dernière, ouvrez la transaction citée dans la plainte : laquelle des deux sorties est le paiement, laquelle est le rendu ?',
           explanation: `${n} adresses : ${R.map((a) => A(w, a)).join(', ')}. La dernière se déduit de la transaction ${lastPay.pay.hash.slice(0, 14)}… : la sortie de ${amt(lastPay.value, 'BTC')} est un montant rond (4 décimales) correspondant à la somme demandée, ${kind === 'p2wpkh' ? 'alors que' : 'sur une adresse d\'un autre type que l\'entrée, alors que'} l'autre sortie, au montant quelconque, revient vers une adresse neuve du portefeuille de la victime (${A(w, lastPay.change)}) : c'est le rendu. ${rxCount > 1 ? `Les ${rxCount} autres adresses de frais regroupées avec elles appartiennent au même portefeuille mais ont été alimentées par d'autres victimes : elles ne relèvent pas des paiements ${deV}.` : `L'autre adresse de frais regroupée avec elles appartient au même portefeuille mais a été alimentée par une autre victime : elle ne relève pas des paiements ${deV}.`}`,
         },
         {
-          id: 'o2', type: 'tx', points: 20,
+          id: 'o2', type: 'tx', points: 12,
           prompt: 'Quelle transaction fait entrer les frais de « récupération » dans le portefeuille de la première escroquerie ?',
           answer: [L.id],
           hint: 'Suivez la dépense des adresses de frais, puis ouvrez le panneau cluster : une des entrées a déjà servi lors de la première escroquerie.',
           explanation: `La transaction ${L.hash.slice(0, 14)}… dépense ensemble les ${n} adresses de frais, ${rxCount} adresse${rxCount > 1 ? 's' : ''} d'autres victimes du « cabinet » et ${A(w, pivot)}. Or cette dernière figure aussi parmi les entrées du regroupement ${c1.hash.slice(0, 14)}…, aux côtés de l'adresse de collecte ${A(w, S0)} de la première plainte. Par l'heuristique des entrées communes, toutes ces adresses sont contrôlées par le même portefeuille : le faux cabinet et la fausse plateforme ne font qu'un. Le courrier le laissait deviner : il citait l'adresse de collecte et le montant exact perdu.`,
         },
         {
-          id: 'o3', type: 'amount', points: 15, unit: 'BTC', tolerance: 0.01,
+          id: 'o8', type: 'address', points: 10,
+          prompt: 'Quelle adresse, dépensée dans le regroupement des frais, avait déjà été regroupée avec l\'adresse de collecte de la première plainte ?',
+          answer: [pivot],
+          hint: 'Passez en revue les entrées de la transaction qui regroupe les frais : pour chacune, regardez si elle apparaît dans une autre transaction à entrées multiples, plus ancienne.',
+          explanation: `${A(w, pivot)} est l'adresse « pivot » : elle figure parmi les entrées du premier regroupement (${c1.hash.slice(0, 14)}…, le ${fmtDate(c1.time, false)}), aux côtés de ${A(w, S0)}, puis parmi celles du regroupement des frais (${L.hash.slice(0, 14)}…). Entre-temps, elle a reçu un paiement tardif d'une autre victime de ${PLAT} (${amt(lateV, 'BTC')}), ce qui explique qu'elle ait encore eu un solde à dépenser. C'est le maillon qui relie les deux clusters : sans elle, on aurait deux portefeuilles distincts ; avec elle, l'heuristique des entrées communes les fusionne. Au procès-verbal, on décrit précisément ces deux transactions, car toute la démonstration repose sur elles.`,
+        },
+        {
+          id: 'o3', type: 'amount', points: 10, unit: 'BTC', tolerance: 0.01,
           prompt: `Quel montant total (en BTC) ${vp.name} a-t-${g('il', 'elle')} versé au faux cabinet ?`,
           answer: totalFees,
           hint: 'N\'additionnez que les sorties de paiement, pas les rendus revenus vers le portefeuille de la victime.',
           explanation: `${fees.map((f) => `${amt(f.value, 'BTC')} (${f.label})`).join(' + ')} = ${amt(totalFees, 'BTC')}, soit environ ${eur(totalFees)}. Le préjudice cumulé de la victime atteint ${amt(victimTotal, 'BTC')}.`,
         },
         {
-          id: 'o4', type: 'entity', points: 10,
+          id: 'o10', type: 'amount', points: 9, unit: 'BTC', tolerance: 0.01,
+          prompt: `Quel montant total (en BTC) les autres victimes du faux cabinet ont-elles versé sur les adresses de frais regroupées avec celles ${deV} (hors adresse pivot) ?`,
+          answer: rxTotal,
+          hint: 'Dans la transaction de regroupement des frais, écartez les adresses payées par la victime et l\'adresse pivot ; additionnez ce que les autres adresses ont reçu avant d\'être dépensées.',
+          explanation: `${rxCount > 1 ? `Les ${rxCount} adresses` : 'L\'adresse'} ${Rx.map((a) => A(w, a)).join(', ')} ${rxCount > 1 ? 'ont reçu' : 'a reçu'} ${rxPays} paiement${rxPays > 1 ? 's' : ''} pour un total de ${amt(rxTotal, 'BTC')}, toujours au départ de Coinhouse ou de Bitstamp et pour des montants ronds en dollars : le même mode opératoire que les « frais » réclamés à ${vp.name}. Ces sommes chiffrent un préjudice distinct, celui de victimes qui n'ont peut-être pas encore déposé plainte. Les retraits d'exchange qui les ont alimentées permettent de les identifier par réquisition.`,
+        },
+        {
+          id: 'o4', type: 'entity', points: 8,
           prompt: 'Sur quelle plateforme les fonds regroupés sont-ils encaissés ?',
           answer: [outKey],
           hint: 'Suivez la sortie principale de la transaction de regroupement : à qui l\'outil attribue-t-il l\'adresse, et où est-elle balayée ?',
           explanation: `Le regroupement envoie ${amt(d2V, 'BTC')} vers une adresse de dépôt ${out.entity.name}, balayée ensuite vers son hot wallet ; le reste (${amt(zV, 'BTC')}) revient en rendu vers ${A(w, Z)}. Quelques mois plus tôt, la première collecte avait déjà été encaissée chez ${out.entity.name} (dépôt ${A(w, D1)}). ${procedureFor(out.entity)}`,
         },
         {
-          id: 'o5', type: 'address', points: 10,
+          id: 'o5', type: 'address', points: 8,
           prompt: 'Quelle adresse de dépôt a reçu les frais regroupés ?',
           answer: [D2],
           hint: 'Dans la transaction de regroupement, distinguez le paiement (montant rond, adresse attribuée à un exchange) du rendu.',
           explanation: `${A(w, D2)} reçoit ${amt(d2V, 'BTC')} : montant rond, adresse attribuée à ${out.entity.name} et balayée avec d'autres dépôts. C'est elle qu'il faut viser dans la réquisition (titulaire du compte, KYC, connexions), avec l'adresse de dépôt ${A(w, D1)} de la première escroquerie : deux dépôts du même portefeuille criminel désignent probablement le même compte client.`,
         },
         {
-          id: 'o6', type: 'choice', points: 10,
+          id: 'o9', type: 'address', points: 9,
+          prompt: 'Quelle adresse de dépôt, sur la même plateforme de sortie, avait reçu l\'encaissement des fonds de la première escroquerie ?',
+          answer: [D1],
+          hint: 'Repartez de l\'adresse de collecte de la procédure initiale et suivez le premier regroupement jusqu\'à son encaissement.',
+          explanation: `Le premier regroupement (${c1.hash.slice(0, 14)}…) alimente ${A(w, K1)}, qui envoie ${amt(d1V, 'BTC')} vers ${A(w, D1)} le ${fmtDate(cash1.time, false)} ; cette adresse de dépôt ${out.entity.name} est balayée quelques heures plus tard vers le hot wallet. La réquisition à ${out.entity.name} doit viser les deux dépôts (${A(w, D1).slice(0, 12)}… et ${A(w, D2).slice(0, 12)}…) : s'ils sont rattachés au même compte client, le lien entre les deux escroqueries est confirmé par une source indépendante de la blockchain, et l'identité déclarée du titulaire (même s'il s'agit d'une mule) ouvre une piste d'identification.`,
+        },
+        {
+          id: 'o11', type: 'address', points: 9,
+          prompt: 'Après le regroupement des frais, sur quelle adresse le réseau a-t-il conservé la part non encaissée ?',
+          answer: [Z],
+          hint: 'La transaction de regroupement a deux sorties : l\'une part vers un exchange, l\'autre est un rendu. Comparez le type d\'adresse, le caractère rond des montants et l\'attribution.',
+          explanation: `${A(w, Z)} reçoit ${amt(zV, 'BTC')}, montant quelconque, sur une adresse neuve du même type que les entrées du regroupement : c'est le rendu, resté sous le contrôle du réseau. À la date des faits, ces fonds n'ont pas bougé. Ils ne sont pas gelables en l'état (aucun intermédiaire ne les détient), mais l'adresse doit être placée sous surveillance : si elle est dépensée vers un exchange, une réquisition ou une demande de gel rapide devient possible.`,
+        },
+        {
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Comment identifier les autres victimes de ce réseau à partir du graphe ?',
+          ...choice(r,
+            'Requérir Coinhouse et Bitstamp sur les retraits qui ont alimenté les adresses de collecte et de frais du cluster, afin d\'obtenir l\'identité des clients donneurs d\'ordre',
+            [
+              `Requérir ${out.entity.name} sur l'ensemble des clients ayant déposé le même jour que le réseau`,
+              'Publier les adresses du cluster sur les réseaux sociaux pour inviter les victimes à se manifester',
+              'Attendre que d\'autres plaintes mentionnent spontanément les mêmes adresses',
+            ]),
+          hint: 'D\'où viennent les paiements reçus par les adresses du cluster ? Qui connaît l\'identité de ceux qui les ont envoyés ?',
+          explanation: `Les paiements des victimes partent de comptes Coinhouse ou Bitstamp (retraits depuis leurs hot wallets). Chaque retrait vers une adresse du cluster correspond à un client de l'exchange qui a donné l'ordre de virement : une réquisition ciblée (hash de transaction, adresse de destination, date) permet d'obtenir son identité et de le contacter comme victime potentielle. Requérir ${out.entity.name} sur des clients sans lien avec le dossier serait disproportionné, et la publication d'adresses exposerait l'enquête. Les victimes ainsi identifiées renforcent la procédure (préjudice global, circonstances aggravantes éventuelles selon les éléments réunis).`,
+        },
+        {
+          id: 'o6', type: 'choice', points: 8,
           prompt: `Que répondre à ${vp.name}, qui demande s'${g('il', 'elle')} doit payer la « garantie de solvabilité » ?`,
           ...choice(r,
             'Ne plus rien verser et rompre le contact : aucun avocat ni service officiel ne réclame des frais en crypto-actifs pour restituer des fonds ; conserver les échanges et compléter la plainte',
@@ -262,7 +306,7 @@ export const btcRecoveryScam: ScenarioTemplate = {
           explanation: `Une restitution de fonds saisis est décidée par l'autorité judiciaire et ne coûte rien à la victime. Signaux d'alerte réunis ici : frais exigés d'avance et en bitcoins, urgence, consigne de ne pas parler à la police, faux « agrément AMF », avocat introuvable, site récent. L'adresse de « séquestre » (${A(w, sq.hot).slice(0, 14)}…) est un hot wallet de ${sq.entity.name} sans rapport avec le dossier : le solde affiché sert seulement à rassurer. Toute nouvelle demande, y compris d'un autre « cabinet », doit être considérée comme une nouvelle tentative.`,
         },
         {
-          id: 'o7', type: 'choice', points: 15,
+          id: 'o7', type: 'choice', points: 10,
           prompt: 'Quel sort donner à la nouvelle plainte ?',
           ...choice(r,
             `La rapprocher de la procédure initiale et en aviser le magistrat saisi : même portefeuille, donc même réseau, qui revictimise ${g('le plaignant', 'la plaignante')}`,
@@ -283,13 +327,15 @@ export const btcRecoveryScam: ScenarioTemplate = {
           `2. L'adresse ${A(w, pivot)} reçoit ensuite un paiement tardif d'une autre victime (${amt(lateV, 'BTC')}), qui reste dormant.\n` +
           `3. Seconde escroquerie : « ${REC} » puis le « ${firm} » obtiennent ${n} paiements (${fees.map((f) => amt(f.value, 'BTC')).join(', ')}), soit ${amt(totalFees, 'BTC')}. Chaque paiement part du portefeuille personnel de la victime avec un rendu.\n` +
           `4. Le ${fmtDate(L.time, false)}, une seule transaction dépense les adresses de frais, celles d'autres victimes du cabinet et l'adresse pivot : la preuve, par entrées communes, que la fausse plateforme et le faux cabinet partagent le même portefeuille.\n` +
-          `5. ${amt(d2V, 'BTC')} partent vers ${A(w, D2)} (${out.entity.name}), ${amt(zV, 'BTC')} restent en rendu.\n\n` +
+          `5. ${amt(d2V, 'BTC')} partent vers ${A(w, D2)} (${out.entity.name}), ${amt(zV, 'BTC')} restent en rendu sur ${A(w, Z)}, à surveiller.\n` +
+          `6. Les autres adresses de frais du cluster ont reçu ${amt(rxTotal, 'BTC')} d'autres victimes du « cabinet », identifiables par réquisition à Coinhouse et Bitstamp sur les retraits correspondants.\n\n` +
           `À retenir : l'escroquerie à la récupération est souvent commise par le réseau initial, qui sait exactement qui a perdu quoi. Le clustering transforme une intuition (« ils connaissaient mon dossier ») en lien démontrable. Réflexes : prévenir la victime qu'aucun service légitime ne fait payer une restitution, joindre ou rapprocher les procédures, et requérir l'exchange de sortie sur l'ensemble des dépôts du cluster.`,
       },
       hints: [
         'Commencez par les adresses des messages WhatsApp : où leurs fonds repartent-ils ?',
         'Une transaction qui dépense ensemble plusieurs adresses désigne un même propriétaire : ouvrez le panneau cluster de l\'une d\'elles.',
         'L\'adresse de collecte de la première plainte appartient-elle au même cluster ? Cherchez l\'entrée qui figure dans les deux regroupements.',
+        'Chaque regroupement a une sortie vers un exchange et, parfois, un rendu : l\'une sert à la réquisition, l\'autre à la surveillance.',
       ],
     }
   },

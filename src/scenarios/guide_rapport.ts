@@ -13,11 +13,11 @@ export const guideRapport: ScenarioTemplate = {
   title: 'Tutoriel 4 : plusieurs victimes, marquage et rapport',
   tagline: 'Pas à pas : retrouver une adresse à partir d\'un fragment, recenser les victimes, chiffrer le préjudice et produire le rapport.',
   description:
-    'Mission guidée. Une fausse plateforme de « minage » a fait payer plusieurs victimes sur la même adresse Bitcoin. À partir d\'une simple capture d\'écran, vous retrouvez cette adresse avec la recherche, dépliez ses entrées pour recenser les victimes, écartez un intrus, chiffrez le préjudice, puis générez un rapport d\'analyse appuyé sur le journal de vos actes.',
+    'Mission guidée. Une fausse plateforme de « minage » a fait payer plusieurs victimes sur la même adresse Bitcoin. À partir d\'une simple capture d\'écran, vous retrouvez cette adresse avec la recherche, dépliez ses entrées pour recenser les victimes, écartez un intrus qui s\'avère être une piste d\'identification, chiffrez le préjudice, datez l\'encaissement, puis générez un rapport d\'analyse appuyé sur le journal de vos actes.',
   difficulty: 1,
   chains: ['btc'],
   skills: ['lecture_tx', 'utxo', 'typologies', 'exchange_id', 'requisition'],
-  estMinutes: 30,
+  estMinutes: 45,
   lessons: ['suivre-flux', 'premiers-reflexes', 'typologies', 'exchanges', 'rapport', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -65,6 +65,8 @@ export const guideRapport: ScenarioTemplate = {
     const outTx = forwardAll(w, scam, deposit, lastPay + r.int(12, 40) * HOUR)
     const sweep = ex.sweep([deposit], outTx.time + r.float(1, 5) * HOUR)[0]
     const deposited = outTx.outputs[0].value
+    // Délai entre le dernier versement d'une victime et l'encaissement (en heures, au dixième)
+    const delayH = Math.round((outTx.time - lastPay) / 360) / 10
 
     // Bruit de fond
     ex.noise(8, w.at(-25 * 24), w.at(5 * 24))
@@ -108,35 +110,83 @@ export const guideRapport: ScenarioTemplate = {
       seeds: [],
       objectives: [
         {
-          id: 'o1', type: 'number', points: 20, unit: 'victimes',
-          prompt: 'Combien de victimes distinctes ont payé l\'adresse de l\'escroc ?',
-          answer: n,
-          hint: 'Comptez les adresses qui envoient des fonds, pas les transactions : une victime a payé deux fois. Et l\'adresse d\'exchange n\'est pas une victime.',
-          explanation: `${n} victimes, pour ${nTx} versements : ${victims[twice].name} a payé deux fois depuis la même adresse. Le versement venant du hot wallet de ${exName} n'est pas une victime : c'est l'escroc qui alimente son adresse depuis son propre compte.`,
-        },
-        {
-          id: 'o2', type: 'amount', points: 20, unit: 'BTC', tolerance: 0.002,
-          prompt: 'Quel montant total (en BTC) les victimes ont-elles versé ?',
-          answer: total,
-          hint: 'Additionnez les versements des victimes, ou prenez le « Total reçu » de l\'adresse et retranchez le retrait venant de l\'exchange.',
-          explanation: `${amt(total, 'BTC')} au total (${victims.map((v) => amt(v.total, 'BTC')).join(' + ')}). Le « Total reçu » de l'adresse est plus élevé de ${amt(testValue, 'BTC')} : c'est le retrait de l'escroc depuis ${exName}, qui ne fait pas partie du préjudice.`,
-        },
-        {
-          id: 'o3', type: 'address', points: 20,
+          id: 'o3', type: 'address', points: 10,
           prompt: 'Quelle est l\'adresse Bitcoin de l\'escroc ?',
           answer: [scam],
           hint: 'Ouvrez la recherche et tapez la fin de l\'adresse visible sur la capture.',
           explanation: `${full}. La fin visible sur la capture (« ${tail} ») suffisait à la retrouver, à condition de vérifier aussi le début et que la victime figure bien parmi ses entrées : des escrocs créent parfois des adresses qui ressemblent à s'y méprendre à une autre (address poisoning).`,
         },
         {
-          id: 'o4', type: 'entity', points: 20,
+          id: 'o6', type: 'tx', points: 10,
+          prompt: 'Quelle transaction montre l\'escroc alimentant son adresse depuis son propre compte, avant les faits ?',
+          answer: [testTx.id],
+          hint: 'Parmi les entrées de l\'adresse de l\'escroc, une seule vient d\'une adresse étiquetée « Hot Wallet ».',
+          explanation: `La transaction ${testTx.hash.slice(0, 16)}… du ${fmtDate(testTx.time)} envoie ${amt(testValue, 'BTC')} du hot wallet de ${exName} vers l'adresse de l'escroc, bien avant le premier versement de victime. C'est un retrait, ordonné depuis un compte client de ${exName} : la plateforme peut retrouver ce compte à partir du hash et de l'adresse de destination. C'est une piste d'identification de premier ordre, à citer dans la réquisition.`,
+        },
+        {
+          id: 'o11', type: 'choice', points: 8,
+          prompt: `Comment traiter, dans l'analyse, ce versement venu du hot wallet de ${exName} ?`,
+          ...choice(r,
+            'L\'exclure du préjudice, mais le citer dans la réquisition comme retrait ordonné depuis le compte de l\'escroc',
+            [
+              'Le compter comme une victime de plus, puisqu\'il a payé l\'adresse de l\'escroc comme les autres',
+              'L\'ignorer complètement : un hot wallet mélange des milliers de clients, il n\'apporte rien',
+              'Demander à la plateforme de geler son hot wallet, qui a financé l\'escroquerie',
+            ]),
+          hint: 'Un retrait depuis une plateforme part du compte d\'un client précis : lequel ?',
+          explanation: `Ce versement n'est pas un préjudice : aucune victime ne l'a payé, c'est l'escroc qui s'envoie des fonds depuis son compte ${exName}. Mais un retrait est ordonné par un client identifié : avec le hash, la date et l'adresse de destination, ${exName} retrouve le compte d'origine. On l'écarte donc du chiffrage et on le met en avant dans la réquisition. Un hot wallet ne se gèle pas : il appartient à la plateforme et à tous ses clients.`,
+        },
+        {
+          id: 'o7', type: 'address', points: 8,
+          prompt: 'Quelle victime a payé deux fois ? Donnez son adresse.',
+          answer: [victims[twice].addr],
+          hint: 'Parmi les entrées de l\'adresse de l\'escroc, une adresse expéditrice est reliée par deux transactions.',
+          explanation: `${A(w, victims[twice].addr)} (${victims[twice].name}) a envoyé deux versements, à quelques jours d'intervalle, pour ${amt(victims[twice].total, 'BTC')} au total. Le second versement est typique des fausses plateformes, qui relancent leurs « clients » (frais, « taxe » de retrait, mise complémentaire). Son portefeuille renvoie de plus le rendu sur l'adresse d'origine : on la voit en entrée et en sortie de ses deux transactions.`,
+        },
+        {
+          id: 'o1', type: 'number', points: 10, unit: 'victimes',
+          prompt: 'Combien de victimes distinctes ont payé l\'adresse de l\'escroc ?',
+          answer: n,
+          hint: 'Comptez les adresses qui envoient des fonds, pas les transactions : une victime a payé deux fois. Et l\'adresse d\'exchange n\'est pas une victime.',
+          explanation: `${n} victimes, pour ${nTx} versements : ${victims[twice].name} a payé deux fois depuis la même adresse. Le versement venant du hot wallet de ${exName} n'est pas une victime : c'est l'escroc qui alimente son adresse depuis son propre compte.`,
+        },
+        {
+          id: 'o2', type: 'amount', points: 10, unit: 'BTC', tolerance: 0.002,
+          prompt: 'Quel montant total (en BTC) les victimes ont-elles versé ?',
+          answer: total,
+          hint: 'Additionnez les versements des victimes, ou prenez le « Total reçu » de l\'adresse et retranchez le retrait venant de l\'exchange.',
+          explanation: `${amt(total, 'BTC')} au total (${victims.map((v) => amt(v.total, 'BTC')).join(' + ')}). Le « Total reçu » de l'adresse est plus élevé de ${amt(testValue, 'BTC')} : c'est le retrait de l'escroc depuis ${exName}, qui ne fait pas partie du préjudice.`,
+        },
+        {
+          id: 'o4', type: 'entity', points: 8,
           prompt: 'Sur quelle plateforme l\'escroc a-t-il encaissé les fonds ?',
           answer: [exKey],
           hint: 'Dépliez les sorties de l\'adresse de l\'escroc.',
           explanation: `Les ${amt(deposited, 'BTC')} sont envoyés en une fois vers une adresse de dépôt ${exName}. ${procedureFor(ex.entity)} Indice précieux : l'escroc avait déjà retiré des fonds de ${exName} vers cette adresse. Dans la réquisition, on cite donc à la fois l'adresse de dépôt et ce retrait.`,
         },
         {
-          id: 'o5', type: 'choice', points: 20,
+          id: 'o8', type: 'address', points: 10,
+          prompt: 'Quelle adresse de dépôt faut-il citer dans la réquisition ?',
+          answer: [deposit],
+          hint: 'C\'est la seule destination de la transaction qui vide l\'adresse de l\'escroc ; elle est ensuite balayée vers le hot wallet.',
+          explanation: `${A(w, deposit)}, étiquetée « ${exName} — Adresse de dépôt » : elle est propre à un client, contrairement au hot wallet vers lequel elle est balayée quelques heures plus tard. La réquisition vise ce compte, avec deux points d'entrée concordants : ce dépôt et le retrait antérieur vers l'adresse de l'escroc. Si les deux mènent au même titulaire, l'attribution est solide.`,
+        },
+        {
+          id: 'o9', type: 'amount', points: 8, unit: 'BTC', tolerance: 0.002,
+          prompt: 'Quel montant (en BTC) a été crédité sur cette adresse de dépôt ?',
+          answer: deposited,
+          hint: 'Ouvrez la transaction qui vide l\'adresse de l\'escroc : elle n\'a qu\'une sortie.',
+          explanation: `${amt(deposited, 'BTC')} : tout le solde de l'adresse de l'escroc (versements des victimes et retrait préalable), moins ${amt(outTx.fee, 'BTC')} de frais de réseau. Une transaction à une seule sortie, sans rendu, vide entièrement l'adresse : l'escroc ne garde rien sur place.`,
+        },
+        {
+          id: 'o10', type: 'number', points: 8, unit: 'heures', tolerance: 1.5,
+          prompt: 'Combien d\'heures se sont écoulées entre le dernier versement d\'une victime et l\'encaissement sur la plateforme ?',
+          answer: delayH,
+          hint: 'Repérez, parmi les versements des victimes, le plus récent, puis comparez sa date à celle de la transaction vers l\'adresse de dépôt.',
+          explanation: `Dernier versement le ${fmtDate(lastPay)}, encaissement le ${fmtDate(outTx.time)} : environ ${delayH.toLocaleString('fr-FR')} heures. L'escroc a attendu la fin de sa campagne avant de tout sortir d'un bloc, puis le site a disparu. Pour le rapport, cette chronologie (préparation de l'adresse, versements, encaissement, fermeture du site) éclaire le mode opératoire ; pour la réquisition, elle cadre la période de connexion à demander.`,
+        },
+        {
+          id: 'o5', type: 'choice', points: 10,
           prompt: 'Qu\'est-ce qui rend un rapport d\'analyse exploitable par le magistrat ?',
           ...choice(r,
             'Des constatations sourcées et datées, la méthode employée, des hypothèses signalées comme telles',
@@ -145,6 +195,7 @@ export const guideRapport: ScenarioTemplate = {
               'Des conclusions présentées comme certaines, afin de ne laisser aucune place au doute',
               'Les seuls montants totaux, sans adresses ni transactions qui alourdiraient la lecture',
             ]),
+          hint: 'Un tiers doit pouvoir refaire votre raisonnement.',
           explanation: 'Un rapport d\'analyse doit permettre à un tiers de refaire le raisonnement : chaque constatation renvoie à une adresse ou une transaction vérifiable, la méthode (heuristiques, outils) est exposée, et ce qui relève de l\'hypothèse (rattachements, attribution) est présenté comme tel. Le journal horodaté des opérations en garantit la traçabilité.',
         },
       ],
@@ -153,13 +204,14 @@ export const guideRapport: ScenarioTemplate = {
         addresses: [scam, deposit, ...victims.map((v) => v.addr)],
         debrief:
           `Ce qui s'est passé :\n\n` +
-          `1. Environ trois semaines avant les faits, l'escroc retire ${amt(testValue, 'BTC')} de son compte ${exName} vers ${full} : il prépare son adresse.\n` +
+          `1. Environ trois semaines avant les faits, l'escroc retire ${amt(testValue, 'BTC')} de son compte ${exName} vers ${full} (transaction ${testTx.hash.slice(0, 12)}…) : il prépare son adresse.\n` +
           `2. Le site ${brand} affiche cette même adresse à tous ses « clients ». ${n} victimes y versent ${amt(total, 'BTC')} en ${nTx} transactions :\n` +
           victims.map((v) => `- ${v.name} : ${amt(v.total, 'BTC')}${v.txs.length > 1 ? ` (${v.txs.length} versements)` : ''}`).join('\n') + `\n` +
-          `3. Quelques heures après le dernier versement, l'escroc vide l'adresse en une transaction vers une adresse de dépôt ${exName}, balayée ensuite vers le hot wallet.\n\n` +
+          `3. Environ ${delayH.toLocaleString('fr-FR')} heures après le dernier versement, l'escroc vide l'adresse en une transaction : ${amt(deposited, 'BTC')} sur l'adresse de dépôt ${exName} ${A(w, deposit)}, balayée ensuite vers le hot wallet.\n\n` +
           `À retenir :\n\n` +
           `- Une adresse d'escroquerie partagée entre clients se lit par ses **Entrées** : chaque expéditeur est une victime potentielle, à confirmer.\n` +
           `- On compte des **victimes** (adresses expéditrices), pas des transactions, et on écarte ce qui n'est pas un préjudice (ici le retrait depuis l'exchange, qui est en revanche une excellente piste d'identification).\n` +
+          `- Une même plateforme en amont (retrait) et en aval (dépôt) : deux points d'entrée pour une seule réquisition, qui se recoupent.\n` +
           `- Une adresse tronquée se retrouve avec la recherche, mais on vérifie toujours le début, la fin et la cohérence (montant, date, victime parmi les entrées).\n` +
           `- Le **marquage**, les **notes** et le **journal** alimentent directement le rapport : marquer au fil de l'eau, c'est rédiger le rapport en avançant.`,
       },
@@ -167,6 +219,7 @@ export const guideRapport: ScenarioTemplate = {
         'Le guide est dans l\'onglet Objectifs du Dossier. Le bouton « Je bloque » de chaque étape donne le chemin exact.',
         'La recherche (loupe en haut à droite, ou Ctrl K) trouve une adresse à partir de quatre caractères consécutifs.',
         'Les Entrées d\'une adresse montrent qui lui a envoyé des fonds. Une étiquette « Hot Wallet » désigne une plateforme, pas une victime.',
+        'La date de chaque transaction figure dans son panneau (« Date (Paris) ») ; la frise (touche T) les place toutes sur un axe.',
       ],
       guide: [
         {
@@ -186,6 +239,12 @@ export const guideRapport: ScenarioTemplate = {
           check: { kind: 'onGraph', address: scam },
         },
         {
+          title: 'Marquez l\'escroc et désignez son adresse',
+          text: `Marquez l'adresse de l'escroc **Suspect**, puis, en la gardant sélectionnée, cliquez **« Utiliser l'adresse sélectionnée »** dans l'objectif 1.`,
+          tip: 'Clic droit sur l\'adresse de l\'escroc ▸ « Marquer : Suspect ». Puis clic sur son nœud ▸ objectif 1 ▸ « Utiliser l\'adresse sélectionnée ».',
+          check: { kind: 'flagged', address: scam, flag: 'suspect' },
+        },
+        {
           title: 'Dépliez ses entrées',
           text:
             `Jusqu'ici, on dépliait les **sorties** (où va l'argent). Pour savoir **qui a payé** cette adresse, on déplie ses **entrées** : bouton **Entrées** du panneau, ou clic droit ▸ « Déplier les entrées ».\n\n` +
@@ -202,40 +261,80 @@ export const guideRapport: ScenarioTemplate = {
           check: { kind: 'selected', id: testTx.id },
         },
         {
+          title: 'Citez ce retrait',
+          text:
+            `La transaction est sélectionnée : cliquez **« Utiliser la transaction sélectionnée »** dans l'objectif 2. Une transaction se cite par son **hash** (l'identifiant affiché en haut du panneau), avec sa date et son montant.\n\n` +
+            `Puis répondez à l'objectif 3 : comment ce versement doit-il être traité dans l'analyse ?`,
+          tip: `Losange relié à « ${exName} — Hot Wallet » sélectionné ▸ objectif 2 ▸ « Utiliser la transaction sélectionnée ».`,
+          check: { kind: 'correct', objective: 'o6' },
+        },
+        {
+          title: 'Préjudice ou piste ?',
+          text:
+            `Objectif 3. Un **retrait** depuis une plateforme est ordonné par un client précis, depuis son compte : la plateforme sait lequel. Ce versement n'est donc pas un préjudice, mais il désigne indirectement l'escroc.\n\n` +
+            `Distinguer ce qui chiffre le préjudice de ce qui sert à identifier est un réflexe essentiel du rapport.`,
+          tip: 'Objectif 3 : cochez la réponse qui écarte ce versement du préjudice tout en l\'exploitant.',
+          check: { kind: 'answered', objective: 'o11' },
+        },
+        {
           title: 'Marquez chaque victime',
           text:
-            `Les autres expéditeurs, non attribués, sont des victimes. Marquez **chacune** d'elles **Victime**, y compris la plaignante (comparez avec l'adresse de la plainte).\n\n` +
+            `Les autres expéditeurs, non attribués, sont des victimes. Marquez **chacune** d'elles **Victime**, y compris ${g('le plaignant', 'la plaignante')} (comparez avec l'adresse de la plainte).\n\n` +
             `Attention : une victime a payé **deux fois** depuis la même adresse. Elle ne compte qu'une fois.`,
           tip: 'Pour chaque expéditeur non étiqueté : clic droit ▸ « Marquer : Victime ». Contrôlez ensuite dans l\'onglet **Marqués** du Dossier.',
           check: { kind: 'flagged', address: victims[n - 1].addr, flag: 'victim' },
         },
         {
-          title: 'Marquez l\'escroc et désignez son adresse',
-          text: `Marquez l'adresse de l'escroc **Suspect**, puis, en la gardant sélectionnée, cliquez **« Utiliser l'adresse sélectionnée »** dans l'objectif 3.`,
-          tip: 'Clic droit sur l\'adresse de l\'escroc ▸ « Marquer : Suspect ». Puis clic sur son nœud ▸ objectif 3 ▸ « Utiliser l\'adresse sélectionnée ».',
-          check: { kind: 'flagged', address: scam, flag: 'suspect' },
+          title: 'Repérez la victime qui a payé deux fois',
+          text:
+            `Une des adresses victimes est reliée à l'escroc par **deux** losanges : deux versements à quelques jours d'intervalle. Sélectionnez-la et utilisez-la dans l'objectif 4.\n\n` +
+            `Ces relances (« frais », « taxe » de retrait…) sont typiques des fausses plateformes : la victime paie une seconde fois pour récupérer la première mise.`,
+          tip: 'Cherchez le nœud victime d\'où partent deux transactions vers l\'escroc (ou, dans l\'Historique de l\'escroc, deux lignes entrantes venant de la même adresse) ▸ objectif 4 ▸ « Utiliser l\'adresse sélectionnée ».',
+          check: { kind: 'correct', objective: 'o7' },
         },
         {
           title: 'Comptez les victimes',
           text:
             `Ouvrez l'onglet **Marqués** du Dossier : vos marquages sont regroupés par catégorie, avec leur nombre. C'est votre recensement.\n\n` +
-            `Revenez à l'onglet Objectifs et saisissez le nombre de victimes dans l'objectif 1.`,
-          tip: 'Dossier ▸ onglet **Marqués** ▸ lisez le chiffre entre parenthèses après « Victime ». Objectif 1 : saisissez ce nombre (sans compter le hot wallet).',
+            `Revenez à l'onglet Objectifs et saisissez le nombre de victimes dans l'objectif 5.`,
+          tip: 'Dossier ▸ onglet **Marqués** ▸ lisez le chiffre entre parenthèses après « Victime ». Objectif 5 : saisissez ce nombre (sans compter le hot wallet).',
           check: { kind: 'correct', objective: 'o1' },
         },
         {
           title: 'Chiffrez le préjudice',
           text:
             `Deux méthodes, qui doivent concorder : additionner les versements des victimes (cliquez chaque losange et lisez la sortie vers l'escroc), ou partir du **Total reçu** de l'adresse de l'escroc (onglet **Historique**, lignes entrantes) et retrancher le retrait venu de ${exName}.\n\n` +
-            `Saisissez le total en BTC dans l'objectif 2 (la virgule est acceptée).`,
+            `Saisissez le total en BTC dans l'objectif 6 (la virgule est acceptée).`,
           tip: 'Adresse de l\'escroc ▸ onglet **Historique** ▸ filtre « Entrantes » : additionnez les montants, sauf la ligne « ' + exName + ' — Hot Wallet ».',
           check: { kind: 'correct', objective: 'o2' },
         },
         {
           title: 'Suivez l\'encaissement',
-          text: `Dépliez maintenant les **sorties** de l'adresse de l'escroc (double-clic). Tout part en une fois vers une **« ${exName} — Adresse de dépôt »** : l'escroc encaisse là où il avait déjà un compte. Renseignez l'objectif 4.`,
-          tip: `Double-cliquez l'adresse de l'escroc ▸ repérez « ${exName} — Adresse de dépôt ». Objectif 4 : menu déroulant ▸ ${exName}.`,
+          text: `Dépliez maintenant les **sorties** de l'adresse de l'escroc (double-clic). Tout part en une fois vers une **« ${exName} — Adresse de dépôt »** : l'escroc encaisse là où il avait déjà un compte. Renseignez l'objectif 7.`,
+          tip: `Double-cliquez l'adresse de l'escroc ▸ repérez « ${exName} — Adresse de dépôt ». Objectif 7 : menu déroulant ▸ ${exName}.`,
           check: { kind: 'onGraph', address: deposit },
+        },
+        {
+          title: 'Désignez l\'adresse de dépôt',
+          text:
+            `Sélectionnez l'adresse de dépôt et utilisez-la dans l'objectif 8. C'est elle que vise la réquisition, jamais le hot wallet vers lequel elle sera balayée.\n\n` +
+            `Remarquez la cohérence : la même plateforme apparaît **en amont** (le retrait qui a alimenté l'adresse) et **en aval** (le dépôt). Deux points d'entrée pour une seule réquisition, qui devraient mener au même titulaire.`,
+          tip: `Clic sur « ${exName} — Adresse de dépôt » ▸ objectif 8 ▸ « Utiliser l'adresse sélectionnée ».`,
+          check: { kind: 'correct', objective: 'o8' },
+        },
+        {
+          title: 'Relevez le montant encaissé',
+          text: `Cliquez le losange de la transaction d'encaissement : elle n'a qu'**une sortie**, vers l'adresse de dépôt (pas de rendu, l'adresse est vidée). Reportez son montant dans l'objectif 9.`,
+          tip: 'Clic sur le losange entre l\'adresse de l\'escroc et l\'adresse de dépôt ▸ section **Sorties** ▸ montant. Saisissez-le dans l\'objectif 9.',
+          check: { kind: 'correct', objective: 'o9' },
+        },
+        {
+          title: 'Mesurez le délai d\'encaissement',
+          text:
+            `Retrouvez le **dernier** versement d'une victime (le plus récent des losanges d'entrée) et comparez sa **Date (Paris)** à celle de la transaction d'encaissement. Saisissez l'écart en heures dans l'objectif 10 (une marge d'une heure et demie est tolérée).\n\n` +
+            `Astuce : la **Frise** (touche T) place toutes les transactions du graphe sur un axe du temps, ce qui aide à repérer la plus récente.`,
+          tip: 'Ouvrez chaque losange d\'entrée et notez sa date ; gardez la plus récente. Puis losange d\'encaissement ▸ « Date (Paris) ». Calculez l\'écart en heures.',
+          check: { kind: 'correct', objective: 'o10' },
         },
         {
           title: 'Consultez le Journal',
@@ -253,8 +352,8 @@ export const guideRapport: ScenarioTemplate = {
         },
         {
           title: 'Terminez et remettez',
-          text: `Répondez à l'objectif 5, vérifiez que les objectifs 3 et 4 sont remplis, puis cliquez **Remettre le rapport** pour lire le débriefing.`,
-          tip: 'Objectif 5 : cochez une réponse ▸ bouton **Remettre le rapport** en bas de l\'onglet Objectifs.',
+          text: `Répondez à l'objectif 11, vérifiez que tous les objectifs sont remplis, puis cliquez **Remettre le rapport** pour lire le débriefing.`,
+          tip: 'Objectif 11 : cochez une réponse ▸ bouton **Remettre le rapport** en bas de l\'onglet Objectifs.',
           check: { kind: 'answered', objective: 'o5' },
         },
       ],

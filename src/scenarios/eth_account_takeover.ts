@@ -29,7 +29,7 @@ export const ethAccountTakeover: ScenarioTemplate = {
   difficulty: 3,
   chains: ['eth', 'xmr'],
   skills: ['evm', 'tokens', 'dex', 'privacy', 'requisition', 'osint'],
-  estMinutes: 30,
+  estMinutes: 65,
   lessons: ['comptes-evm', 'dex-defi', 'monero', 'requisitions', 'analyse-comportementale'],
   generate(seed) {
     const w = new World(seed)
@@ -135,6 +135,8 @@ export const ethAccountTakeover: ScenarioTemplate = {
     const imei = `35${r.int(1000, 9999)}${r.int(1000, 9999)}${r.int(1000, 9999)}${r.int(0, 9)}`
     const zAgeDays = Math.round((simT - zW1.time) / DAY)
     const swapToEth = sw.amountOut
+    // Délai entre la part reversée au portefeuille personnel et son dépôt sur l'exchange (heures)
+    const cashH = Math.round(((exDep.tx.time - zTx.time) / 3600) * 10) / 10
 
     return {
       world: w,
@@ -142,7 +144,7 @@ export const ethAccountTakeover: ScenarioTemplate = {
       briefing:
         `Le ${fmtDate(simT, false)} vers ${heure(simT)}, le téléphone ${de(victim.name)} (${city}) affiche soudain « Aucun service ». ${g('Il', 'Elle')} pense à une panne et se couche. Le lendemain matin, sa messagerie contient des alertes de Coinbase : nouvel appareil, nouvelle adresse de retrait, deux retraits. Son compte, sur lequel ${g('il', 'elle')} détenait ${amt(ethW, 'ETH')} et ${amt(usdcW, 'USDC')}, est vide.\n\n` +
         `L'opérateur ${operator} (nom fictif) confirme que la ligne a été transférée sur une nouvelle carte SIM le soir même : c'est un SIM swap. Avec le numéro, l'attaquant a reçu les codes SMS de réinitialisation et de double authentification du compte de la victime ; Coinbase n'a pas été piraté.\n\n` +
-        `Les réponses de Coinbase et de l'opérateur sont arrivées. Suivez les fonds depuis l'adresse de retrait, mesurez ce que l'on peut obtenir au-delà du passage en Monero, et cherchez l'erreur de l'attaquant qui permettrait de l'identifier.`,
+        `Les réponses de Coinbase et de l'opérateur sont arrivées. Suivez les fonds depuis l'adresse de retrait, inventoriez chaque part du butin (échangeur, réserve, portefeuille personnel), mesurez ce que l'on peut obtenir au-delà du passage en Monero, et cherchez l'erreur de l'attaquant qui permettrait de l'identifier.`,
       evidence: [
         {
           id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: plainteT, author: victim.name,
@@ -188,21 +190,28 @@ export const ethAccountTakeover: ScenarioTemplate = {
           explanation: `${A(w, A1)}, ajoutée le ${fmtDate(addT)}, ${Math.round((addT - simT) / MIN)} minutes après l'activation de la nouvelle SIM. Elle n'a aucun historique avant les retraits : adresse créée pour l'occasion. Ses seules entrées sont les deux retraits Coinbase, un peu d'ETH venu d'une autre adresse, le swap Uniswap et une poussière d'USDC.`,
         },
         {
-          id: 'o2', type: 'amount', points: 15, unit: 'USD', tolerance: 0.02,
+          id: 'o2', type: 'amount', points: 9, unit: 'USD', tolerance: 0.02,
           prompt: 'Quel est le montant total détourné, en dollars (au cours de l\'outil) ?',
           answer: lossUsd,
           hint: 'Additionnez la valeur des deux retraits : l\'ETH au cours affiché par l\'outil, l\'USDC à 1 $.',
           explanation: `${amt(ethW, 'ETH')} × 3 185 $ ≈ ${dollars(usd('ETH', ethW))}, plus ${amt(usdcW, 'USDC')} ≈ ${dollars(usdcW)} : environ ${dollars(lossUsd)} au total. Dans le rapport, préciser le cours retenu et sa date : le préjudice en euros dépend du cours au jour des faits.`,
         },
         {
-          id: 'o3', type: 'entity', points: 10,
+          id: 'o10', type: 'amount', points: 8, unit: 'ETH', tolerance: 0.01,
+          prompt: 'Combien d\'ETH l\'attaquant a-t-il obtenus en convertissant les USDC volés ?',
+          answer: swapToEth,
+          hint: 'Ouvrez la transaction de swap de l\'adresse de retrait et lisez la jambe ETH qui revient au trader.',
+          explanation: `La transaction ${sw.tx.hash.slice(0, 14)}… échange ${amt(usdcW, 'USDC')} contre ${amt(swapToEth, 'ETH')}, soit environ ${dollars(usd('ETH', swapToEth))} après la commission du pool et le glissement de prix. Ajoutés aux ${amt(ethW, 'ETH')} retirés directement, ils forment le stock d'ETH que l'attaquant découpe ensuite : ce montant sert à vérifier que la somme des sorties retombe bien sur les entrées de l'adresse.`,
+        },
+        {
+          id: 'o3', type: 'entity', points: 8,
           prompt: 'Sur quel DEX l\'attaquant a-t-il converti les USDC ?',
           answer: ['uniswap'],
           hint: 'Ouvrez la transaction qui fait sortir les USDC de l\'adresse de retrait : vers quel contrat partent-ils ?',
           explanation: `Le ${fmtDate(sw.tx.time)}, ${A(w, A1)} échange ${amt(usdcW, 'USDC')} contre ${amt(swapToEth, 'ETH')} sur Uniswap : les USDC partent vers le pool ETH/USDC, qui renvoie l'ETH via le routeur. Pourquoi si vite ? L'USDC est un jeton centralisé que son émetteur peut geler ; l'ETH natif, lui, ne se gèle pas. Le swap ne rompt pas la piste : la même adresse envoie et reçoit.`,
         },
         {
-          id: 'o4', type: 'tx', points: 20,
+          id: 'o4', type: 'tx', points: 11,
           prompt: 'L\'essentiel de l\'ETH part vers un échangeur instantané contre du Monero. Quelle transaction de dépôt faut-il citer dans la réquisition à ce service ?',
           answer: [order.depositTx.id],
           hint: 'Suivez la plus grosse sortie d\'ETH de l\'adresse de retrait : une adresse de dépôt aussitôt reversée à un hot wallet étiqueté.',
@@ -210,7 +219,27 @@ export const ethAccountTakeover: ScenarioTemplate = {
             `Le ${fmtDate(splitT)}, ${amt(cnV, 'ETH')} (≈ ${fmtUsd(usd('ETH', cnV))}) partent sur ${A(w, order.deposit)}, adresse de dépôt ChangeNOW, balayée ensuite vers son hot wallet. Aucun paiement ChangeNOW en ETH ne correspond : la contrepartie est payée en XMR, invisible. Le mur Monero arrête le suivi, pas l'enquête : avec le hash ${order.depositTx.hash}, l'échangeur peut retrouver la commande (adresse XMR de destination, horodatages, IP, éventuel e-mail). ${procedureFor(cnE)} Attention au leurre : un autre client dépose un montant voisin à la même période, depuis une adresse sans lien avec l'affaire.`,
         },
         {
-          id: 'o5', type: 'address', points: 20,
+          id: 'o8', type: 'address', points: 9,
+          prompt: 'Une partie de l\'ETH est mise de côté sur une adresse de l\'attaquant, qui ne bouge plus. Laquelle ?',
+          answer: [A2],
+          hint: 'Après le dépôt chez l\'échangeur, l\'adresse de retrait effectue d\'autres sorties d\'ETH : l\'une va vers une adresse neuve qui ne dépense rien ensuite.',
+          explanation: `Le ${fmtDate(a2Tx.time)}, ${A(w, A1)} envoie ${amt(a2V, 'ETH')} vers ${A(w, A2)}, adresse sans historique ni dépense ultérieure : une réserve de l'attaquant. Elle n'a ni étiquette ni lien avec un service, mais le transfert direct depuis l'adresse de retrait suffit à la rattacher au butin.`,
+        },
+        {
+          id: 'o9', type: 'choice', points: 8,
+          prompt: 'Que faire des ETH immobilisés sur cette adresse de réserve ?',
+          ...choice(r,
+            'La placer sous surveillance (alerte sur tout mouvement) : l\'ETH natif n\'est gelable par personne, une réquisition suivra s\'il atteint une plateforme',
+            [
+              'Demander à Circle, émetteur de l\'USDC, de geler les ETH de l\'adresse',
+              'Demander à Coinbase de geler l\'adresse, puisque les fonds proviennent de ses retraits',
+              'Demander à Uniswap de bloquer l\'adresse, qui a utilisé son routeur',
+            ]),
+          hint: 'Qui pourrait techniquement bloquer de l\'ETH natif détenu dans un portefeuille auto-hébergé ?',
+          explanation: `L'ETH est l'actif natif d'Ethereum : aucun émetteur ne peut le bloquer, contrairement à l'USDC (Circle) ou à l'USDT (Tether). Coinbase n'a plus la main sur des fonds retirés, et un DEX n'a aucun pouvoir sur les adresses de ses utilisateurs. La seule mesure utile est la surveillance : dès que ${A(w, A2)} enverra ses ${amt(a2V, 'ETH')} vers un exchange ou un échangeur, une demande de gel et une réquisition pourront viser le compte destinataire. Une saisie directe supposerait de retrouver les clés (perquisition).`,
+        },
+        {
+          id: 'o5', type: 'address', points: 11,
           prompt: 'Quelle adresse trahit l\'attaquant (erreur d\'hygiène opérationnelle) ?',
           answer: [Z],
           hint: 'Avant le swap, l\'adresse de retrait n\'a pas d\'ETH pour payer le gas. Qui lui en envoie, et quelle est l\'histoire de cette adresse ?',
@@ -219,14 +248,28 @@ export const ethAccountTakeover: ScenarioTemplate = {
             `Elle reçoit ensuite ${amt(zV, 'ETH')} du butin et en dépose ${amt(exV, 'ETH')} (sa part et son propre solde) chez ${ex.entity.name}. Le leurre ${A(w, poison)}, qui imite ses premiers et derniers caractères, n'a envoyé que ${amt(0.01, 'USDC')} de poussière (address poisoning automatisé) : il n'a jamais financé l'attaquant.`,
         },
         {
-          id: 'o6', type: 'entity', points: 10,
+          id: 'o11', type: 'number', points: 8, tolerance: 1, unit: 'heures',
+          prompt: 'Combien d\'heures après avoir reçu sa part du butin le portefeuille personnel la dépose-t-il sur un exchange ?',
+          answer: cashH,
+          hint: 'Comparez l\'heure du transfert de l\'adresse de retrait vers le portefeuille personnel et celle de la sortie suivante de ce portefeuille.',
+          explanation: `Part reçue le ${fmtDate(zTx.time)}, dépôt le ${fmtDate(exDep.tx.time)} : environ ${cashH.toFixed(1).replace('.', ',')} h. Ce délai court, et le fait que le dépôt (${amt(exV, 'ETH')}) mélange la part du butin et le solde propre du portefeuille, montrent que l'attaquant traite cette adresse comme la sienne. Il fixe aussi la date à partir de laquelle demander à la plateforme l'historique de connexion du compte.`,
+        },
+        {
+          id: 'o12', type: 'address', points: 9,
+          prompt: 'Sur quelle adresse de dépôt le portefeuille personnel verse-t-il ces fonds ?',
+          answer: [exDep.deposit],
+          hint: 'C\'est la destination de cette dernière sortie : une adresse ensuite balayée vers un portefeuille chaud étiqueté.',
+          explanation: `${A(w, exDep.deposit)} reçoit ${amt(exV, 'ETH')} le ${fmtDate(exDep.tx.time)}, puis reverse le tout au portefeuille chaud de la plateforme : c'est le comportement d'une adresse de dépôt, attribuée à un seul client. La réquisition doit la citer précisément, avec le hash du dépôt (${exDep.tx.hash.slice(0, 14)}…) et ceux des retraits antérieurs vers le portefeuille personnel.`,
+        },
+        {
+          id: 'o6', type: 'entity', points: 9,
           prompt: 'Quelle plateforme peut identifier le titulaire de cette adresse ?',
           answer: [exKey],
           hint: 'Regardez d\'où viennent les premiers ETH de cette adresse, et où elle dépose sa part.',
           explanation: `${ex.entity.name} a effectué les retraits vers ${A(w, Z)} et reçu son dépôt de ${amt(exV, 'ETH')} sur ${A(w, exDep.deposit)} : son client est identifié (KYC), avec ses IP et appareils de connexion, à comparer avec l'IMEI et les données de l'opérateur. ${procedureFor(ex.entity)} Demander aussi le gel du compte. ${other.entity.name}, présent sur le graphe par ses seuls flux de fond, n'a aucun lien avec l'affaire.`,
         },
         {
-          id: 'o7', type: 'choice', points: 15,
+          id: 'o7', type: 'choice', points: 10,
           prompt: 'Quelle conclusion porter au rapport ?',
           ...choice(r,
             `Le titulaire du compte ${ex.entity.name} relié à l'adresse qui a payé le gas est un suspect sérieux ; l'attribution reste à corroborer (KYC et IP ${ex.entity.name}, commande ChangeNOW, téléphonie, vidéoprotection)`,
@@ -235,6 +278,7 @@ export const ethAccountTakeover: ScenarioTemplate = {
               'Les fonds sont passés en Monero : plus rien ne peut être établi, le dossier doit être classé',
               `Le titulaire du compte ${ex.entity.name} est l'auteur du SIM swap avec certitude : la blockchain le prouve à elle seule`,
             ]),
+          hint: 'Distinguez ce que prouve la blockchain (un lien entre adresses et un compte) de ce qu\'il reste à établir (qui a agi).',
           explanation:
             `Le lien on-chain est fort (gas fourni ${Math.round((sw.tx.time - gasTx.time) / MIN)} minutes avant le swap, part du butin reversée, dépôt chez ${ex.entity.name}), mais il désigne le titulaire d'un compte, pas forcément l'auteur des faits : prête-nom, portefeuille partagé ou revendu restent possibles. On le présente comme une hypothèse étayée, à confirmer par les réquisitions, la téléphonie (IMEI ${imei}, autres lignes détournées) et les images de la boutique. Coinbase n'est pas en cause : c'est le compte de la victime qui a été compromis par le détournement de sa ligne.`,
         },
@@ -246,7 +290,7 @@ export const ethAccountTakeover: ScenarioTemplate = {
           `1. Le ${fmtDate(simT)}, un complice obtient en boutique, avec une fausse carte d'identité, une nouvelle SIM pour la ligne ${de(victim.name)}. La victime, exposée par une fuite de données et ses publications, perd le réseau.\n` +
           `2. Avec les codes SMS, l'attaquant réinitialise le mot de passe Coinbase de la victime, se connecte via un VPN, ajoute ${A(w, A1)} et retire ${amt(usdcW, 'USDC')} puis ${amt(ethW, 'ETH')} (≈ ${fmtUsd(lossUsd)}).\n` +
           `3. Erreur d'hygiène opérationnelle : faute d'ETH pour le gas, il envoie ${amt(gasV, 'ETH')} depuis ${A(w, Z)}, son portefeuille personnel alimenté par ${ex.entity.name}. Il convertit ensuite les USDC en ${amt(swapToEth, 'ETH')} sur Uniswap.\n` +
-          `4. Découpage : ${amt(cnV, 'ETH')} chez ChangeNOW contre du XMR (fin du suivi on-chain), ${amt(a2V, 'ETH')} mis de côté sur ${A(w, A2)} (à placer sous surveillance), ${amt(zV, 'ETH')} renvoyés vers ${A(w, Z)}, qui en dépose ${amt(exV, 'ETH')} chez ${ex.entity.name}. Il reste ${amt(left, 'ETH')} sur l'adresse de retrait.\n\n` +
+          `4. Découpage : ${amt(cnV, 'ETH')} chez ChangeNOW contre du XMR (fin du suivi on-chain), ${amt(a2V, 'ETH')} mis de côté sur ${A(w, A2)} (à placer sous surveillance), ${amt(zV, 'ETH')} renvoyés vers ${A(w, Z)}, qui en dépose ${amt(exV, 'ETH')} chez ${ex.entity.name} (adresse ${A(w, exDep.deposit)}) environ ${cashH.toFixed(1).replace('.', ',')} h plus tard. Il reste ${amt(left, 'ETH')} sur l'adresse de retrait.\n\n` +
           `À retenir : derrière un mur Monero, on exploite les bords (hash de dépôt réquisitionnable chez l'échangeur) et surtout les erreurs : l'origine du gas d'une adresse jetable est l'un des pivots les plus productifs. Côté prévention, la double authentification par SMS est vulnérable au SIM swap ; une application d'authentification ou une clé de sécurité la remplace avantageusement.`,
       },
       hints: [

@@ -19,7 +19,7 @@ export const btcLightningCashout: ScenarioTemplate = {
   difficulty: 4,
   chains: ['btc'],
   skills: ['utxo', 'lecture_tx', 'privacy', 'exchange_id', 'requisition'],
-  estMinutes: 40,
+  estMinutes: 80,
   lessons: ['lightning', 'requisitions', 'cooperation-internationale', 'typologies', 'utxo'],
   generate(seed) {
     const w = new World(seed)
@@ -190,14 +190,28 @@ export const btcLightningCashout: ScenarioTemplate = {
       seeds: [],
       objectives: [
         {
-          id: 'o1', type: 'tx', points: 15,
+          id: 'o8', type: 'amount', points: 8, unit: 'BTC', tolerance: 0.01,
+          prompt: 'Montant total (en BTC) versé par les victimes sur l\'adresse de collecte indiquée dans les courriels ?',
+          answer: totalVictims,
+          hint: 'Ouvrez l\'adresse du courriel et additionnez toutes ses entrées : les paiements s\'étalent sur plusieurs jours, avant et après sa première dépense.',
+          explanation: `${nV} paiements entre le ${fmtDate(pays[0].time, false)} et le ${fmtDate(pays[nV - 1].time, false)}, de ${btc(Math.min(...pays.map((p) => p.value)))} à ${btc(Math.max(...pays.map((p) => p.value)))}, soit ${btc(totalVictims)} (≈ ${Math.round(usd('BTC', totalVictims)).toLocaleString('fr-FR')} $). C'est la base du préjudice global et du produit de l'infraction : chaque paiement est une victime potentielle à identifier (par le service qui lui a vendu les bitcoins) et à entendre.`,
+        },
+        {
+          id: 'o1', type: 'tx', points: 10,
           prompt: 'Identifiez une transaction d\'ouverture de canal Lightning financée avec les fonds des victimes.',
           answer: [ch1.tx.id, ch2.tx.id],
           hint: 'Suivez les sorties de l\'adresse indiquée dans le courriel : cherchez une sortie de type script (P2WSH) de montant rond. L\'inspecteur affiche un badge « Lightning ».',
           explanation: `Deux ouvertures : ${btc(cap1)} le ${fmtDate(ch1.tx.time)} directement depuis l'adresse de collecte, puis ${btc(cap2)} le ${fmtDate(ch2.tx.time)} après un regroupement (${consTx.hash.slice(0, 12)}…). Chaque fois, une sortie P2WSH (2-de-2 avec le nœud de ${lumen.name}) et un rendu vers le portefeuille du suspect. Attention : un coffre multisignature a la même apparence (une telle sortie, jamais dépensée, existe dans le bruit) ; c'est la fermeture ultérieure, et l'attribution du pair, qui confirment le canal.`,
         },
         {
-          id: 'o2', type: 'choice', points: 15,
+          id: 'o9', type: 'address', points: 8,
+          prompt: 'Avant l\'ouverture du second canal, sur quelle adresse le suspect regroupe-t-il le reste de l\'adresse de collecte et le rendu du premier canal ?',
+          answer: [S3],
+          hint: 'Après le dernier paiement de victime, l\'adresse de collecte est dépensée avec une autre adresse du suspect dans une transaction à une seule sortie.',
+          explanation: `${consTx.hash.slice(0, 14)}… dépense ensemble l'adresse de collecte et ${A(w, S2)} (rendu de l'ouverture du premier canal) vers ${A(w, S3)}. Par entrées communes, le rendu du premier canal est rattaché au suspect ; et c'est ${A(w, S3)} qui finance, quelques heures plus tard, l'ouverture du second canal (${btc(cap2)}), avec un nouveau rendu sur ${A(w, S4)}.`,
+        },
+        {
+          id: 'o2', type: 'choice', points: 12,
           prompt: 'Comment le second canal ouvert par le suspect a-t-il été fermé ?',
           ...choice(r,
             'Fermeture forcée par le suspect : son solde a été bloqué par un délai puis récupéré',
@@ -210,18 +224,18 @@ export const btcLightningCashout: ScenarioTemplate = {
           explanation: `La transaction d'engagement ${fc.commitTx.hash.slice(0, 12)}… verse la part du fournisseur immédiatement sur une adresse ${lumen.name}, place ${btc(fc.commitTx.outputs.find((o) => o.address === fc.delayed)!.value)} sur une sortie P2WSH à délai et ajoute deux ancres de 330 sats ; son nLockTime commence par 0x20. La sortie à délai est récupérée ${Math.round((sweepTx.time - fc.commitTx.time) / HOUR)} h plus tard (délai CSV de 144 blocs) vers ${A(w, C2)}, adresse non attribuée : c'est le diffuseur, donc le suspect, qui a forcé la fermeture. Une pénalité aurait tout attribué à une seule partie.`,
         },
         {
-          id: 'o3', type: 'amount', points: 15, unit: 'BTC', tolerance: 0.005,
+          id: 'o10', type: 'number', points: 8, tolerance: 1, unit: 'heures',
+          prompt: 'Combien d\'heures séparent la transaction d\'engagement (fermeture forcée) de la récupération de la sortie à délai ?',
+          answer: (sweepTx.time - fc.commitTx.time) / HOUR,
+          hint: 'Comparez l\'horodatage de la transaction qui dépense la sortie du second canal et celui de la transaction qui dépense ensuite sa sortie P2WSH à délai.',
+          explanation: `Engagement le ${fmtDate(fc.commitTx.time)}, récupération le ${fmtDate(sweepTx.time)} : environ ${Math.round((sweepTx.time - fc.commitTx.time) / HOUR)} h. Le délai CSV de 144 blocs (≈ 24 h à 10 min par bloc) laisse au pair le temps de contester un état périmé ; le diffuseur ne peut récupérer qu'ensuite. Ce délai, mesuré sur la chaîne, confirme que la sortie à délai appartenait à celui qui a forcé la fermeture, et date le moment où les fonds redeviennent disponibles : une fenêtre utile si l'on veut agir avant leur récupération.`,
+        },
+        {
+          id: 'o3', type: 'amount', points: 12, unit: 'BTC', tolerance: 0.005,
           prompt: 'Combien de BTC le suspect a-t-il récupérés on-chain à la fermeture de ses deux canaux (hors part du fournisseur) ?',
           answer: recovered,
           hint: 'Fermeture coopérative : une sortie pour chaque pair (celle du fournisseur est attribuée). Fermeture forcée : comptez ce que le suspect récupère réellement, après le délai.',
           explanation: `${btc(c1Value)} à la fermeture coopérative (vers ${A(w, C1)}) et ${btc(c2Value)} récupérés après la fermeture forcée (vers ${A(w, C2)}), soit ${btc(recovered)}. Pour mémoire, ${btc(r8(cap1 + cap2))} avaient été engagés dans les canaux : la différence correspond aux paiements effectués hors chaîne (revenus au fournisseur, qui les a routés) et aux frais.`,
-        },
-        {
-          id: 'o4', type: 'entity', points: 15,
-          prompt: 'Quel prestataire faut-il requérir pour obtenir l\'identité du titulaire du compte décrit dans le fichier d\'export et l\'historique complet de ses paiements ?',
-          answer: ['voltpocket'],
-          hint: 'Rapprochez la ligne « dépôt_onchain » du fichier d\'une transaction on-chain du suspect (montant et heure), puis regardez qui contrôle l\'adresse de destination.',
-          explanation: `Le dépôt du fichier correspond au versement des fonds de la fermeture coopérative sur une adresse de dépôt ${vp.entity.name}, balayée vers son portefeuille chaud. ${vp.entity.name} est un portefeuille Lightning custodial : contrairement au fournisseur de liquidité, il tient un registre de chaque paiement (facture, hash, date, montant) et des connexions. ${procedureFor(vp.entity)} ${lumen.name} peut compléter (dates des canaux, identifiant de nœud, IP), mais ne connaît ni l'identité ni les paiements au-delà du saut suivant.`,
         },
         {
           id: 'o5', type: 'tx', points: 10,
@@ -231,14 +245,35 @@ export const btcLightningCashout: ScenarioTemplate = {
           explanation: `${dep.tx.hash.slice(0, 16)}… envoie ${btc(depValue)} (${fmtSat(sats(depValue))} sats) depuis ${A(w, C1)}, le ${fmtDate(dep.tx.time)}, vers ${A(w, dep.deposit)}. Montant au satoshi près et heure identiques à la ligne du fichier : le compte ${acct} appartient bien au détenteur de l'ordinateur.`,
         },
         {
-          id: 'o6', type: 'address', points: 15,
+          id: 'o4', type: 'entity', points: 12,
+          prompt: 'Quel prestataire faut-il requérir pour obtenir l\'identité du titulaire du compte décrit dans le fichier d\'export et l\'historique complet de ses paiements ?',
+          answer: ['voltpocket'],
+          hint: 'Rapprochez la ligne « dépôt_onchain » du fichier d\'une transaction on-chain du suspect (montant et heure), puis regardez qui contrôle l\'adresse de destination.',
+          explanation: `Le dépôt du fichier correspond au versement des fonds de la fermeture coopérative sur une adresse de dépôt ${vp.entity.name}, balayée vers son portefeuille chaud. ${vp.entity.name} est un portefeuille Lightning custodial : contrairement au fournisseur de liquidité, il tient un registre de chaque paiement (facture, hash, date, montant) et des connexions. ${procedureFor(vp.entity)} ${lumen.name} peut compléter (dates des canaux, identifiant de nœud, IP), mais ne connaît ni l'identité ni les paiements au-delà du saut suivant.`,
+        },
+        {
+          id: 'o11', type: 'number', points: 10, tolerance: 0, unit: 'sats',
+          prompt: 'D\'après le fichier d\'export, combien de satoshis le compte a-t-il reçus au total par Lightning (hors dépôt on-chain) ?',
+          answer: lnIn.reduce((s, x) => s + x.sats, 0),
+          hint: 'Dans le relevé, additionnez uniquement les lignes « ln_reçu » ; le dépôt on-chain est une ligne à part.',
+          explanation: `${lnIn.length} paiements Lightning reçus pour ${fmtSat(lnIn.reduce((s, x) => s + x.sats, 0))} sats. Ils tombent pendant que les deux canaux sont ouverts et totalisent à peu près la différence entre la capacité engagée et ce que le suspect récupère à la fermeture : le suspect s'est payé lui-même, à travers le fournisseur de liquidité, sur son propre compte custodial. Aucun de ces paiements n'est visible on-chain : seul le relevé (et le registre du service) les établit.`,
+        },
+        {
+          id: 'o12', type: 'number', points: 10, tolerance: 1, unit: 'sats',
+          prompt: 'D\'après le fichier d\'export, quel solde (en satoshis) reste sur le compte custodial après le retrait on-chain ?',
+          answer: balanceSat - wSat,
+          hint: 'Solde = dépôt on-chain + paiements reçus − paiements envoyés − retrait on-chain, ligne par ligne.',
+          explanation: `${fmtSat(sats(depValue))} (dépôt) + ${fmtSat(lnIn.reduce((s, x) => s + x.sats, 0))} (reçus) − ${fmtSat(lnOut.reduce((s, x) => s + x.sats, 0))} (dépenses) − ${fmtSat(wSat)} (retrait) = ${fmtSat(balanceSat - wSat)} sats, soit ${btc((balanceSat - wSat) / SAT)}. Contrairement à ce que déclare le suspect (« il ne reste rien »), ce solde est toujours détenu par le prestataire pour son compte : il doit figurer dans la réquisition, avec une demande de gel conservatoire, selon la voie de coopération applicable.`,
+        },
+        {
+          id: 'o6', type: 'address', points: 12,
           prompt: 'Sur quelle adresse le retrait on-chain mentionné dans le fichier d\'export a-t-il été versé ?',
           answer: [W],
           hint: `Cherchez, parmi les paiements du portefeuille chaud du service, celui qui correspond au montant et à l'heure du retrait. Le corrélateur (sans filtre d'émetteur, chaîne Bitcoin, fenêtre courte, tolérance faible) fonctionne aussi.`,
           explanation: `Le ${fmtDate(wTx.time)}, le portefeuille chaud de ${vp.entity.name} verse ${btc(wSat / SAT)} (${fmtSat(wSat)} sats) à ${A(w, W)}. D'autres clients reçoivent des montants voisins le même jour, mais un seul correspond au satoshi et à la minute. Les fonds y sont toujours : surveillance de l'adresse et saisie à envisager (la clé est sur les supports du suspect, ce qui contredit sa déclaration « il ne reste rien »).`,
         },
         {
-          id: 'o7', type: 'choice', points: 15,
+          id: 'o7', type: 'choice', points: 10,
           prompt: 'Dans ce dossier, qu\'est-ce que la blockchain Bitcoin ne permet pas de voir ?',
           ...choice(r,
             'Les paiements faits dans les canaux : leurs montants, leurs dates et leurs destinataires',
@@ -247,6 +282,7 @@ export const btcLightningCashout: ScenarioTemplate = {
               'Les adresses où le suspect a récupéré ses fonds à la fermeture des canaux',
               'Le montant revenu au fournisseur de liquidité lors de chaque fermeture',
             ]),
+          hint: 'Reprenez ce que vous avez établi sur le graphe (ouvertures, fermetures, récupérations), puis ce que seul le fichier d\'export vous a appris.',
           explanation: `Ouvertures, capacités, fermetures, répartition finale et adresses de récupération sont visibles on-chain. Les paiements dans les canaux, eux, sont hors chaîne et routés en oignon : seuls les prestataires qui les voient passer (portefeuille custodial du destinataire, nœuds de routage pour le saut suivant) en gardent une trace. D'où l'importance des réquisitions et de l'exploitation des supports (fichier d'export, base de données du nœud ou de l'application).`,
         },
       ],
@@ -258,10 +294,10 @@ export const btcLightningCashout: ScenarioTemplate = {
         addresses: [S, S2, S3, S4, ch1.funding, ch2.funding, C1, C2, dep.deposit, W, fc.delayed],
         debrief:
           `1. ${nV} victimes paient au total ${btc(totalVictims)} sur ${A(w, S)}.\n` +
-          `2. À mi-campagne, ${btc(cap1)} servent à ouvrir un canal avec ${lumen.name} ; plus tard, le reste est regroupé et ouvre un second canal de ${btc(cap2)}.\n` +
+          `2. À mi-campagne, ${btc(cap1)} servent à ouvrir un canal avec ${lumen.name} ; plus tard, le reste est regroupé et ouvre un second canal de ${btc(cap2)} (regroupement sur ${A(w, S3)}).\n` +
           `3. Hors chaîne, le suspect paie ${lnIn.length} factures émises par son propre compte ${vp.entity.name} (${acct}) pour ${fmtSat(lnIn.reduce((s, x) => s + x.sats, 0))} sats, puis dépense une partie de ce compte en cartes cadeaux et services. Rien de tout cela n'apparaît on-chain.\n` +
           `4. Le premier canal est fermé de façon coopérative (${btc(c1Value)} pour le suspect) ; le second est fermé de force par le suspect (${btc(c2Value)} récupérés après le délai).\n` +
-          `5. Les fonds de la fermeture coopérative sont déposés on-chain sur le compte ${vp.entity.name}, qui verse enfin ${btc(wSat / SAT)} sur ${A(w, W)}, où ils dorment encore.\n\n` +
+          `5. Les fonds de la fermeture coopérative sont déposés on-chain sur le compte ${vp.entity.name}, qui verse enfin ${btc(wSat / SAT)} sur ${A(w, W)}, où ils dorment encore. D'après le relevé, ${fmtSat(balanceSat - wSat)} sats restent en outre sur le compte custodial : deux cibles de gel et de saisie, contrairement à « il ne reste rien ».\n\n` +
           `À retenir : Lightning n'efface pas tout. Les entrées et sorties du réseau sont des transactions Bitcoin ordinaires, reconnaissables à leur structure (sortie P2WSH, ancres, délais). Ce qui se passe entre les deux est invisible on-chain, mais pas forcément perdu : les prestataires custodiaux tiennent des registres, et les supports saisis (exports, bases de données de nœud) en contiennent souvent une copie. L'identification d'un canal reste une présomption tant qu'elle n'est pas confirmée par la fermeture, l'attribution du pair ou une réquisition.`,
       },
       hints: [
@@ -269,6 +305,7 @@ export const btcLightningCashout: ScenarioTemplate = {
         'Suivez chaque sortie de canal jusqu\'à sa dépense : une ou deux sorties ordinaires sans délai = fermeture coopérative ; sortie à délai et ancres de 330 sats = fermeture forcée.',
         'Le fichier d\'export ne nomme pas le service : rapprochez ses lignes on-chain (montant en sats, heure UTC) des transactions du suspect.',
         'Le retrait final est payé par le portefeuille chaud du service : cherchez le paiement exact au satoshi près, à la minute indiquée.',
+        'Le relevé d\'opérations est un livre de compte : en additionnant ses lignes, on reconstitue ce qui est passé par Lightning et ce qui reste chez le prestataire.',
       ],
     }
   },

@@ -18,7 +18,7 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
   difficulty: 3,
   chains: ['eth', 'tron'],
   skills: ['evm', 'tokens', 'tron', 'crosschain', 'exchange_id', 'requisition'],
-  estMinutes: 35,
+  estMinutes: 60,
   lessons: ['forensique-supports', 'portefeuilles-hd', 'echangeurs-instantanes', 'tron-usdt', 'dab-cash-p2p', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -97,8 +97,13 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
     const o1 = cn.order({ from: acc4, value: m1, asset: 'USDT', time: tO1, toChain: 'tron', toAsset: 'USDT', recipient: tApp, delayMin: [8, 35], decoys: r.int(4, 7) })
     const tF2 = pays[nV - 1].time + Math.round(r.float(4, 16) * HOUR)
     const m2 = sweepTo4(tF2)
+    // Erreur de cloisonnement : une « part » quitte le compte de regroupement vers le compte « Perso »
+    const cut = Math.max(100, r100(m2 * r.float(0.06, 0.12)))
+    const persoTx = w.transfer({ time: tF2 + Math.round(r.float(0.6, 1.6) * HOUR), from: acc4, to: acc1, value: cut, asset: 'USDT' })
     const tO2 = tF2 + Math.round(r.float(2, 8) * HOUR)
-    const o2 = cn.order({ from: acc4, value: m2, asset: 'USDT', time: tO2, toChain: 'tron', toAsset: 'USDT', recipient: tApp, delayMin: [8, 35], decoys: r.int(4, 7) })
+    const o2 = cn.order({ from: acc4, value: roundAsset('USDT', m2 - cut), asset: 'USDT', time: tO2, toChain: 'tron', toAsset: 'USDT', recipient: tApp, delayMin: [8, 35], decoys: r.int(4, 7) })
+    // Le compte « Perso » dépose cette part sur la plateforme qui a fourni l'ETH du compte principal
+    const persoDep = fundEx.receive(acc1, cut, persoTx.time + Math.round(r.float(20, 80) * HOUR), { asset: 'USDT', sweepDelayH: r.float(0.3, 3) })
     // Autres clients de l'échangeur (dépôts USDT sur Ethereum)
     for (let i = 0; i < r.int(4, 6); i++) {
       const toChain = r.pick(['tron', 'btc'] as const)
@@ -132,6 +137,7 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
     const priceEur = (0.9 + r.int(0, 4) / 100).toFixed(2).replace('.', ',')
     const hidden = [acc2, acc3, acc4]
     const nOnAcc2 = pays.filter((p) => p.to === acc2).length
+    const fundName = fundEx.entity.name
 
     return {
       world: w,
@@ -139,7 +145,7 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
       briefing:
         `Une fausse plateforme de trading, « ${platform} », a démarché des épargnants par téléphone : après un premier « investissement » modeste et des gains fictifs affichés sur le site, les victimes étaient incitées à verser des montants croissants en USDT (réseau Ethereum) sur des « adresses de dépôt » communiquées par leur gestionnaire de compte.\n\n` +
         `${sp.name}, ${ge('soupçonné', 'soupçonnée')} d'être l'un de ces gestionnaires, a été ${ge('interpellé', 'interpellée')} à ${city}. Son téléphone a été placé sous scellé et exploité par la cellule d'appui numérique. L'application de portefeuille ne montre que deux comptes Ethereum et une adresse Tron, sans lien apparent avec les versements des victimes.\n\n` +
-        `Exploitez les pièces issues du téléphone : identifiez les comptes réellement contrôlés, suivez les fonds jusqu'à Tron et jusqu'à leur revente, et désignez la plateforme à requérir. Gardez à l'esprit ce que chaque élément prouve… et ce qu'il ne prouve pas.`,
+        `Exploitez les pièces issues du téléphone : identifiez les comptes réellement contrôlés, chiffrez les versements, suivez les fonds jusqu'à Tron et jusqu'à leur revente, vérifiez que le compte « Perso » est resté étanche, et désignez les plateformes à requérir. Gardez à l'esprit ce que chaque élément prouve… et ce qu'il ne prouve pas.`,
       evidence: [
         {
           id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: victimPay.time + Math.round(r.float(10, 30) * DAY), author: complainant.name,
@@ -182,28 +188,62 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
       seeds: [],
       objectives: [
         {
-          id: 'o1', type: 'addresses', points: 20,
+          id: 'o1', type: 'addresses', points: 12,
           prompt: 'Sélectionnez les comptes Ethereum issus de la phrase de récupération qui ont été utilisés mais n\'apparaissent pas dans l\'application de portefeuille.',
           answer: hidden,
           hint: 'La mention « seed de démonstration … » dans les notes ouvre l\'outil « Dérivation HD » : comparez les comptes dérivés utilisés avec la liste de l\'application.',
           explanation: `La dérivation (m/44'/60'/0'/0/i) donne ${sk.accounts.length} comptes utilisés. Les deux premiers sont ceux de l'application ; les trois suivants (${hidden.map((a) => A(w, a)).join(', ')}) n'y figurent pas : la note précise qu'ils sont gérés depuis une extension de navigateur sur un ordinateur. Deux reçoivent les versements des victimes, le troisième les regroupe.`,
         },
         {
-          id: 'o2', type: 'number', points: 10, tolerance: 0, unit: 'versements',
+          id: 'o2', type: 'number', points: 8, tolerance: 0, unit: 'versements',
           prompt: 'Combien de versements de victimes (en USDT) ces comptes ont-ils reçus ?',
           answer: nV,
           hint: 'Comptez les transferts d\'USDT entrants sur les comptes qui servent d\'« adresses de dépôt ». Les envois d\'ETH (frais de gas) ne sont pas des versements.',
           explanation: `${nV} versements pour ${usdt(totalVictims)} : ${nOnAcc2} sur ${A(w, acc2)} et ${nV - nOnAcc2} sur ${A(w, acc3)}. Une seule victime a porté plainte à ce stade : les autres sont à identifier, notamment par réquisition à la plateforme d'où proviennent leurs USDT.`,
         },
         {
-          id: 'o3', type: 'tx', points: 15,
+          id: 'o10', type: 'amount', points: 10, unit: 'USDT', tolerance: 0.005,
+          prompt: 'Quel montant total d\'USDT les victimes ont-elles versé sur ces comptes ?',
+          answer: totalVictims,
+          hint: 'Additionnez les transferts d\'USDT entrants sur les deux comptes qui servent d\'« adresses de dépôt », sans compter les mouvements internes vers le compte de regroupement.',
+          explanation: `${usdt(totalVictims)} en ${nV} versements, entre le ${fmtDate(pays[0].time, false)} et le ${fmtDate(pays[nV - 1].time, false)}. C'est l'assiette du préjudice établi à ce stade. Chaque adresse émettrice a été alimentée peu avant par un retrait Coinhouse : une réquisition à la plateforme permettra d'identifier les clients concernés, donc d'autres victimes, et de recueillir leurs plaintes.`,
+        },
+        {
+          id: 'o8', type: 'tx', points: 10,
+          prompt: 'La note « ne jamais mélanger avec le perso » n\'a pas été respectée : quelle transaction fait passer des fonds des victimes vers le compte « Perso » ?',
+          answer: [persoTx.id],
+          hint: 'Ouvrez l\'historique du compte « Perso » affiché dans l\'application : en dehors de l\'ETH reçu du compte principal et d\'un swap, une entrée d\'USDT provient d\'un compte issu de la phrase.',
+          explanation: `Le ${fmtDate(persoTx.time)}, peu après le second regroupement, le compte de regroupement ${A(w, acc4)} envoie ${usdt(cut)} au compte « Perso » ${A(w, acc1)} (transaction ${persoTx.hash.slice(0, 16)}…). Ces USDT proviennent directement des versements des victimes. C'est une rupture de cloisonnement : le compte que l'utilisateur gardait « propre » reçoit désormais le produit de l'escroquerie.`,
+        },
+        {
+          id: 'o9', type: 'address', points: 10,
+          prompt: 'Sur quelle adresse de dépôt d\'exchange le compte « Perso » a-t-il ensuite envoyé ces USDT ?',
+          answer: [persoDep.deposit],
+          hint: 'Suivez la sortie d\'USDT du compte « Perso » : l\'adresse de destination est étiquetée comme adresse de dépôt et balayée vers un hot wallet.',
+          explanation: `Le ${fmtDate(persoDep.tx.time)}, ${A(w, acc1)} dépose ${usdt(cut)} sur ${A(w, persoDep.deposit)}, adresse de dépôt ${fundName}, balayée ensuite vers le hot wallet de la plateforme. C'est la même plateforme que celle d'où provient l'ETH du compte principal (retrait du ${fmtDate(fundTx.time, false)}) : deux flux convergent vers un compte client vraisemblablement ouvert au nom de l'utilisateur. ${procedureFor(fundEx.entity)}`,
+        },
+        {
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Pourquoi ce passage par le compte « Perso » pèse-t-il dans l\'imputation des faits ?',
+          hint: 'Qu\'apporte un compte client chez une plateforme à KYC par rapport à la seule dérivation de la phrase ?',
+          ...choice(r,
+            'Il relie le produit des versements à un compte affiché dans le téléphone puis à un compte client KYC, ce qui renforce le faisceau d\'imputation',
+            [
+              'Il prouve à lui seul que le détenteur du téléphone a organisé toute l\'escroquerie',
+              'Il est sans portée : un transfert entre deux comptes de la même phrase est un mouvement interne neutre',
+              'Il autorise à saisir sans autre formalité tous les avoirs du compte client sur la plateforme',
+            ]),
+          explanation: `Jusqu'ici, le lien entre les comptes « cachés » et l'utilisateur reposait sur la phrase et sur la conversion vers l'adresse Tron du téléphone. Le transfert vers « Perso », compte configuré dans l'application, puis le dépôt chez ${fundName}, ajoutent un point d'ancrage régulé : la plateforme connaît l'identité, les IP et l'IBAN du titulaire. C'est un élément de plus dans le faisceau, pas une preuve autonome de la direction de l'escroquerie ; et toute mesure sur le compte (gel, saisie) passe par une réquisition et une décision de l'autorité judiciaire.`,
+        },
+        {
+          id: 'o3', type: 'tx', points: 10,
           prompt: 'Identifiez une transaction par laquelle le produit de la conversion des USDT Ethereum arrive sur Tron.',
           answer: [o1.payoutTx.id, o2.payoutTx.id],
           hint: 'Le compte qui regroupe les fonds les dépose chez un échangeur instantané. Corrélateur : émetteur ChangeNOW, chaîne Tron, à partir de l\'heure du dépôt, fenêtre d\'environ 1 h, tolérance de quelques %.',
           explanation: `Deux commandes ChangeNOW : ${usdt(w.flowIn(o1.depositTx, o1.deposit)[0].value)} déposés le ${fmtDate(o1.depositTx.time)}, payés ${usdt(p1)} sur ${A(w, tApp)} ${Math.round((o1.payoutTx.time - o1.depositTx.time) / 60)} min plus tard ; puis ${usdt(w.flowIn(o2.depositTx, o2.deposit)[0].value)} payés ${usdt(p2)}. L'adresse bénéficiaire est celle de l'application du téléphone : la conversion relie les comptes « cachés » à l'appareil. Les autres paiements de ChangeNOW dans la même fenêtre vont à d'autres clients.`,
         },
         {
-          id: 'o4', type: 'amount', points: 15, unit: 'USDT', tolerance: 0.005,
+          id: 'o4', type: 'amount', points: 10, unit: 'USDT', tolerance: 0.005,
           prompt: 'Quel montant total d\'USDT a été remis à l\'acheteur de gré à gré ?',
           answer: sold,
           hint: 'Ne vous fiez pas aux montants annoncés dans la conversation : relevez les transferts réellement envoyés depuis l\'adresse Tron du téléphone vers l\'adresse donnée par l\'acheteur.',
@@ -217,7 +257,14 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
           explanation: `${usdt(rest)} sont déposés le ${fmtDate(cashDep.tx.time)} sur une adresse de dépôt ${cashEx.entity.name} (« le reste je le mets sur mon compte »). Indice convergent : les TRX de frais de cette même adresse Tron proviennent d'un retrait ${cashEx.entity.name} (${fmtDate(trxTx.time, false)}). Réquisition : identité, IP, IBAN de retrait, solde, avec demande de blocage. ${procedureFor(cashEx.entity)}`,
         },
         {
-          id: 'o6', type: 'choice', points: 15,
+          id: 'o11', type: 'amount', points: 10, unit: 'USDT', tolerance: 0.005,
+          prompt: 'Quel montant d\'USDT le reliquat déposé sur cette plateforme représente-t-il (montant susceptible d\'être bloqué sur le compte client) ?',
+          answer: rest,
+          hint: 'C\'est la dernière sortie de l\'adresse Tron du téléphone, vers une adresse de dépôt : relevez son montant.',
+          explanation: `${usdt(rest)} déposés le ${fmtDate(cashDep.tx.time)} sur ${A(w, cashDep.deposit)}. Ce montant est désormais sous la garde de ${cashEx.entity.name} : s'il n'a pas été converti et retiré, une demande de gel sur le compte client peut le préserver. La réquisition cite l'adresse de dépôt, le hash du dépôt et la période ; elle demande aussi l'historique des retraits (IBAN) pour savoir si les fonds sont déjà sortis.`,
+        },
+        {
+          id: 'o6', type: 'choice', points: 10,
           prompt: 'Quelle pratique garantit l\'exploitabilité de cette extraction devant la juridiction ?',
           ...choice(r,
             'Isoler l\'appareil du réseau, extraire avec un outil validé, calculer l\'empreinte et analyser une copie',
@@ -229,7 +276,7 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
           explanation: `L'isolement (mode avion, pochette ou cage de Faraday) empêche toute modification ou tout effacement à distance ; l'outil validé et l'empreinte (hash) de l'image garantissent l'intégrité et la reproductibilité ; l'analyse se fait sur copie. Manipuler l'application saisie ou laisser l'appareil en ligne modifie les données. Restaurer la phrase n'est pas nécessaire pour lister les comptes (la dérivation suffit) et constitue un acte de disposition à réserver à la saisie, sur instruction du magistrat. Tout acte sur le support est décrit au procès-verbal.`,
         },
         {
-          id: 'o7', type: 'choice', points: 15,
+          id: 'o7', type: 'choice', points: 12,
           prompt: 'Que démontre le fait que ces comptes dérivent de la phrase trouvée dans le téléphone ?',
           ...choice(r,
             'Qu\'ils relèvent d\'une même phrase ; leur imputation au détenteur reste à étayer',
@@ -245,13 +292,13 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
         path: [
           fundTx.id, ...pays.map((p) => p.tx.id), ...gasTxs.map((x) => x.id), ...fwdTxs.map((x) => x.id),
           o1.depositTx.id, o1.payoutTx.id, o2.depositTx.id, o2.payoutTx.id, trxTx.id, deal1.id, deal2.id, cashDep.tx.id, ...(cashDep.sweep ? [cashDep.sweep.id] : []),
-          toAcc1.id, persoSwap.tx.id,
+          toAcc1.id, persoSwap.tx.id, persoTx.id, persoDep.tx.id, ...(persoDep.sweep ? [persoDep.sweep.id] : []),
         ],
-        addresses: [acc2, acc3, acc4, acc0, acc1, tApp, buyer, o1.deposit, o2.deposit, cashDep.deposit],
+        addresses: [acc2, acc3, acc4, acc0, acc1, tApp, buyer, o1.deposit, o2.deposit, cashDep.deposit, persoDep.deposit],
         debrief:
           `1. Le compte principal ${A(w, acc0)} est alimenté en ETH par un retrait ${fundEx.entity.name} ; il finance le compte « Perso » et, surtout, les frais de gas des comptes 3, 4 et 5 de la même phrase.\n` +
           `2. ${nV} victimes versent ${usdt(totalVictims)} sur ${A(w, acc2)} et ${A(w, acc3)}, présentés comme des « adresses de dépôt » de la plateforme.\n` +
-          `3. Les USDT sont regroupés sur ${A(w, acc4)}, puis convertis en deux fois chez ChangeNOW en USDT-TRC20, payés sur l'adresse Tron de l'application (${usdt(p1)} et ${usdt(p2)}).\n` +
+          `3. Les USDT sont regroupés sur ${A(w, acc4)}, puis convertis en deux fois chez ChangeNOW en USDT-TRC20, payés sur l'adresse Tron de l'application (${usdt(p1)} et ${usdt(p2)}). Entre les deux, ${usdt(cut)} partent vers le compte « Perso », qui les dépose chez ${fundName} : l'erreur de cloisonnement que la note voulait éviter.\n` +
           `4. ${usdt(sold)} sont revendus à @${buyerHandle} contre des espèces (deux remises), et ${usdt(rest)} sont déposés chez ${cashEx.entity.name}.\n\n` +
           `À retenir : l'application d'un téléphone ne montre que ce que l'utilisateur y a configuré. Une phrase de récupération découverte lors de l'exploitation permet de dériver tous les comptes (ici, trois comptes absents de l'application), sans la restaurer dans un portefeuille. L'extraction doit être conduite dans les règles (isolement, outil validé, empreinte, copie) et chaque conclusion présentée à sa juste force : la dérivation prouve le lien entre la phrase et les comptes ; l'imputation à une personne repose sur un faisceau d'éléments.`,
       },
@@ -260,6 +307,7 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
         'Comparez les comptes dérivés utilisés avec la liste de l\'application : ceux qui manquent sont gérés depuis un autre appareil.',
         'Le compte qui regroupe les USDT les envoie chez un échangeur instantané : corrélez sur Tron (USDT) à partir de l\'heure du dépôt.',
         'Pour la revente, comparez la conversation Telegram aux transferts réels : seule la blockchain fait foi sur les montants.',
+        'Le compte « Perso » de l\'application n\'est pas resté étanche : examinez ses entrées et sorties d\'USDT.',
       ],
     }
   },

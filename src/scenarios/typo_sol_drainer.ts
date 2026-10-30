@@ -40,7 +40,7 @@ export const solDrainer: ScenarioTemplate = {
   difficulty: 2,
   chains: ['sol'],
   skills: ['evm', 'tokens', 'dex', 'typologies', 'exchange_id', 'requisition'],
-  estMinutes: 20,
+  estMinutes: 40,
   lessons: ['drainers-approvals', 'solana', 'stablecoins', 'gel-stablecoins', 'exchanges'],
   generate(seed) {
     const w = new World(seed)
@@ -162,7 +162,8 @@ export const solDrainer: ScenarioTemplate = {
 
     // ── Synthèse ─────────────────────────────────────────────────────────────
     const opFromCampaign = usd('SOL', stolenSol * (1 - affPct / 100)) + stolenUsdc * (1 - affPct / 100)
-    const opHeld = w.balanceOf(operator, 'USDC')
+    const opHeld = usdc(w.balanceOf(operator, 'USDC'))
+    const opHeldSol = sol(w.balanceOf(operator, 'SOL'))
     const destName = dest.entity.name
     const vLoss = usd('SOL', vd.sol) + vd.usdc
     const domain = `${project.name.toLowerCase().replace(/[^a-z]/g, '')}-claim.example`
@@ -173,7 +174,7 @@ export const solDrainer: ScenarioTemplate = {
       briefing:
         `${victimP.name}, demeurant à ${city}, dépose plainte : en voulant récupérer un airdrop annoncé pour le projet « ${project.name} », ${g('il', 'elle')} a connecté son portefeuille Solana à un site et validé une transaction présentée comme « ${project.claim} ». Quelques secondes plus tard, ses SOL et ses USDC avaient disparu.\n\n` +
         `Le site est un « drainer » : la transaction signée ne réclamait aucun airdrop, elle transférait le contenu du portefeuille. Ces kits sont loués à des « affiliés » qui mènent les campagnes de phishing ; l'opérateur du kit prélève une commission sur chaque vol.\n\n` +
-        `Objectifs : identifier l'adresse du drainer, comprendre le partage des fonds et repérer l'opérateur du kit, mesurer le préjudice total de la campagne et suivre l'encaissement.`,
+        `Objectifs : identifier l'adresse du drainer et le nombre de victimes, comprendre le partage des fonds, repérer l'opérateur du kit et l'étendue de son activité, mesurer le préjudice total et ce qui reste gelable, puis suivre l'encaissement.`,
       evidence: [
         {
           id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: t0 + DAY, author: victimP.name,
@@ -211,49 +212,90 @@ export const solDrainer: ScenarioTemplate = {
       seeds: [victim],
       objectives: [
         {
-          id: 'o1', type: 'address', points: 15,
+          id: 'o1', type: 'address', points: 9,
           prompt: 'Quelle est l\'adresse du drainer, qui reçoit les fonds des victimes ?',
           answer: [drainer],
           hint: 'Ouvrez la transaction citée par la victime : elle en est la signataire, mais le destinataire des transferts est le drainer.',
           explanation: `${A(w, drainer)} reçoit les SOL et les USDC de ${victims.length} portefeuilles, chacun vidé par une transaction signée par la victime elle-même.`,
         },
         {
-          id: 'o2', type: 'number', points: 15, unit: '%', tolerance: 1,
-          prompt: 'Quelle part de chaque vol (en %) revient à l\'affilié ?',
-          answer: affPct,
-          hint: 'Chaque vol est suivi, quelques secondes plus tard, d\'une transaction de répartition vers deux adresses : rapportez la plus grosse part au total.',
-          explanation: `Chaque transaction de répartition envoie ${affPct} % des SOL et des USDC volés à ${A(w, affiliate)} et ${100 - affPct} % à ${A(w, operator)}. Par exemple, pour ${victimP.name} : ${amt(vd.split.transfers[0].value, 'SOL')} contre ${amt(vd.split.transfers[1].value, 'SOL')}.`,
+          id: 'o9', type: 'number', points: 9, tolerance: 0, unit: 'victimes',
+          prompt: 'Combien de portefeuilles distincts (plaignant compris) ont été vidés par le drainer de la campagne ?',
+          answer: victims.length,
+          hint: 'Comptez les expéditeurs distincts des transactions entrantes de l\'adresse du drainer : chacune est signée par sa victime.',
+          explanation: `${victims.length} portefeuilles, chacun vidé par une transaction « ${project.claim} » signée par la victime elle-même, entre le ${fmtDate(Math.min(...drains.map((x) => x.tx.time)), false)} et le ${fmtDate(Math.max(...drains.map((x) => x.tx.time)), false)}. Tous avaient été alimentés par un retrait d'exchange : leurs titulaires sont identifiables par réquisition à ces plateformes, pour être informés et entendus. Le nombre de victimes pèse dans la qualification (escroquerie en bande organisée, selon les éléments réunis) et dans la priorité donnée au dossier.`,
         },
         {
-          id: 'o3', type: 'address', points: 15,
-          prompt: 'Quelle adresse appartient à l\'opérateur du kit ?',
-          answer: [operator],
-          hint: 'Des deux bénéficiaires de la répartition, l\'un reçoit aussi des commissions d\'autres drainers.',
-          explanation: `${A(w, operator)} reçoit la petite part de chaque vol de la campagne (≈ ${usd0(opFromCampaign)}), mais aussi celle de ${otherDrainers.length} autres adresses de drainer, sans lien avec cette campagne : c'est la signature de l'opérateur du kit, rémunéré par tous ses affiliés. L'autre bénéficiaire ne reçoit que de ce drainer : c'est l'affilié.`,
-        },
-        {
-          id: 'o4', type: 'amount', points: 15, unit: 'USD', tolerance: 0.02,
+          id: 'o4', type: 'amount', points: 10, unit: 'USD', tolerance: 0.02,
           prompt: 'Quel est le préjudice total de la campagne (en dollars), toutes victimes confondues ?',
           answer: stolenUsd,
           hint: 'L\'adresse du drainer ne reçoit rien d\'autre que les fonds volés : son total reçu, SOL et USDC confondus, répond à la question.',
           explanation: `${victims.length} victimes : ${amt(stolenSol, 'SOL')} et ${amt(stolenUsdc, 'USDC')}, soit ${usd0(stolenUsd)} au cours de l'exercice (1 SOL = 158 $). ${g('Seul', 'Seule')} ${victimP.name} a porté plainte à ce stade : les autres victimes sont identifiables par leurs adresses, et parfois par l'exchange qui les avait alimentées.`,
         },
         {
-          id: 'o5', type: 'entity', points: 15,
+          id: 'o2', type: 'number', points: 9, unit: '%', tolerance: 1,
+          prompt: 'Quelle part de chaque vol (en %) revient à l\'affilié ?',
+          answer: affPct,
+          hint: 'Chaque vol est suivi, quelques secondes plus tard, d\'une transaction de répartition vers deux adresses : rapportez la plus grosse part au total.',
+          explanation: `Chaque transaction de répartition envoie ${affPct} % des SOL et des USDC volés à ${A(w, affiliate)} et ${100 - affPct} % à ${A(w, operator)}. Par exemple, pour ${victimP.name} : ${amt(vd.split.transfers[0].value, 'SOL')} contre ${amt(vd.split.transfers[1].value, 'SOL')}.`,
+        },
+        {
+          id: 'o8', type: 'address', points: 9,
+          prompt: 'Quelle adresse reçoit la part de l\'affilié qui a mené la campagne ?',
+          answer: [affiliate],
+          hint: 'Ouvrez une transaction de répartition émise par le drainer : des deux bénéficiaires, l\'affilié reçoit la plus grosse part, et uniquement de ce drainer.',
+          explanation: `${A(w, affiliate)} reçoit ${affPct} % de chaque vol, et rien d'autre que les répartitions de ce drainer : c'est l'adresse de l'affilié. Elle est le point de départ de l'encaissement (conversion sur Raydium, puis dépôts sur un exchange) : c'est elle qui mène à une identité, alors que l'adresse du drainer n'est qu'un réceptacle technique vidé aussitôt.`,
+        },
+        {
+          id: 'o3', type: 'address', points: 10,
+          prompt: 'Quelle adresse appartient à l\'opérateur du kit ?',
+          answer: [operator],
+          hint: 'Des deux bénéficiaires de la répartition, l\'un reçoit aussi des commissions d\'autres drainers.',
+          explanation: `${A(w, operator)} reçoit la petite part de chaque vol de la campagne (≈ ${usd0(opFromCampaign)}), mais aussi celle de ${otherDrainers.length} autres adresses de drainer, sans lien avec cette campagne : c'est la signature de l'opérateur du kit, rémunéré par tous ses affiliés. L'autre bénéficiaire ne reçoit que de ce drainer : c'est l'affilié.`,
+        },
+        {
+          id: 'o11', type: 'number', points: 8, tolerance: 0, unit: 'drainers',
+          prompt: 'Combien d\'autres adresses de drainer, en plus de celle de la campagne, versent une commission à l\'opérateur ?',
+          answer: otherDrainers.length,
+          hint: 'Listez les transactions entrantes de l\'adresse de l\'opérateur et regroupez-les par expéditeur.',
+          explanation: `${otherDrainers.length} autres adresses de drainer (${otherDrainers.map((x) => A(w, x).slice(0, 10) + '…').join(', ')}) versent elles aussi une commission à l'opérateur, avec leur propre taux. Chacune correspond à une autre campagne, donc à d'autres victimes, potentiellement déjà en plainte ailleurs : l'opérateur du kit est le dénominateur commun, et sa mise en cause dépasse ce seul dossier. Ces adresses sont à signaler et à rapprocher des procédures existantes.`,
+        },
+        {
+          id: 'o10', type: 'amount', points: 9, unit: 'USDC', tolerance: 0.01,
+          prompt: 'Quel montant d\'USDC l\'opérateur du kit détient-il encore, susceptible d\'être gelé par l\'émetteur ?',
+          answer: opHeld,
+          hint: 'Ouvrez l\'adresse de l\'opérateur : elle reçoit des commissions et ne dépense rien. Son solde en USDC est le montant gelable.',
+          explanation: `${A(w, operator)} détient ${amt(opHeld, 'USDC')} (et ${amt(opHeldSol, 'SOL')}), accumulés au fil des commissions de cette campagne et des autres drainers du kit. L'USDC est émis par Circle, qui peut geler une adresse sur demande des autorités : c'est le seul actif du dossier gelable sans intermédiaire custodial. Les SOL, actif natif, ne peuvent pas l'être de cette façon.`,
+        },
+        {
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Quelle mesure conservatoire est la plus rapide sur les fonds de l\'opérateur ?',
+          ...choice(r,
+            'Demander à Circle le gel des USDC de l\'adresse de l\'opérateur, en transmettant l\'adresse et les transactions qui fondent la demande',
+            [
+              'Demander à la fondation Solana de geler les SOL de l\'opérateur',
+              'Demander à Raydium d\'annuler le swap de l\'affilié pour restituer les SOL',
+              'Demander à Circle de restituer directement les USDC aux victimes, sans décision judiciaire',
+            ]),
+          hint: 'Quel acteur peut techniquement bloquer un actif sur une adresse non custodiale ? Pour quel actif ?',
+          explanation: `Un émetteur de stablecoin centralisé peut geler les jetons d'une adresse ; aucun acteur ne peut geler un actif natif comme le SOL, et un échange sur un pool décentralisé ne s'annule pas. Le gel préserve les fonds ; leur restitution relève ensuite de la procédure (saisie, décision judiciaire), selon le cadre procédural applicable. La demande à Circle s'accompagne d'éléments précis : adresse, transactions de répartition, lien avec la plainte.`,
+        },
+        {
+          id: 'o5', type: 'entity', points: 9,
           prompt: 'Sur quel exchange l\'affilié a-t-il encaissé sa part ?',
           answer: [destKey],
           hint: 'Suivez l\'adresse de l\'affilié : conversion des SOL en USDC sur Raydium, puis dépôts.',
           explanation: `L'affilié échange ${amt(swapIn, 'SOL')} contre ${amt(sw.amountOut, 'USDC')} sur Raydium, puis dépose ${amt(deposited, 'USDC')} en deux fois sur ${destName}. ${procedureFor(dest.entity)}`,
         },
         {
-          id: 'o6', type: 'address', points: 10,
+          id: 'o6', type: 'address', points: 9,
           prompt: 'Quelle adresse de dépôt faut-il viser dans la réquisition à cet exchange ?',
           answer: [dep],
           hint: 'Ce n\'est pas le hot wallet : c\'est l\'adresse qui reçoit les USDC de l\'affilié avant d\'être balayée.',
-          explanation: `Les deux dépôts arrivent sur ${A(w, dep)}, balayée ensuite vers le hot wallet de ${destName} : cette adresse est rattachée à un compte client unique. Les USDC encore détenus par l'opérateur (${amt(usdc(opHeld), 'USDC')}) peuvent faire l'objet d'une demande de gel auprès de Circle.`,
+          explanation: `Les deux dépôts arrivent sur ${A(w, dep)}, balayée ensuite vers le hot wallet de ${destName} : cette adresse est rattachée à un compte client unique. La réquisition demande le KYC, les connexions et l'historique du compte, avec une demande de gel du solde.`,
         },
         {
-          id: 'o7', type: 'choice', points: 15,
+          id: 'o7', type: 'choice', points: 8,
           prompt: 'Quel conseil de prévention aurait évité ce vol ?',
           ...choice(r,
             'Lire la simulation avant de signer, refuser toute transaction non simulable et utiliser un portefeuille dédié presque vide',
@@ -262,6 +304,7 @@ export const solDrainer: ScenarioTemplate = {
               'Activer la double authentification de son compte d\'exchange, qui protège aussi les portefeuilles auto-hébergés liés',
               'Attendre la confirmation du bloc avant de fermer le site, délai pendant lequel un validateur peut annuler la transaction',
             ]),
+          hint: 'Une transaction confirmée peut-elle être annulée ? Relisez la capture du site : quel avertissement la victime a-t-elle ignoré ?',
           explanation: `Sur une blockchain, une transaction signée et confirmée est définitive : aucun mot de passe, aucun validateur ne peut l'annuler, et la sécurité d'un compte d'exchange ne couvre pas un portefeuille auto-hébergé. La prévention passe par la lecture de l'aperçu de simulation (ici « impossible de simuler »), la méfiance envers les airdrops annoncés par des comptes non officiels et un portefeuille dédié, presque vide, pour interagir avec des sites inconnus. Le domaine ${domain} et le compte @${promo} peuvent être signalés (PHAROS, plateforme du réseau social) pour limiter les nouvelles victimes.`,
         },
       ],
@@ -272,7 +315,8 @@ export const solDrainer: ScenarioTemplate = {
           `1. Le compte @${promo} relaie un faux airdrop « ${project.name} » pointant vers ${domain}, un site motorisé par le kit « ${kitName} ».\n` +
           `2. ${victims.length} victimes, dont ${victimP.name}, signent la transaction « ${project.claim} » : ${amt(stolenSol, 'SOL')} et ${amt(stolenUsdc, 'USDC')} (${usd0(stolenUsd)}) partent vers le drainer ${A(w, drainer)}.\n` +
           `3. Chaque vol est réparti dans la foulée : ${affPct} % pour l'affilié ${A(w, affiliate)}, ${100 - affPct} % pour l'opérateur ${A(w, operator)}, qui perçoit aussi les commissions de ${otherDrainers.length} autres drainers.\n` +
-          `4. L'affilié convertit ses SOL en USDC sur Raydium et dépose ${amt(deposited, 'USDC')} sur ${destName} (${A(w, dep)}).\n\n` +
+          `4. L'affilié convertit ses SOL en USDC sur Raydium et dépose ${amt(deposited, 'USDC')} sur ${destName} (${A(w, dep)}).\n` +
+          `5. L'opérateur conserve ${amt(opHeld, 'USDC')} et ${amt(opHeldSol, 'SOL')} : les USDC sont gelables par Circle.\n\n` +
           `À retenir : dans un vol par drainer, la victime signe elle-même la transaction ; c'est le destinataire qui désigne le drainer. La transaction de répartition révèle l'économie du kit : la part de l'affilié et l'adresse de l'opérateur, reconnaissable aux commissions qu'il reçoit de plusieurs campagnes. Deux leviers rapides : la réquisition à ${destName} sur l'adresse de dépôt de l'affilié, et la demande de gel des USDC détenus par l'opérateur.`,
       },
       hints: [
@@ -280,6 +324,7 @@ export const solDrainer: ScenarioTemplate = {
         'Sur l\'adresse du drainer, chaque entrée est suivie d\'une sortie vers deux adresses : comparez les montants.',
         'Ouvrez les deux bénéficiaires de la répartition et regardez d\'où viennent leurs entrées.',
         'L\'affilié convertit puis dépose : l\'adresse de dépôt est celle qui reçoit avant le balayage vers le hot wallet.',
+        'L\'opérateur ne dépense rien : son solde, en particulier en stablecoin, est ce qui reste à geler.',
       ],
     }
   },

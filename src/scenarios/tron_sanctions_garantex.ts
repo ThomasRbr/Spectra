@@ -62,7 +62,7 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
   difficulty: 3,
   chains: ['tron', 'eth'],
   skills: ['tron', 'tokens', 'typologies', 'exchange_id', 'requisition'],
-  estMinutes: 30,
+  estMinutes: 65,
   lessons: ['exposition-risque', 'attribution-sources', 'blanchiment-pro', 'cooperation-internationale', 'tron-usdt'],
   generate(seed) {
     const w = new World(seed)
@@ -121,7 +121,7 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
       const supplier = legit?.name ?? shell.name
       return {
         kind, amount, payT: times[i], arrival: null, txs: [],
-        supplier, country: legit?.country ?? shell.country, object: legit?.object ?? objects[i],
+        supplier, country: legit?.country ?? shell.country, object: legit?.object ?? objects[i % objects.length],
         no: `${initials(supplier)}-${r.int(1000, 9899)}`,
       }
     })
@@ -233,6 +233,9 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
     const nameU = kitU.entity.name
     const nameT = kitT.entity.name
     const tSignal = w.at(-r.int(3, 8) * 24)
+    // USDT restés sur l'adresse Tron de la société (marges d'achat accumulées)
+    const t0Left = r2(w.balanceOf(T0, 'USDT'))
+    const tether = w.entity('tether')
     const recap = gxInv
       .map((i) => `   • ${i.no} (${i.supplier}) — ${amt(i.amount, 'USDT')} payés, ${amt(i.arrival ?? 0, 'USDT')} crédités chez Garantex (${i.kind === 'gxDirect' ? 'direct' : i.kind === 'gxHop' ? `via ${A(w, T2)}` : `via ${A(w, I1)}, ChangeNOW et ${A(w, T1)}`})`)
       .join('\n')
@@ -243,7 +246,7 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
       briefing:
         `TRACFIN transmet au parquet une note concernant ${company} SAS (${city}), société d'import-export de composants électroniques dirigée par ${manager}. Depuis plusieurs mois, ${g('le gérant', 'la gérante')} achète d'importants volumes d'USDT sur Coinhouse et Bitstamp, retirés vers des portefeuilles auto-hébergés au nom de la société, sur Ethereum et sur Tron.\n\n` +
         `${g('Il', 'Elle')} présente ces achats comme le règlement de fournisseurs asiatiques. Les enquêteurs soupçonnent qu'une partie des paiements finance en réalité, par l'intermédiaire de sociétés-écrans, des livraisons de composants à double usage vers la Russie, en contournement des mesures restrictives de l'Union européenne.\n\n` +
-        `Garantex, exchange russe, est sanctionné par l'OFAC depuis avril 2022 pour son rôle dans le blanchiment (la chronologie de cette affaire est simulée). Objectifs : mesurer l'exposition directe et indirecte de la société à Garantex, identifier les intermédiaires, distinguer les règlements légitimes et calculer le total parvenu à l'entité sanctionnée.`,
+        `Garantex, exchange russe, est sanctionné par l'OFAC depuis avril 2022 pour son rôle dans le blanchiment (la chronologie de cette affaire est simulée). Objectifs : mesurer l'exposition directe et indirecte de la société à Garantex, identifier les intermédiaires et leur financement, distinguer les règlements légitimes, calculer le total parvenu à l'entité sanctionnée et préserver ce qui peut encore l'être.`,
       evidence: [
         {
           id: 'tracfin', type: 'note', title: 'Note d\'information TRACFIN (extrait)', date: tSignal, author: 'TRACFIN',
@@ -280,42 +283,63 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
       seeds: [E0, T0],
       objectives: [
         {
-          id: 'o1', type: 'amount', points: 15, unit: 'USDT', tolerance: 0.01,
+          id: 'o1', type: 'amount', points: 10, unit: 'USDT', tolerance: 0.01,
           prompt: 'Quelle est l\'exposition DIRECTE (un seul saut) de l\'adresse Tron de la société à Garantex, en USDT ?',
           answer: direct.amount,
           hint: 'Onglet Exposition de l\'adresse Tron de la société, sens sortant : lisez la ligne « Entité sanctionnée » dans la colonne directe.',
           explanation: `${A(w, T0)} envoie ${amt(direct.amount, 'USDT')} directement à l'adresse de dépôt Garantex ${A(w, G2)} (facture ${direct.no}) : c'est l'exposition directe. L'outil affiche en plus ${amt(hopTotal, 'USDT')} d'exposition indirecte, passée par ${A(w, T2)} avant d'atteindre la même adresse de dépôt. Le règlement vers ${nameT} (${amt(invoices.find((i) => i.kind === 'legitT')!.amount, 'USDT')}) apparaît en direct dans la catégorie « Exchange centralisé », sans risque particulier.`,
         },
         {
-          id: 'o2', type: 'tx', points: 15,
+          id: 'o11', type: 'tx', points: 8,
+          prompt: `Quelle transaction ERC-20 de l'adresse Ethereum intermédiaire dépose des USDT chez ChangeNOW${nCn > 1 ? ' (l\'une ou l\'autre)' : ''} ?`,
+          answer: cnDeposits.map((t) => t.id),
+          hint: 'Depuis l\'adresse Ethereum de la société, suivez les paiements vers une adresse non attribuée, puis la sortie de celle-ci vers une adresse étiquetée « ChangeNOW — Adresse de dépôt ».',
+          explanation: `${cns.map((i, k) => `${A(w, I1)} reçoit ${amt(i.amount, 'USDT')} de la société (facture ${i.no}) puis les dépose chez ChangeNOW par la transaction ${cnDeposits[k].hash} (${fmtDate(cnDeposits[k].time)})`).join(' ; ')}. Ce hash est l'identifiant de commande à fournir à ChangeNOW pour obtenir les données de la commande (adresse de paiement, horodatages, IP), et le point de départ de la corrélation vers Tron.`,
+        },
+        {
+          id: 'o2', type: 'tx', points: 10,
           prompt: 'L\'adresse Ethereum intermédiaire envoie ses USDT à ChangeNOW. Identifiez une transaction de paiement ChangeNOW sur Tron qui correspond à l\'un de ces dépôts.',
           answer: cnPayouts.map((t) => t.id),
           hint: `Corrélation : émetteur ChangeNOW, chaîne Tron, à partir de l'heure du dépôt ERC-20, fenêtre d'environ 1 h, tolérance de 2 à 3 %. Le candidat retenu doit ensuite alimenter Garantex.`,
           explanation: `${cns.map((i, k) => `Dépôt de ${amt(i.amount, 'USDT')} (ERC-20) chez ChangeNOW (${cnDeposits[k].hash.slice(0, 14)}…), puis ${Math.round((cnPayouts[k].time - cnDeposits[k].time) / 60)} minutes plus tard paiement de ${amt(i.arrival ?? 0, 'USDT')} (TRC-20) à ${A(w, T1)}`).join(' ; ')}. Seul le montant diminué de la commission (1 à 2 %) et le délai relient les deux transactions ; la suite (dépôt immédiat chez Garantex) confirme l'hypothèse.`,
         },
         {
-          id: 'o3', type: 'addresses', points: 15,
+          id: 'o3', type: 'addresses', points: 10,
           prompt: 'Sélectionnez les adresses intermédiaires contrôlées par la filière entre la société et Garantex (hors adresses de services).',
           answer: [T2, I1, T1],
           hint: 'Trois adresses : une sur Tron entre la société et Garantex, une sur Ethereum avant ChangeNOW, une sur Tron après ChangeNOW. Le portefeuille d\'un fournisseur légitime n\'en fait pas partie.',
-          explanation: `${A(w, T2)} (Tron, relais vers Garantex), ${A(w, I1)} (Ethereum, avant ChangeNOW) et ${A(w, T1)} (Tron, après ChangeNOW). ${A(w, T2)} et ${A(w, T1)} reçoivent leurs TRX de frais du même portefeuille ${A(w, N)}, ce qui conforte leur rattachement à un même opérateur. Le portefeuille ${A(w, U)} reçoit des règlements de nombreux clients et dépose chez ${nameU} : c'est celui du fournisseur ${LEGIT[2].name}, pas un intermédiaire.`,
+          explanation: `${A(w, T2)} (Tron, relais vers Garantex), ${A(w, I1)} (Ethereum, avant ChangeNOW) et ${A(w, T1)} (Tron, après ChangeNOW). ${A(w, T2)} et ${A(w, T1)} reçoivent leurs TRX de frais d'un même portefeuille, ce qui conforte leur rattachement à un même opérateur. Le portefeuille ${A(w, U)} reçoit des règlements de nombreux clients et dépose chez ${nameU} : c'est celui du fournisseur ${LEGIT[2].name}, pas un intermédiaire.`,
         },
         {
-          id: 'o4', type: 'number', points: 10,
+          id: 'o8', type: 'address', points: 9,
+          prompt: 'Les deux relais Tron de la filière ont reçu leurs TRX de frais (gas) de la même adresse. Laquelle ?',
+          answer: [N],
+          hint: 'Ouvrez le premier flux entrant (en TRX, avant toute facture) de chacun des deux relais Tron.',
+          explanation: `${A(w, N)} envoie ${amt(gasT1.transfers[0].value, 'TRX')} à ${A(w, T1)} et ${amt(gasT2.transfers[0].value, 'TRX')} à ${A(w, T2)}, avant les premiers paiements de la société. Une adresse Tron sans TRX ne peut pas transférer d'USDT : le financeur de gas commun relie les deux relais à un même opérateur, alors qu'ils ne se sont jamais rien envoyé. C'est un argument d'attribution indépendant des montants, et une nouvelle piste (qui a alimenté ce financeur ?).`,
+        },
+        {
+          id: 'o9', type: 'addresses', points: 9,
+          prompt: 'Sélectionnez les adresses de dépôt Garantex qui ont reçu des fonds issus de la société.',
+          answer: [G1, G2],
+          hint: 'Suivez chaque branche (directe, relais Tron, passage par ChangeNOW) jusqu\'à une adresse étiquetée Garantex ; deux branches convergent.',
+          explanation: `${A(w, G2)} reçoit le paiement direct et le flux relayé par ${A(w, T2)} ; ${A(w, G1)} reçoit le produit des commandes ChangeNOW via ${A(w, T1)}. Deux adresses de dépôt distinctes signifient probablement deux comptes clients Garantex : la filière cloisonne ses circuits, mais chaque compte est documenté avec ses dates et montants dans le signalement.`,
+        },
+        {
+          id: 'o4', type: 'number', points: 9,
           prompt: 'Combien de factures de l\'extrait comptable ont donné lieu à des paiements qui ont abouti chez Garantex ?',
           answer: nGx,
           hint: 'Rapprochez chaque facture du paiement on-chain de même montant, puis suivez ce paiement jusqu\'au bout.',
           explanation: `${nGx} factures sur ${invoices.length}, toutes émises par des sociétés-écrans :\n${recap}\nLes ${invoices.length - nGx} autres (${LEGIT.map((l) => l.name).join(', ')}) aboutissent chez ${nameE}, ${nameT} et ${nameU}.`,
         },
         {
-          id: 'o5', type: 'amount', points: 20, unit: 'USDT', tolerance: 0.005,
+          id: 'o5', type: 'amount', points: 11, unit: 'USDT', tolerance: 0.005,
           prompt: 'Quel montant total d\'USDT issu de la société a été crédité sur des adresses de dépôt Garantex ?',
           answer: totalGx,
           hint: 'Additionnez ce qui arrive réellement sur les adresses de dépôt Garantex, pas les montants facturés : le passage par ChangeNOW coûte une commission.',
           explanation: `${amt(totalGx, 'USDT')} : ${amt(direct.amount + hopTotal, 'USDT')} sur ${A(w, G2)} (direct et via ${A(w, T2)}) et ${amt(cnTotal, 'USDT')} sur ${A(w, G1)} (via ChangeNOW). Les factures correspondantes totalisent ${amt(invoicedGx, 'USDT')} : l'écart de ${amt(r2(invoicedGx - totalGx), 'USDT')} correspond aux commissions de ChangeNOW. Deux adresses de dépôt distinctes signifient probablement deux comptes Garantex. L'outil d'exposition seul aurait manqué ${amt(cnTotal, 'USDT')}.`,
         },
         {
-          id: 'o6', type: 'choice', points: 10,
+          id: 'o6', type: 'choice', points: 8,
           prompt: `La facture ${legitU.no} (${LEGIT[2].name}, ${amt(legitU.amount, 'USDT')}) a été payée vers une adresse non attribuée. Que retenir ?`,
           ...choice(r,
             `Adresse d'un fournisseur réel : elle reçoit de nombreux clients et dépose chez ${nameU} ; flux à vérifier mais non exposé à Garantex`,
@@ -328,7 +352,27 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
           explanation: `${A(w, U)} reçoit des USDT de plusieurs expéditeurs sans lien avec la société, puis les dépose régulièrement sur une même adresse ${nameU} ${A(w, depU)}. C'est le profil d'un portefeuille d'encaissement commercial, cohérent avec un fournisseur établi (sources ouvertes). L'attribution ne se présume pas : une adresse inconnue n'est ni suspecte ni innocente par défaut, et une réquisition à ${nameU} permettra de confirmer le titulaire. Gonfler l'exposition avec ce flux affaiblirait la procédure.`,
         },
         {
-          id: 'o7', type: 'choice', points: 15,
+          id: 'o10', type: 'amount', points: 9, unit: 'USDT', tolerance: 0.01,
+          prompt: 'Quel solde d\'USDT reste actuellement sur l\'adresse Tron de la société ?',
+          answer: t0Left,
+          hint: 'Lisez le solde USDT de l\'adresse Tron déclarée par la société (ou faites le bilan : achats Coinhouse reçus moins paiements émis).',
+          explanation: `${A(w, T0)} détient encore ${amt(t0Left, 'USDT')} : à chaque facture, ${g('le gérant', 'la gérante')} a acheté un peu plus que le montant dû et le surplus s'est accumulé. Ces fonds sont sur un portefeuille auto-hébergé : aucune plateforme ne les détient, mais l'émetteur du jeton peut les bloquer.`,
+        },
+        {
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Comment préserver ce solde d\'USDT avant que la société ne soit alertée ?',
+          ...choice(r,
+            'Demander à Tether, émetteur de l\'USDT, le gel de l\'adresse Tron de la société, puis la saisie selon le cadre procédural applicable',
+            [
+              'Demander à Coinhouse de geler ces USDT, puisqu\'ils proviennent de ses retraits',
+              'Aucune mesure possible : un portefeuille auto-hébergé échappe à tout gel',
+              'Demander à Garantex de restituer les fonds reçus pour compenser le solde',
+            ]),
+          hint: 'Qui garde la main sur un jeton TRC-20, même dans un portefeuille que personne d\'autre ne contrôle ?',
+          explanation: `Une fois retirés, les USDT ne sont plus chez Coinhouse : la plateforme ne peut geler que ce qui reste sur le compte. En revanche, l'émetteur du jeton peut placer l'adresse sur liste noire, ce qui rend les USDT intransférables. ${procedureFor(tether)} Garantex, sanctionné et non coopératif, n'est pas un interlocuteur.`,
+        },
+        {
+          id: 'o7', type: 'choice', points: 9,
           prompt: 'Quelle voie procédurale retenir ?',
           ...choice(r,
             'Documenter l\'exposition pour le parquet et TRACFIN, faire geler les comptes chez Coinhouse et Bitstamp, requérir ChangeNOW ; aucune réquisition à Garantex',
@@ -349,13 +393,15 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
           `2. ${invoices.length - nGx} factures de fournisseurs établis sont réglées vers ${nameE}, ${nameT} et le portefeuille commercial de ${LEGIT[2].name} (qui dépose chez ${nameU}) : flux légitimes en apparence.\n` +
           `3. ${nGx} factures de sociétés-écrans aboutissent chez Garantex :\n${recap}\n` +
           `4. Total crédité chez Garantex : ${amt(totalGx, 'USDT')} (${amt(direct.amount, 'USDT')} d'exposition directe, ${amt(hopTotal, 'USDT')} d'exposition indirecte détectée par l'outil, ${amt(cnTotal, 'USDT')} invisibles sans corrélation à cause du passage ERC-20 → TRC-20 par ChangeNOW).\n` +
-          `5. Les relais ${A(w, T1)} et ${A(w, T2)} partagent le même financeur de TRX ${A(w, N)}.\n\n` +
+          `5. Les relais ${A(w, T1)} et ${A(w, T2)} partagent le même financeur de TRX ${A(w, N)}.\n` +
+          `6. Il reste ${amt(t0Left, 'USDT')} sur l'adresse Tron de la société, gelables par l'émetteur (Tether).\n\n` +
           `À retenir : l'exposition calculée par un outil n'est qu'un point de départ. Elle mesure bien les flux directs et à quelques sauts, mais s'arrête aux services qui coupent la trace (échangeurs instantanés, changement de réseau). À l'inverse, toute adresse inconnue n'est pas un intermédiaire : le rapprochement avec les factures et le comportement des adresses permettent de séparer les règlements légitimes des flux vers l'entité sanctionnée. Garantex ne répond à aucune réquisition : on documente, on signale et on agit sur les prestataires régulés où la société détient ses comptes.`,
       },
       hints: [
         'Commencez par l\'onglet Exposition de l\'adresse Tron de la société : distinguez les sorties directes vers Garantex de celles qui passent par un intermédiaire.',
         'Rapprochez chaque facture d\'un paiement on-chain de même montant : les fournisseurs établis aboutissent sur des exchanges régulés.',
         'Sur Ethereum, l\'intermédiaire envoie ses USDT à ChangeNOW : corrélez sur Tron (USDT, émetteur ChangeNOW) pour retrouver l\'adresse qui alimente Garantex.',
+        'Les relais Tron ont besoin de TRX pour payer leurs frais : leur premier financement révèle un opérateur commun. Pensez aussi au solde restant sur les adresses de la société.',
       ],
     }
   },

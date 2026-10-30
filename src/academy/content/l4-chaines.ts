@@ -557,7 +557,7 @@ Avant de solliciter un gel, identifiez le **contrat exact du jeton** sur la cha�
 const solana: Lesson = {
   id: 'solana',
   title: 'Solana et ses spécificités',
-  level: 4,
+  level: 2,
   track: 'comptes',
   minutes: 35,
   summary:

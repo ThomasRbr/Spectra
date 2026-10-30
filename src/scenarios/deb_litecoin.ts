@@ -1,6 +1,6 @@
 import { World } from '../engine/world'
 import { exchange, HOUR, DAY } from '../engine/patterns'
-import { EUR_USD, fromUsd } from '../engine/chains'
+import { EUR_USD, fromUsd, usd } from '../engine/chains'
 import type { AddrKind } from '../engine/addressgen'
 import type { ScenarioTemplate } from './types'
 import { A, amt, choice, fakeCity, fakePerson, fmtDate, procedureFor } from './util'
@@ -8,7 +8,8 @@ import { A, amt, choice, fakeCity, fakePerson, fmtDate, procedureFor } from './u
 // Chantage par courriel payé en litecoins : la victime paie l'escroc (avec son
 // propre rendu), puis l'escroc regroupe les paiements de plusieurs victimes et
 // en dépose une partie sur un exchange, le reste revenant sur une adresse de
-// rendu du même type que ses entrées.
+// rendu du même type que ses entrées. Quelques jours plus tard, ce rendu sert
+// à acheter des cartes cadeaux chez un commerçant en crypto (second débouché).
 
 const r2 = (v: number) => Math.round(v * 100) / 100
 const r8 = (v: number) => Math.round(v * 1e8) / 1e8
@@ -18,11 +19,11 @@ export const debLitecoin: ScenarioTemplate = {
   title: 'Chantage payé en litecoins',
   tagline: 'Litecoin fonctionne comme Bitcoin : entrées, sorties et rendu.',
   description:
-    'Une victime de chantage par courriel a payé en litecoins (LTC). Retrouvez l\'adresse de l\'auteur dans la transaction de paiement, distinguez le paiement du rendu, puis suivez les fonds jusqu\'à l\'adresse de dépôt d\'un exchange. Litecoin reprend le modèle UTXO de Bitcoin : les mêmes réflexes s\'appliquent.',
+    'Une victime de chantage par courriel a payé en litecoins (LTC). Retrouvez l\'adresse de l\'auteur dans la transaction de paiement, distinguez le paiement du rendu, comptez les autres payeurs, puis suivez les fonds jusqu\'à l\'adresse de dépôt d\'un exchange et jusqu\'au second débouché du rendu. Litecoin reprend le modèle UTXO de Bitcoin : les mêmes réflexes s\'appliquent.',
   difficulty: 1,
   chains: ['ltc'],
   skills: ['lecture_tx', 'utxo', 'change', 'exchange_id'],
-  estMinutes: 15,
+  estMinutes: 30,
   lessons: ['bases-blockchain', 'utxo', 'change-heuristics', 'exchanges'],
   generate(seed) {
     const w = new World(seed)
@@ -35,6 +36,7 @@ export const debLitecoin: ScenarioTemplate = {
     const cv = exchange(w, 'coinhouse', 'ltc')
     const destKey = r.pick(['binance', 'kraken', 'coinbase'] as const)
     const dest = exchange(w, destKey, 'ltc')
+    const shop = w.entity('cardhub')
 
     const victimE = w.customEntity({ name: victimName, category: 'victim' })
     const suspect = w.customEntity({ name: 'Auteur du chantage (inconnu)', category: 'suspect' })
@@ -63,10 +65,11 @@ export const debLitecoin: ScenarioTemplate = {
       w.fund(o, r8(v * r.float(1.05, 1.6)), t - Math.round(r.float(3, 72) * HOUR))
       w.utxoTx({ time: t, from: [o], to: [{ address: s1, value: v }] })
     }
+    const nPayments = nOthers + 1
 
     // ── Dépôt sur l'exchange, rendu vers le portefeuille de l'escroc ─────────
     const tOut = w.at(r.float(60, 90))
-    const total = w.unspentValue(s1, tOut)
+    const total = r8(w.unspentValue(s1, tOut))
     const depValue = Math.floor(total * r.float(0.7, 0.85) * 10) / 10
     const deposit = w.addr('ltc', { entity: dest.entity, label: `${dest.entity.name} — Adresse de dépôt`, tags: ['deposit'], kind: 'p2wpkh' })
     const chg = w.addr('ltc', { entity: suspect, kind: sKind, wallet: w.get(s1).wallet })
@@ -74,12 +77,21 @@ export const debLitecoin: ScenarioTemplate = {
     const sweep = dest.sweep([deposit], tOut + Math.round(r.float(1, 6) * HOUR))[0]
     const kept = r8(out.outputs.find((o) => o.address === chg)?.value ?? 0)
 
+    // ── Le rendu sert ensuite à acheter des cartes cadeaux ──────────────────
+    const shopAddr = w.addr('ltc', { entity: shop, label: `${shop.name} — Adresse de paiement`, kind: 'p2wpkh' })
+    const chg2 = w.addr('ltc', { entity: suspect, kind: sKind, wallet: w.get(s1).wallet })
+    const cardValue = r2(kept * r.float(0.45, 0.7))
+    const cardTx = w.utxoTx({ time: tOut + Math.round(r.float(30, 96) * HOUR), from: [chg], to: [{ address: shopAddr, value: cardValue }], change: chg2 })
+    const kept2 = r8(cardTx.outputs.find((o) => o.address === chg2)?.value ?? 0)
+    const cardEur = Math.round(usd('LTC', cardValue) / EUR_USD)
+
     // ── Bruit de fond ────────────────────────────────────────────────────────
     dest.noise(12, w.at(-3 * 24), w.at(7 * 24))
     cv.noise(8, w.at(-4 * 24), w.at(5 * 24))
 
     const destName = dest.entity.name
     const kindLabel = sKind === 'p2pkh' ? 'commence par « L » (format historique)' : 'commence par « M » (script P2SH)'
+    const reports = r.int(9, 25)
 
     return {
       world: w,
@@ -87,7 +99,7 @@ export const debLitecoin: ScenarioTemplate = {
       briefing:
         `${victimName}, demeurant à ${city}, dépose plainte pour chantage. ${g('Il', 'Elle')} a reçu un courriel affirmant que son ordinateur avait été piraté et que des vidéos intimes seraient envoyées à ses contacts, sauf paiement de ${demandEur.toLocaleString('fr-FR')} € en litecoins. Paniqué${g('', 'e')}, ${g('il', 'elle')} a acheté des LTC sur Coinhouse et payé depuis son portefeuille. Ce type de courriel est envoyé en masse : la menace est en général fictive.\n\n` +
         `Litecoin est une copie adaptée de Bitcoin : modèle UTXO, transactions à entrées et sorties, rendu (change). Seuls les formats d'adresse changent : « ltc1… » (SegWit), « L… » (historique) et « M… » (script).\n\n` +
-        `Votre mission : identifier l'adresse de l'auteur, comprendre la transaction qui alimente l'exchange et préparer la réquisition.`,
+        `Votre mission : identifier l'adresse de l'auteur, mesurer combien de personnes l'ont payée, comprendre la transaction qui alimente l'exchange, suivre ce que devient le rendu de l'auteur et préparer les réquisitions.`,
       evidence: [
         {
           id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: tOut + DAY, author: victimName,
@@ -102,41 +114,85 @@ export const debLitecoin: ScenarioTemplate = {
           body:
             `Courriel non conservé : on part de la transaction de la victime.\n` +
             `Attention, elle comporte deux sorties : l'une est le paiement, l'autre le rendu qui revient au portefeuille de la victime. Ne pas les confondre.\n` +
-            `Même vigilance sur la transaction suivante de l'auteur.`,
+            `Même vigilance sur la transaction suivante de l'auteur, et ne pas s'arrêter à l'exchange : un rendu reste sous le contrôle de l'auteur, il faut voir où il part ensuite.`,
+        },
+        {
+          id: 'osint', type: 'osint', title: 'Recherche en sources ouvertes — texte du courriel', date: tOut + 2 * DAY, author: 'Cellule d\'appui',
+          body:
+            `Le texte décrit par la plaignante (« j'ai piraté votre ordinateur », « vos contacts recevront la vidéo ») correspond à une campagne signalée ${reports} fois ces derniers jours sur un forum d'entraide aux victimes d'arnaques en ligne.\n\n` +
+            `Montants exigés selon les messages : de 300 à 1 200 €, toujours en litecoins. Plusieurs internautes indiquent avoir payé.\n\n` +
+            `Conclusion : envoi en masse ; l'adresse de paiement est probablement commune à de nombreux destinataires.`,
         },
       ],
       seeds: [victim],
       objectives: [
         {
-          id: 'o1', type: 'address', points: 20,
+          id: 'o1', type: 'address', points: 10,
           prompt: 'Quelle est l\'adresse Litecoin de l\'auteur du chantage ?',
           answer: [s1],
           hint: 'Ouvrez la transaction citée dans la plainte : une des deux sorties correspond exactement au montant exigé.',
-          explanation: `La sortie de ${amt(demand, 'LTC')} (le montant exigé) va vers ${A(w, s1)}, qui ${kindLabel}. L'autre sortie, ${A(w, vChange)}, est le rendu de la victime : même type d'adresse que son portefeuille (ltc1…) et montant non rond.`,
+          explanation: `La sortie de ${amt(demand, 'LTC')} (le montant exigé) va vers ${A(w, s1)}, qui ${kindLabel}. L'autre sortie est le rendu de la victime.`,
         },
         {
-          id: 'o2', type: 'address', points: 25,
+          id: 'o6', type: 'address', points: 8,
+          prompt: 'Dans la transaction de paiement de la victime, quelle sortie lui revient (son rendu) ?',
+          answer: [vChange],
+          hint: 'Comparez les deux sorties : format d\'adresse identique à celui de l\'entrée, montant non rond, et ce n\'est pas le montant exigé.',
+          explanation: `${A(w, vChange)} reçoit le reste de l'entrée de ${victimName}, moins les frais. Elle a le même format (ltc1…) que l'adresse de la victime, un montant quelconque, et n'est pas le montant exigé : c'est son rendu, une adresse neuve créée par son propre portefeuille. Elle appartient à la victime, pas à l'auteur : ne pas la traiter comme une piste.`,
+        },
+        {
+          id: 'o7', type: 'number', points: 9, tolerance: 0, unit: 'paiements',
+          prompt: 'Combien de paiements l\'adresse de l\'auteur a-t-elle reçus avant de les regrouper (celui de la victime compris) ?',
+          answer: nPayments,
+          hint: 'Sélectionnez l\'adresse de l\'auteur et ouvrez la liste de ses transactions entrantes ; vous pouvez aussi compter les entrées de la transaction qui la vide.',
+          explanation: `${nPayments} paiements : celui de ${victimName} et ${nOthers} autres, de montants voisins (quelques centaines d'euros en LTC), venant de portefeuilles différents. C'est cohérent avec la recherche en sources ouvertes : le courriel a été envoyé en masse et chaque payeur est une victime potentielle à identifier. La transaction de regroupement a d'ailleurs exactement ${nPayments} entrées : une par paiement reçu (une par UTXO).`,
+        },
+        {
+          id: 'o8', type: 'amount', points: 9, unit: 'LTC', tolerance: 0.01,
+          prompt: 'Quel montant total (en LTC) l\'adresse de l\'auteur a-t-elle reçu ?',
+          answer: total,
+          hint: 'Additionnez tous les paiements entrants de l\'adresse, ou lisez le total reçu dans son résumé.',
+          explanation: `${amt(total, 'LTC')} au total, soit environ ${Math.round(usd('LTC', total) / EUR_USD).toLocaleString('fr-FR')} €. Le préjudice de ${victimName} (${amt(demand, 'LTC')}) n'en est qu'une partie : le montant global sert à mesurer l'ampleur de la campagne et à rapprocher d'autres plaintes.`,
+        },
+        {
+          id: 'o2', type: 'address', points: 10,
           prompt: 'Dans la transaction de l\'auteur qui alimente l\'exchange, quelle sortie est son rendu (change) ?',
           answer: [chg],
           hint: 'Le rendu a le plus souvent le même type d\'adresse que les entrées dépensées, un montant non rond, et ne mène pas à un service étiqueté.',
-          explanation: `La transaction dépense les ${nOthers + 1} paiements reçus par ${A(w, s1)} et crée deux sorties : ${amt(depValue, 'LTC')} (montant rond) vers une adresse « ltc1… » de ${destName}, et ${amt(kept, 'LTC')} vers ${A(w, chg)}. Cette dernière a le même format que l'adresse de l'auteur et un montant quelconque : c'est le rendu, qui reste sous son contrôle.`,
+          explanation: `La transaction dépense les ${nPayments} paiements reçus par ${A(w, s1)} et crée deux sorties : ${amt(depValue, 'LTC')} (montant rond) vers une adresse « ltc1… » de ${destName}, et ${amt(kept, 'LTC')} vers ${A(w, chg)}. Cette dernière a le même format que l'adresse de l'auteur et un montant quelconque : c'est le rendu, qui reste sous son contrôle.`,
         },
         {
-          id: 'o3', type: 'entity', points: 20,
+          id: 'o3', type: 'entity', points: 9,
           prompt: 'Sur quelle plateforme l\'auteur a-t-il déposé des litecoins ?',
           answer: [destKey],
           hint: 'Suivez la sortie qui n\'est pas le rendu : l\'adresse est ensuite balayée avec d\'autres vers un hot wallet étiqueté.',
           explanation: `L'adresse de dépôt ${A(w, deposit)} est balayée vers le hot wallet de ${destName} avec d'autres dépôts clients. ${procedureFor(dest.entity)}`,
         },
         {
-          id: 'o4', type: 'amount', points: 15, unit: 'LTC', tolerance: 0.01,
+          id: 'o4', type: 'amount', points: 9, unit: 'LTC', tolerance: 0.01,
           prompt: 'Combien de LTC ont été crédités sur l\'adresse de dépôt de l\'exchange ?',
           answer: depValue,
+          hint: 'Ouvrez la transaction de regroupement et lisez la sortie qui n\'est pas le rendu.',
           explanation: `${amt(depValue, 'LTC')}. C'est plus que le paiement de ${victimName} : l'adresse de l'auteur a reçu les paiements de ${nOthers} autres destinataires du même courriel, regroupés dans cette transaction.`,
         },
         {
-          id: 'o5', type: 'choice', points: 20,
+          id: 'o9', type: 'entity', points: 10,
+          prompt: 'Quelques jours plus tard, le rendu de l\'auteur est dépensé. Chez quel commerçant ?',
+          answer: [shop.id],
+          hint: 'Sélectionnez l\'adresse de rendu identifiée plus haut et dépliez ses sorties : l\'une d\'elles est étiquetée.',
+          explanation: `Le ${fmtDate(cardTx.time)}, le rendu ${A(w, chg)} paie ${amt(cardValue, 'LTC')} à ${shop.name}, vendeur de cartes cadeaux contre crypto, et renvoie le reste vers une nouvelle adresse de rendu du même format. Acheter des cartes cadeaux est un moyen courant de convertir des cryptos en biens ou en crédit d'achat. ${shop.name} peut connaître une adresse électronique, une IP, voire les cartes émises et l'endroit où elles ont été utilisées : c'est une seconde réquisition, indépendante de l'exchange.`,
+        },
+        {
+          id: 'o10', type: 'amount', points: 9, unit: 'LTC', tolerance: 0.01,
+          prompt: 'Combien de LTC l\'auteur a-t-il versés à ce commerçant ?',
+          answer: cardValue,
+          hint: 'Ouvrez la transaction partie du rendu : lisez la sortie vers l\'adresse étiquetée, pas le nouveau rendu.',
+          explanation: `${amt(cardValue, 'LTC')}, soit environ ${cardEur.toLocaleString('fr-FR')} € au cours de référence. Le reste (${amt(kept2, 'LTC')}) part vers ${A(w, chg2)}, nouveau rendu de l'auteur, à surveiller. La réquisition au commerçant citera le hash, la date et ce montant pour retrouver la commande.`,
+        },
+        {
+          id: 'o5', type: 'choice', points: 8,
           prompt: 'Pour l\'enquêteur, qu\'est-ce qui change entre Litecoin et Bitcoin ?',
+          hint: 'Pensez au modèle de transaction (entrées, sorties, rendu) plutôt qu\'à l\'apparence des adresses.',
           ...choice(r,
             'Peu de choses : même modèle UTXO avec rendu, seuls les formats d\'adresse diffèrent',
             [
@@ -146,22 +202,37 @@ export const debLitecoin: ScenarioTemplate = {
             ]),
           explanation: 'Litecoin reprend le code de Bitcoin : UTXO, entrées et sorties, rendu, heuristiques identiques (type d\'adresse, montant rond, adresse neuve). Les préfixes diffèrent (ltc1, L, M) et les blocs sont plus rapides (environ 2 min 30). Les explorateurs publics existent. Seule nuance : l\'extension optionnelle MWEB permet des transactions confidentielles, mais elle reste peu utilisée et se repère à l\'entrée et à la sortie de ce bloc d\'extension.',
         },
+        {
+          id: 'o11', type: 'choice', points: 8,
+          prompt: 'Qu\'est-ce qui permet d\'attribuer l\'adresse « ltc1… » de la transaction de regroupement à l\'exchange plutôt qu\'à l\'auteur ?',
+          hint: 'Regardez ce que devient cette adresse après avoir reçu les fonds.',
+          ...choice(r,
+            'Elle est ensuite balayée, avec d\'autres dépôts, vers le hot wallet étiqueté de la plateforme',
+            [
+              'Son format « ltc1… » est réservé aux exchanges, les particuliers utilisant des adresses L… ou M…',
+              'Elle reçoit un montant rond, ce qui suffit à prouver qu\'il s\'agit d\'une plateforme',
+              'Elle apparaît en premier dans la liste des sorties de la transaction',
+            ]),
+          explanation: `Le critère décisif est le comportement : l'adresse ${A(w, deposit)} est regroupée avec d'autres dépôts de clients dans une transaction de balayage vers le hot wallet de ${destName}. Le format ltc1… est celui de la plupart des portefeuilles modernes (la victime l'utilise aussi), un montant rond n'est qu'un indice, et l'ordre des sorties ne signifie rien (il est souvent aléatoire). On combine les indices, mais seul le balayage vers une adresse attribuée établit l'appartenance à la plateforme.`,
+        },
       ],
       truth: {
-        path: [pay.id, out.id, sweep.id],
-        addresses: [s1, chg, deposit],
+        path: [pay.id, out.id, sweep.id, cardTx.id],
+        addresses: [s1, chg, deposit, shopAddr, chg2],
         debrief:
           `1. ${victimName} paie ${amt(demand, 'LTC')} à ${A(w, s1)}. Sa transaction a deux sorties : le paiement et son propre rendu ${A(w, vChange)} (même format ltc1… que son portefeuille).\n` +
-          `2. ${nOthers} autres personnes paient la même adresse : le courriel a été envoyé en masse.\n` +
+          `2. ${nOthers} autres personnes paient la même adresse : le courriel a été envoyé en masse. Au total, ${nPayments} paiements pour ${amt(total, 'LTC')}.\n` +
           `3. L'auteur dépense tous ces paiements en une transaction : ${amt(depValue, 'LTC')} (montant rond) vers l'adresse de dépôt ${destName} ${A(w, deposit)}, et ${amt(kept, 'LTC')} de rendu vers ${A(w, chg)}, du même format que son adresse.\n` +
-          `4. ${destName} balaie l'adresse de dépôt vers son hot wallet : fin du traçage on-chain.\n\n` +
-          `À retenir : tout ce que vous savez de Bitcoin s'applique à Litecoin. Dans chaque transaction, demandez-vous quelle sortie est le paiement et laquelle est le rendu.\n\n` +
-          `Réflexes de l'enquêteur : requérir ${destName} sur l'adresse de dépôt (identité, IP, retraits) avec demande de gel ; surveiller l'adresse de rendu, qui détient encore ${amt(kept, 'LTC')} ; rapprocher la plainte d'autres signalements visant la même adresse (les autres payeurs sont aussi des victimes).`,
+          `4. ${destName} balaie l'adresse de dépôt vers son hot wallet : fin du traçage on-chain pour cette branche.\n` +
+          `5. Quelques jours plus tard, le rendu paie ${amt(cardValue, 'LTC')} à ${shop.name} (cartes cadeaux) ; le reste, ${amt(kept2, 'LTC')}, part vers un nouveau rendu ${A(w, chg2)}.\n\n` +
+          `À retenir : tout ce que vous savez de Bitcoin s'applique à Litecoin. Dans chaque transaction, demandez-vous quelle sortie est le paiement et laquelle est le rendu, et continuez à suivre le rendu : il reste sous le contrôle de l'auteur.\n\n` +
+          `Réflexes de l'enquêteur : requérir ${destName} sur l'adresse de dépôt (identité, IP, retraits) avec demande de gel ; requérir ${shop.name} sur la commande payée depuis le rendu ; surveiller la dernière adresse de rendu ; rapprocher la plainte d'autres signalements visant la même adresse (les autres payeurs sont aussi des victimes).`,
       },
       hints: [
         'Ouvrez la transaction de la plainte depuis la pièce, puis comparez ses deux sorties au montant exigé.',
+        'Les entrées de l\'adresse de l\'auteur sont autant de payeurs : comptez-les et additionnez-les.',
         'Dépliez les sorties de l\'adresse de l\'auteur : une seule transaction en part, avec deux sorties.',
-        'Un montant rond qui part vers une adresse ensuite balayée vers un hot wallet = dépôt d\'exchange ; l\'autre sortie est le rendu.',
+        'Un montant rond qui part vers une adresse ensuite balayée vers un hot wallet = dépôt d\'exchange ; l\'autre sortie est le rendu, qu\'il faut suivre à son tour.',
       ],
     }
   },

@@ -55,7 +55,7 @@ export const btcMoneyMules: ScenarioTemplate = {
   difficulty: 3,
   chains: ['btc', 'ltc'],
   skills: ['cioh', 'exchange_id', 'requisition', 'typologies', 'peel'],
-  estMinutes: 35,
+  estMinutes: 60,
   lessons: ['blanchiment-pro', 'clustering', 'exchanges', 'requisitions', 'typologies'],
   generate(seed) {
     const w = new World(seed)
@@ -277,6 +277,12 @@ export const btcMoneyMules: ScenarioTemplate = {
     const renewT = renewedMule.wd.find((x) => x.addr === renewedMule.addrs[1])!.tx.time
     const hiddenPlat = platName(hidden.plat)
     const victimsUsed = new Set(network.flatMap((m) => m.wires.map((x) => x.victim.name)))
+    // Mule non signalée : retraits reçus et regroupement(s) où son adresse est co-dépensée
+    const hiddenAddr = hidden.addrs[0]
+    const hiddenTotal = r8(hidden.wd.reduce((s, x) => s + x.value, 0))
+    const hiddenIn = [c1, c2].filter((c) => c.inputs.some((i) => i.address === hiddenAddr)).map((c) => (c === c1 ? 'n°1' : 'n°2'))
+    const swapDelayMin = Math.round((order.payoutTx.time - order.depositTx.time) / 60)
+    const lastHopAddr = hops[hops.length - 1]
 
     // ── Pièces ───────────────────────────────────────────────────────────────
     const reported = [...ident, decoy]
@@ -320,7 +326,7 @@ export const btcMoneyMules: ScenarioTemplate = {
       briefing:
         `Le parquet de ${city} a ouvert une enquête pour escroquerie en bande organisée et blanchiment après les plaintes de ${victimsUsed.size} épargnants, victimes d'une fausse plateforme de placement, « ${scamName} ». Leurs « conseillers » leur ont fait virer les fonds sur des comptes de particuliers, présentés comme des « gestionnaires partenaires ».\n\n` +
         `La néobanque ${bank} (fictive) a signalé plusieurs de ces comptes : des jeunes recrutés sur les réseaux sociaux, qui reversaient l'argent en crypto-actifs via Coinhouse ou Bitstamp. Les réquisitions sont revenues avec l'identité des titulaires et la liste de leurs retraits. Une des mules a été entendue.\n\n` +
-        `Objectifs : déterminer quelles mules relèvent du même réseau (et s'il en manque), chiffrer la collecte, suivre l'agrégat jusqu'au cash-out et trouver le point de contact qui permettra d'identifier le coordinateur.`,
+        `Objectifs : déterminer quelles mules relèvent du même réseau (et, s'il en manque, auprès de quelle plateforme les identifier), chiffrer la collecte, rattacher le volet Litecoin, suivre l'agrégat jusqu'au cash-out, mesurer ce qui reste et trouver le point de contact qui permettra d'identifier le coordinateur.`,
       evidence: [
         {
           id: 'banque', type: 'rapport', title: `Signalement de la néobanque ${bank} (extrait)`, date: tBank, author: `Service LCB-FT — ${bank}`,
@@ -361,7 +367,23 @@ export const btcMoneyMules: ScenarioTemplate = {
       seeds: [],
       objectives: [
         {
-          id: 'o1', type: 'number', points: 15, tolerance: 0, unit: 'mules',
+          id: 'o2', type: 'address', points: 10,
+          prompt: 'Quelle est l\'adresse de consolidation du coordinateur ?',
+          answer: [cons],
+          hint: 'Suivez la dépense d\'une adresse de retrait listée par Coinhouse ou Bitstamp : elle part, avec d\'autres, vers une même adresse.',
+          explanation: `${A(w, cons)} reçoit le premier regroupement (${c1.inputs.length} entrées), le paiement ChangeNOW issu des LTC, puis se réutilise elle-même en entrée du second regroupement (${c2.inputs.length} entrées). L'adresse ${A(w, bridgeAddr).slice(0, 14)}…, dépensée dans les deux regroupements, soude le cluster : les ${nAddrBtc} adresses de collecte BTC et la consolidation appartiennent au même portefeuille.`,
+        },
+        {
+          id: 'o8', type: 'address', points: 10,
+          prompt: 'Une adresse de collecte BTC du cluster n\'est citée dans aucune réponse de plateforme. Laquelle ?',
+          answer: [hiddenAddr],
+          hint: 'Listez les entrées des deux regroupements (ou le panneau cluster de la consolidation) et rayez une à une les adresses qui figurent dans les réponses de Coinhouse et de Bitstamp.',
+          explanation:
+            `${A(w, hiddenAddr)} est dépensée en entrée commune avec les autres adresses de collecte (regroupement ${hiddenIn.join(' et ')}) : selon l'heuristique des entrées communes, elle est contrôlée par le même portefeuille que la consolidation. Elle a reçu ${hidden.wd.length} retraits du hot wallet ${hiddenPlat}, pour ${amt(hiddenTotal, 'BTC')}, en deux vagues (${hidden.wd.map((x) => fmtDate(x.tx.time, false)).join(', ')}). ` +
+            `Or les deux réponses listent de façon exhaustive les retraits des comptes requis : cette adresse est donc celle d'une recrue que le signalement ${bank} ne couvre pas. Elle devient la donnée centrale d'une nouvelle réquisition, l'adresse de retrait suffisant à désigner le compte client.`,
+        },
+        {
+          id: 'o1', type: 'number', points: 12, tolerance: 0, unit: 'mules',
           prompt: 'Combien de mules distinctes (identifiées ou non) alimentent les adresses de collecte du coordinateur, toutes chaînes confondues ?',
           answer: nNet,
           hint: 'Comptez des comptes, pas des adresses. Cherchez dans le cluster une adresse alimentée par un exchange qui ne figure dans aucune réponse, et n\'oubliez pas le volet Litecoin.',
@@ -370,41 +392,70 @@ export const btcMoneyMules: ScenarioTemplate = {
             `S'y ajoute ${A(w, hidden.addrs[0]).slice(0, 14)}… : co-dépensée avec les autres adresses de collecte, alimentée par ${hidden.wd.length} retraits ${hiddenPlat}, elle n'apparaît dans aucune réponse alors que celles-ci listent tous les retraits des comptes requis. C'est vraisemblablement le compte d'une mule non signalée par ${bank} (cliente d'une autre banque), à identifier par réquisition à ${hiddenPlat}. ${decoyName} n'en fait pas partie.`,
         },
         {
-          id: 'o2', type: 'address', points: 10,
-          prompt: 'Quelle est l\'adresse de consolidation du coordinateur ?',
-          answer: [cons],
-          hint: 'Suivez la dépense d\'une adresse de retrait listée par Coinhouse ou Bitstamp : elle part, avec d\'autres, vers une même adresse.',
-          explanation: `${A(w, cons)} reçoit le premier regroupement (${c1.inputs.length} entrées), le paiement ChangeNOW issu des LTC, puis se réutilise elle-même en entrée du second regroupement (${c2.inputs.length} entrées). L'adresse ${A(w, bridgeAddr).slice(0, 14)}…, dépensée dans les deux regroupements, soude le cluster : les ${nAddrBtc} adresses de collecte BTC et la consolidation appartiennent au même portefeuille.`,
+          id: 'o9', type: 'entity', points: 8,
+          prompt: 'À quelle plateforme adresser la réquisition qui permettra d\'identifier la mule absente du signalement ?',
+          answer: [hidden.plat],
+          hint: 'Remontez les entrées de l\'adresse de collecte que personne ne vous a signalée : d\'où viennent ses fonds ?',
+          explanation: `Les ${hidden.wd.length} versements reçus par ${A(w, hiddenAddr).slice(0, 14)}… sont des retraits du hot wallet de ${hiddenPlat}. La plateforme peut retrouver, à partir de l'adresse de retrait et des hash, le compte client concerné : identité et pièces KYC, IBAN d'alimentation (qui désignera la banque de la mule, puis les virements des victimes), adresses IP. ${procedureFor(kits[hidden.plat].btc.entity)}`,
         },
         {
-          id: 'o3', type: 'amount', points: 15, unit: 'USD', tolerance: 0.05,
+          id: 'o4', type: 'choice', points: 10,
+          prompt: 'Parmi les titulaires signalés par la banque, lequel n\'est rattaché au réseau par aucun élément on-chain ?',
+          ...choice(r, decoyName, decoyOpts.map((m) => m.p.name)),
+          explanation: `${decoyName} a bien reçu un virement d'une victime (« ${decoy.wires[0].label} », ${eur(decoy.wires[0].eur)}), mais ses ${decoy.wd.length} retraits partent tous vers ${A(w, decoy.addrs[0]).slice(0, 14)}…, alimentée par des achats mensuels depuis ${fmtDate(decoy.opened, false)}, bien avant les faits, et jamais dépensée : aucune entrée commune avec le cluster, aucun flux vers le coordinateur. Le virement peut avoir une cause étrangère à l'escroquerie (lien avec la victime) : à vérifier en audition, sans ${decoy.p.g('le', 'la')} mettre en cause sur la seule base du signalement. Les mules LTC, elles, sont bien rattachées via le regroupement Litecoin et le swap.`,
+        },
+        {
+          id: 'o3', type: 'amount', points: 12, unit: 'USD', tolerance: 0.05,
           prompt: 'Quel montant total (en USD) les mules du réseau ont-elles versé au coordinateur, BTC et LTC confondus ?',
           answer: totalUsd,
           hint: 'Additionnez les retraits reçus par chaque adresse de collecte (BTC et LTC), avant les regroupements, et convertissez en dollars.',
           explanation: `${amt(btcTotal, 'BTC')} sur les adresses BTC (≈ ${usdFmt(usd('BTC', btcTotal))}) et ${amt(ltcTotal, 'LTC')} sur les adresses LTC (≈ ${usdFmt(usd('LTC', ltcTotal))}), soit ≈ ${usdFmt(totalUsd)}. Les victimes ont viré ${eur(wiresTotal)} à ces mules : la différence correspond surtout aux commissions conservées (8 à 12 %) et aux frais d'achat. Ne pas compter les regroupements ni le paiement ChangeNOW, qui recyclent des fonds déjà comptés.`,
         },
         {
-          id: 'o4', type: 'choice', points: 15,
-          prompt: 'Parmi les titulaires signalés par la banque, lequel n\'est rattaché au réseau par aucun élément on-chain ?',
-          ...choice(r, decoyName, decoyOpts.map((m) => m.p.name)),
-          explanation: `${decoyName} a bien reçu un virement d'une victime (« ${decoy.wires[0].label} », ${eur(decoy.wires[0].eur)}), mais ses ${decoy.wd.length} retraits partent tous vers ${A(w, decoy.addrs[0]).slice(0, 14)}…, alimentée par des achats mensuels depuis ${fmtDate(decoy.opened, false)}, bien avant les faits, et jamais dépensée : aucune entrée commune avec le cluster, aucun flux vers le coordinateur. Le virement peut avoir une cause étrangère à l'escroquerie (lien avec la victime) : à vérifier en audition, sans ${decoy.p.g('le', 'la')} mettre en cause sur la seule base du signalement. Les mules LTC, elles, sont bien rattachées via le regroupement Litecoin et le swap.`,
+          id: 'o10', type: 'tx', points: 10,
+          prompt: 'Par quelle transaction le produit de la conversion des litecoins arrive-t-il sur l\'adresse de consolidation BTC ?',
+          answer: [order.payoutTx.id],
+          hint: 'L\'adresse de regroupement Litecoin dépose chez ChangeNOW. Corrélateur : émetteur ChangeNOW, chaîne Bitcoin, à partir de l\'heure du dépôt, fenêtre d\'environ une heure, tolérance de quelques %. Parmi les candidats, un seul paie une adresse déjà rattachée au cluster.',
+          explanation:
+            `Le ${fmtDate(order.depositTx.time)}, ${A(w, ltcCons).slice(0, 14)}… dépose ${amt(swapValue, 'LTC')} sur une adresse de dépôt ChangeNOW. ${swapDelayMin} minutes plus tard, le hot wallet BTC de ChangeNOW verse ${amt(order.payoutValue, 'BTC')} à ${A(w, cons).slice(0, 14)}… : transaction ${order.payoutTx.hash.slice(0, 16)}…. ` +
+            `Les autres paiements de ChangeNOW dans la même fenêtre vont à des adresses neuves et ont des montants qui ne correspondent pas à la contre-valeur du dépôt. Le destinataire, déjà rattaché au cluster, fait ici la différence : il relie le volet Litecoin aux fonds BTC.`,
         },
         {
-          id: 'o5', type: 'amount', points: 15, unit: 'BTC', tolerance: 0.03,
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Quelle valeur probante accorder au rapprochement entre le dépôt LTC chez ChangeNOW et le paiement BTC reçu par la consolidation ?',
+          hint: 'Demandez-vous ce que la blockchain montre réellement entre les deux chaînes, et ce qui relève d\'un rapprochement.',
+          ...choice(r,
+            'Un lien probable (montant, délai, destinataire déjà rattaché), à confirmer par une réquisition à ChangeNOW sur la commande',
+            [
+              'Une preuve certaine : un échangeur instantané relie mécaniquement chaque dépôt à son paiement sur la blockchain',
+              'Aucune : le passage par un échangeur instantané rompt définitivement la traçabilité des fonds',
+              'La preuve que ChangeNOW est complice du coordinateur, puisqu\'il a exécuté la conversion',
+            ]),
+          explanation: `Aucune donnée on-chain ne relie le dépôt Litecoin au paiement Bitcoin : ce sont deux transactions sur deux chaînes, rapprochées par corrélation (contre-valeur cohérente, délai de ${swapDelayMin} minutes, et surtout un destinataire déjà rattaché au cluster). C'est un faisceau solide mais probabiliste ; le rapport le présente comme tel et une réquisition à ChangeNOW (identifiant de commande, adresse de dépôt, adresse de paiement, données de connexion) le confirme. Un échangeur qui exécute une commande n'en devient pas complice. ${procedureFor(swp.entity)}`,
+        },
+        {
+          id: 'o5', type: 'amount', points: 10, unit: 'BTC', tolerance: 0.03,
           prompt: 'Quel montant (en BTC) la peel chain a-t-elle envoyé au courtier OTC ?',
           answer: otcTotal,
           hint: 'Suivez la peel chain depuis l\'adresse de consolidation et additionnez les pelures vers l\'adresse SatsDesk (pas les dépôts des autres clients du courtier).',
           explanation: `${otcPeels.length} pelures pour ${amt(otcTotal, 'BTC')} vers SatsDesk OTC, contre ${p2pPeels.length} ventes P2P pour ${amt(p2pTotal, 'BTC')} via des séquestres multisig Hodl Hodl (une adresse de séquestre par transaction, libérée ensuite à l'acheteur). L'OTC absorbe les gros volumes, le P2P fractionne en petites ventes contre espèces ou virements. Aucun des deux n'offre de piste rapide : ${procedureFor(otc)} ${procedureFor(hodl)}`,
         },
         {
-          id: 'o6', type: 'address', points: 15,
+          id: 'o6', type: 'address', points: 12,
           prompt: 'Une pelure part vers une plateforme qui applique un KYC : c\'est l\'erreur du coordinateur. Quelle est l\'adresse de dépôt ?',
           answer: [exDeposit],
           hint: 'Parmi les petites sorties de la peel chain, une seule est étiquetée comme adresse de dépôt d\'un exchange, puis balayée vers son hot wallet.',
           explanation: `Saut n°${exIdx} : ${amt(exPeel.value, 'BTC')} vers ${A(w, exDeposit)}, adresse de dépôt ${exName} balayée ensuite vers son hot wallet. Une adresse de dépôt est propre à un compte client : la plateforme peut désigner son titulaire, ses pièces KYC, ses IP de connexion et son IBAN. Contrairement aux mules, ce dépôt vient directement du portefeuille du coordinateur. ${procedureFor(exKit.entity)}`,
         },
         {
-          id: 'o7', type: 'choice', points: 15,
+          id: 'o11', type: 'amount', points: 10, unit: 'BTC', tolerance: 0.01,
+          prompt: 'Quel solde (en BTC) reste, non dépensé, sur la dernière adresse de la peel chain ?',
+          answer: remainderValue,
+          hint: 'Suivez la grosse sortie (le rendu) de saut en saut jusqu\'à l\'adresse qui n\'a plus de dépense : son solde est le reliquat.',
+          explanation: `Après ${peels.length} sauts, le rendu s'arrête sur ${A(w, lastHopAddr)}, qui conserve ${amt(remainderValue, 'BTC')} (≈ ${usdFmt(usd('BTC', remainderValue))}), soit ${Math.round((remainderValue / aggregate) * 100)} % de l'agrégat initial. Ces fonds sont en autodétention : aucun prestataire ne peut les geler. L'adresse est à placer sous surveillance (alerte sur toute dépense) afin d'agir vers la plateforme destinataire dès le prochain mouvement ; une saisie supposerait l'accès aux clés du coordinateur, une fois identifié.`,
+        },
+        {
+          id: 'o7', type: 'choice', points: 8,
           prompt: 'Comment qualifier la situation pénale des mules dans le rapport ?',
           ...choice(r,
             'Elles sont susceptibles d\'être poursuivies pour blanchiment ; leur connaissance de l\'origine des fonds s\'apprécie au cas par cas',
@@ -435,6 +486,8 @@ export const btcMoneyMules: ScenarioTemplate = {
         'Ajoutez au graphe les adresses de retrait listées par Coinhouse et Bitstamp, puis suivez leur dépense : plusieurs se retrouvent en entrée des mêmes transactions.',
         'Ouvrez le panneau cluster de l\'adresse de consolidation : il liste toutes les adresses de collecte BTC, y compris une que personne ne vous a signalée. Les mules LTC passent par ChangeNOW : utilisez la corrélation sur la chaîne BTC.',
         'Après la consolidation, suivez la grosse sortie à chaque saut : les pelures partent vers SatsDesk, des séquestres Hodl Hodl et, une seule fois, une adresse de dépôt d\'exchange.',
+        'Comparez la liste des entrées des regroupements avec les réponses des plateformes : l\'adresse qui n\'y figure pas désigne une mule à identifier, et la provenance de ses fonds dit qui requérir.',
+        'Au bout de la peel chain, une adresse ne dépense plus rien : son solde est le reliquat encore détenu par le coordinateur.',
       ],
     }
   },

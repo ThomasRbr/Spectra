@@ -22,7 +22,7 @@ export const btcDonationFunding: ScenarioTemplate = {
   difficulty: 2,
   chains: ['btc'],
   skills: ['cioh', 'osint', 'exchange_id', 'requisition', 'typologies'],
-  estMinutes: 25,
+  estMinutes: 45,
   lessons: ['osint', 'clustering', 'attribution-sources', 'exposition-risque', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -64,6 +64,9 @@ export const btcDonationFunding: ScenarioTemplate = {
       // Des donateurs continuent d'utiliser l'ancienne adresse après la rotation
       if (i < nA - 1 && r.chance(0.6)) for (let k = 0; k < r.int(1, 2); k++) plan.push({ t: Math.round(posts[i + 1] + r.float(0.5, 7) * DAY), target: pub[i], src: 'person' })
     }
+    // Au moins un don tardif sur une adresse déjà remplacée (exploité par l'analyse chronologique)
+    if (!plan.some((p) => { const i = pub.indexOf(p.target); return i >= 0 && i < nA - 1 && p.t > posts[i + 1] }))
+      plan.push({ t: Math.round(posts[1] + r.float(0.5, 7) * DAY), target: pub[0], src: 'person' })
     // Sources : quelques retraits de plateformes, le reste depuis des portefeuilles personnels
     const nCH = r.int(5, 8)
     const nCB = r.int(2, 4)
@@ -167,6 +170,9 @@ export const btcDonationFunding: ScenarioTemplate = {
     const privDons = donations.filter((d) => d.target === priv)
     const privTotal = r8(privDons.reduce((s, d) => s + d.value, 0))
     const krDon = donations.find((d) => d.src === 'kraken')!
+    // Dons reçus par une adresse publiée après son remplacement par la suivante
+    const lateDons = donations.filter((d) => { const i = pub.indexOf(d.target); return i >= 0 && i < nA - 1 && d.tx.time > posts[i + 1] })
+    const lateAddrs = new Set(lateDons.map((d) => d.target)).size
     const donor = fakePerson(r)
     const dg = donor.g
     const donorYear = new Date(w.t0 * 1000).getUTCFullYear() - r.int(24, 58)
@@ -190,7 +196,7 @@ export const btcDonationFunding: ScenarioTemplate = {
       briefing:
         `Le groupuscule « ${groupName} » (nom fictif), connu pour des violences commises en réunion, a été dissous par décret le ${fmtDate(dissolvedT, false)}. Il continue pourtant d'animer un canal Telegram et un compte X, sur lesquels il appelle régulièrement aux dons en bitcoins.\n\n` +
         `Une enquête est ouverte à ${city}, notamment pour maintien ou reconstitution d'un groupement dissous. L'adresse de collecte change à chaque nouvel appel : il faut établir qu'il s'agit d'un même portefeuille, mesurer la collecte et savoir où vont les fonds.\n\n` +
-        `Objectifs : regrouper les adresses de collecte, chiffrer les dons, repérer ceux qui transitent par des plateformes régulées, choisir la réquisition prioritaire, localiser la sortie vers le mixeur et qualifier avec prudence la situation des donateurs.`,
+        `Objectifs : regrouper les adresses de collecte, chiffrer les dons et leur chronologie, repérer ceux qui transitent par des plateformes régulées, choisir la réquisition prioritaire, suivre les sorties (mixeur, vente P2P, reliquat) et qualifier avec prudence la situation des donateurs.`,
       evidence: [
         {
           id: 'telegram', type: 'telegram', title: `Canal Telegram « ${tgChannel} » — extraits`, date: end, author: 'Capture réalisée par l\'enquêteur',
@@ -233,7 +239,7 @@ export const btcDonationFunding: ScenarioTemplate = {
       seeds: [],
       objectives: [
         {
-          id: 'o1', type: 'addresses', points: 25,
+          id: 'o1', type: 'addresses', points: 14,
           prompt: 'Sélectionnez toutes les adresses de collecte du groupe (publiées ou non), c\'est-à-dire les adresses qui reçoivent des dons et appartiennent au même portefeuille.',
           answer: [...collect],
           hint: 'Partez d\'une adresse publiée et suivez sa dépense : les regroupements ont de nombreuses entrées. Vérifiez une à une les adresses de la liste du partenaire.',
@@ -242,47 +248,14 @@ export const btcDonationFunding: ScenarioTemplate = {
             `La liste du partenaire contient une erreur : ${A(w, repeatDonor).slice(0, 14)}… n'est jamais co-dépensée avec le cluster ; c'est le portefeuille d'un donateur récurrent, qui a envoyé ${nRep} dons ${repTargets.length > 1 ? `à ${repTargets.length} adresses différentes` : 'à la même adresse'} du groupe. Envoyer des fonds à une adresse ne fait pas entrer l'expéditeur dans le portefeuille du destinataire. L'adresse de ${xCopy} relève d'un autre portefeuille.`,
         },
         {
-          id: 'o2', type: 'amount', points: 15, unit: 'BTC', tolerance: 0.03,
-          prompt: 'Quel montant total (en BTC) les donateurs ont-ils versé sur les adresses de collecte du groupe ?',
-          answer: total,
-          hint: 'Additionnez les dons reçus par chaque adresse du cluster, avant regroupement. Ne comptez ni les regroupements ni l\'adresse usurpatrice.',
-          explanation: `${nDon} dons pour ${amt(total, 'BTC')} (≈ ${Math.round(usd('BTC', total)).toLocaleString('fr-FR')} $), dont ${privDons.length} dons plus élevés (${amt(privTotal, 'BTC')}) sur l'adresse non publiée. La plupart des dons sont modestes (quelques dizaines à quelques centaines de dollars) : la collecte repose sur le nombre.`,
+          id: 'o8', type: 'address', points: 10,
+          prompt: 'Quelle adresse de collecte n\'a jamais été publiée, ni sur Telegram ni sur X ?',
+          answer: [priv],
+          hint: 'Comparez les entrées des regroupements avec la liste des adresses publiées : l\'une d\'elles n\'apparaît dans aucune capture.',
+          explanation: `${A(w, priv)} est co-dépensée avec les adresses publiées, mais n'apparaît dans aucune publication : c'est l'adresse « privée » évoquée par la note de renseignement, transmise par un administrateur aux soutiens proposant des montants importants. Elle a reçu ${privDons.length} dons pour ${amt(privTotal, 'BTC')}, nettement plus élevés que la moyenne. Seul le clustering permet de la découvrir ; ses donateurs, en contact direct avec les administrateurs, sont des cibles prioritaires pour l'enquête (proximité avec le groupe, échanges en messagerie privée).`,
         },
         {
-          id: 'o3', type: 'number', points: 15, tolerance: 0, unit: 'dons',
-          prompt: 'Combien de dons ont été envoyés directement depuis le hot wallet d\'une plateforme régulée en France ou dans l\'UE (KYC complet) ?',
-          answer: nReg,
-          hint: 'Regardez l\'origine de chaque don : une entrée étiquetée comme hot wallet d\'exchange signe un retrait client. Une plateforme offshore à KYC allégé ne compte pas.',
-          explanation: `${nReg} dons : ${count('coinhouse')} depuis Coinhouse, ${count('coinbase')} depuis Coinbase et ${count('kraken')} depuis Kraken (ces deux derniers servent leurs clients européens via des entités agréées dans l'UE). ${count('huobex') > 1 ? `Les ${count('huobex')} dons depuis Huobex sont exclus` : 'Le don depuis Huobex est exclu'} : plateforme offshore, KYC allégé, réponses irrégulières. Les autres dons viennent de portefeuilles personnels, non identifiables sans autre élément.`,
-        },
-        {
-          id: 'o4', type: 'entity', points: 15,
-          prompt: 'Quelle plateforme requérir en priorité pour identifier des donateurs ?',
-          answer: ['coinhouse'],
-          hint: 'Croisez le nombre de dons par plateforme et la voie procédurale (délais, caractère contraignant).',
-          explanation: `Coinhouse cumule le plus de dons (${count('coinhouse')}) et la voie la plus directe : ${procedureFor(kits.coinhouse.entity)} Une seule réquisition listant les hash et montants de chaque retrait identifie tous les titulaires concernés. En parallèle : ${procedureFor(kits.coinbase.entity)} ${procedureFor(kits.kraken.entity)}`,
-        },
-        {
-          id: 'o5', type: 'tx', points: 10,
-          prompt: 'Quelle transaction envoie une partie des fonds regroupés vers le mixeur ?',
-          answer: [mixRes.depositTx.id],
-          hint: 'Suivez la dépense de l\'adresse de regroupement : une sortie part vers une adresse de dépôt attribuée à un mixeur.',
-          explanation: `Le ${fmtDate(mixRes.depositTx.time)}, ${amt(mixValue, 'BTC')} partent de ${A(w, cons).slice(0, 14)}… vers une adresse de dépôt Sinbad, mixeur centralisé sanctionné : la traçabilité s'interrompt, et toute adresse en aval est exposée à un service à risque sévère. Le rendu (${A(w, next1).slice(0, 14)}…) finance ensuite une vente P2P de ${amt(p2pValue, 'BTC')} via un séquestre Hodl Hodl. ${procedureFor(hodl)}`,
-        },
-        {
-          id: 'o6', type: 'choice', points: 10,
-          prompt: `Comment présenter ${donor.name}, ${dg('identifié', 'identifiée')} par Kraken, dans le rapport ?`,
-          ...choice(r,
-            `${dg('Titulaire identifié', 'Titulaire identifiée')} d'un retrait vers une adresse du groupe ; sa connaissance de la destination des fonds reste à établir`,
-            [
-              `${dg('Auteur', 'Autrice')} d'un financement illicite caractérisé du seul fait de ce retrait`,
-              `Membre du groupuscule, puisque son adresse appartient au cluster de collecte`,
-              'Hors de cause : un don en crypto-actifs à un compte public ne peut pas être répréhensible',
-            ]),
-          explanation: `Le retrait prouve un flux, pas une intention. Le donateur a pu répondre à un appel en connaissant le groupe, ou être trompé par la présentation (« frais de défense »). Son adresse n'est d'ailleurs pas dans le cluster : envoyer à une adresse n'en fait pas un co-titulaire. Le rapport constate le flux (hash, montant, date, adresse publiée à cette date) ; l'élément intentionnel relève de l'audition et du contexte (abonnement au canal, messages, autres dons).`,
-        },
-        {
-          id: 'o7', type: 'choice', points: 10,
+          id: 'o7', type: 'choice', points: 8,
           prompt: `Que conclure de l'adresse publiée par le compte ${xCopy} ?`,
           ...choice(r,
             'Elle n\'est pas rattachée au groupe : aucune dépense commune, fonds sortis ailleurs, compte désavoué ; à traiter comme une possible escroquerie distincte',
@@ -291,7 +264,83 @@ export const btcDonationFunding: ScenarioTemplate = {
               'Elle appartient au groupe : elle figure dans la liste du service partenaire',
               'Elle appartient au groupe : les montants reçus sont du même ordre que les autres dons',
             ]),
+          hint: 'Suivez la dépense de cette adresse : est-elle un jour dépensée avec une adresse du cluster ? Où partent ses fonds ?',
           explanation: `${A(w, copyAddr).slice(0, 14)}… n'est jamais co-dépensée avec le cluster et ses fonds partent vers Huobex le ${fmtDate(copyTx.time, false)}, sans passer par l'adresse de regroupement. Le canal officiel désavoue le compte, et l'adresse ne figure pas dans la liste du partenaire. Un nom repris sur un réseau social n'est pas une attribution : c'est la donnée on-chain qui tranche. Les donateurs de cette adresse sont peut-être des victimes d'escroquerie.`,
+        },
+        {
+          id: 'o2', type: 'amount', points: 10, unit: 'BTC', tolerance: 0.03,
+          prompt: 'Quel montant total (en BTC) les donateurs ont-ils versé sur les adresses de collecte du groupe ?',
+          answer: total,
+          hint: 'Additionnez les dons reçus par chaque adresse du cluster, avant regroupement. Ne comptez ni les regroupements ni l\'adresse usurpatrice.',
+          explanation: `${nDon} dons pour ${amt(total, 'BTC')} (≈ ${Math.round(usd('BTC', total)).toLocaleString('fr-FR')} $), dont ${privDons.length} dons plus élevés (${amt(privTotal, 'BTC')}) sur l'adresse non publiée. La plupart des dons sont modestes (quelques dizaines à quelques centaines de dollars) : la collecte repose sur le nombre.`,
+        },
+        {
+          id: 'o9', type: 'number', points: 9, tolerance: 0, unit: 'dons',
+          prompt: 'Combien de dons ont été reçus par une adresse publiée après que le canal l\'a remplacée par une nouvelle ?',
+          answer: lateDons.length,
+          hint: 'Datez chaque publication d\'adresse grâce à la capture Telegram, puis comparez avec la date des dons reçus par l\'adresse précédente.',
+          explanation: `${lateDons.length} don${lateDons.length > 1 ? 's' : ''}, sur ${lateAddrs} adresse${lateAddrs > 1 ? 's' : ''} déjà remplacée${lateAddrs > 1 ? 's' : ''} : des soutiens continuent d'utiliser une adresse enregistrée ou copiée d'une ancienne publication (relais, captures partagées). La rotation n'est donc pas étanche, et c'est ce qui permet au groupe de continuer à les dépenser avec les nouvelles. Pour l'enquête, ces dons tardifs datent l'audience réelle de chaque publication et montrent que les adresses restent surveillées et regroupées par les administrateurs : une ancienne adresse n'est pas « abandonnée ».`,
+        },
+        {
+          id: 'o3', type: 'number', points: 10, tolerance: 0, unit: 'dons',
+          prompt: 'Combien de dons ont été envoyés directement depuis le hot wallet d\'une plateforme régulée en France ou dans l\'UE (KYC complet) ?',
+          answer: nReg,
+          hint: 'Regardez l\'origine de chaque don : une entrée étiquetée comme hot wallet d\'exchange signe un retrait client. Une plateforme offshore à KYC allégé ne compte pas.',
+          explanation: `${nReg} dons : ${count('coinhouse')} depuis Coinhouse, ${count('coinbase')} depuis Coinbase et ${count('kraken')} depuis Kraken (ces deux derniers servent leurs clients européens via des entités agréées dans l'UE). ${count('huobex') > 1 ? `Les ${count('huobex')} dons depuis Huobex sont exclus` : 'Le don depuis Huobex est exclu'} : plateforme offshore, KYC allégé, réponses irrégulières. Les autres dons viennent de portefeuilles personnels, non identifiables sans autre élément.`,
+        },
+        {
+          id: 'o4', type: 'entity', points: 9,
+          prompt: 'Quelle plateforme requérir en priorité pour identifier des donateurs ?',
+          answer: ['coinhouse'],
+          hint: 'Croisez le nombre de dons par plateforme et la voie procédurale (délais, caractère contraignant).',
+          explanation: `Coinhouse cumule le plus de dons (${count('coinhouse')}) et la voie la plus directe : ${procedureFor(kits.coinhouse.entity)} Une seule réquisition listant les hash et montants de chaque retrait identifie tous les titulaires concernés. En parallèle : ${procedureFor(kits.coinbase.entity)} ${procedureFor(kits.kraken.entity)}`,
+        },
+        {
+          id: 'o6', type: 'choice', points: 8,
+          prompt: `Comment présenter ${donor.name}, ${dg('identifié', 'identifiée')} par Kraken, dans le rapport ?`,
+          ...choice(r,
+            `${dg('Titulaire identifié', 'Titulaire identifiée')} d'un retrait vers une adresse du groupe ; sa connaissance de la destination des fonds reste à établir`,
+            [
+              `${dg('Auteur', 'Autrice')} d'un financement illicite caractérisé du seul fait de ce retrait`,
+              `Membre du groupuscule, puisque son adresse appartient au cluster de collecte`,
+              'Hors de cause : un don en crypto-actifs à un compte public ne peut pas être répréhensible',
+            ]),
+          hint: 'Distinguez ce que prouve la blockchain (un flux daté vers une adresse) de ce qui relève de l\'intention. L\'adresse du donateur est-elle dans le cluster ?',
+          explanation: `Le retrait prouve un flux, pas une intention. Le donateur a pu répondre à un appel en connaissant le groupe, ou être trompé par la présentation (« frais de défense »). Son adresse n'est d'ailleurs pas dans le cluster : envoyer à une adresse n'en fait pas un co-titulaire. Le rapport constate le flux (hash, montant, date, adresse publiée à cette date) ; l'élément intentionnel relève de l'audition et du contexte (abonnement au canal, messages, autres dons).`,
+        },
+        {
+          id: 'o5', type: 'tx', points: 9,
+          prompt: 'Quelle transaction envoie une partie des fonds regroupés vers le mixeur ?',
+          answer: [mixRes.depositTx.id],
+          hint: 'Suivez la dépense de l\'adresse de regroupement : une sortie part vers une adresse de dépôt attribuée à un mixeur.',
+          explanation: `Le ${fmtDate(mixRes.depositTx.time)}, ${amt(mixValue, 'BTC')} partent de ${A(w, cons).slice(0, 14)}… vers une adresse de dépôt Sinbad, mixeur centralisé sanctionné : la traçabilité s'interrompt, et toute adresse en aval est exposée à un service à risque sévère. Le rendu (${A(w, next1).slice(0, 14)}…) finance ensuite une vente P2P de ${amt(p2pValue, 'BTC')} via un séquestre Hodl Hodl. ${procedureFor(hodl)}`,
+        },
+        {
+          id: 'o10', type: 'amount', points: 9, unit: 'BTC', tolerance: 0.01,
+          prompt: 'Quel montant (en BTC) le groupe a-t-il placé en séquestre pour une vente de gré à gré (P2P) ?',
+          answer: p2pValue,
+          hint: 'Suivez le rendu de la transaction vers le mixeur : il alimente ensuite une adresse multisignature attribuée à une place de marché P2P.',
+          explanation: `Le ${fmtDate(p2pTx.time)}, ${A(w, next1).slice(0, 14)}… (rendu du dépôt au mixeur) envoie ${amt(p2pValue, 'BTC')} vers un séquestre multisignature Hodl Hodl (${A(w, escrow).slice(0, 14)}…), libéré quelques heures plus tard vers une adresse inconnue : celle de l'acheteur, qui a payé le groupe hors chaîne (virement, espèces…). C'est la conversion en monnaie fiat de la part non mixée.`,
+        },
+        {
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Que peut-on attendre de Hodl Hodl au sujet de la vente P2P ?',
+          ...choice(r,
+            'Des données limitées (annonces, échanges entre utilisateurs) : la plateforme ne détient pas les fonds et ne pratique pas de KYC ; l\'acheteur se recherche surtout via l\'adresse de libération du séquestre et le moyen de paiement',
+            [
+              'Le gel immédiat des fonds placés en séquestre, la plateforme en ayant la garde',
+              'L\'identité vérifiée du vendeur, comme pour un exchange régulé soumis aux obligations de vigilance',
+              'Rien : le séquestre est un auto-transfert du groupe, sans contrepartie',
+            ]),
+          hint: 'Relisez la fiche de l\'entité : modèle custodial ou non, niveau de KYC, possibilité de gel.',
+          explanation: `Hodl Hodl est une place de marché P2P non-custodial : le séquestre est une adresse multisignature dont la plateforme détient une clé, mais elle ne garde pas les fonds et ne vérifie pas l'identité des utilisateurs. ${procedureFor(hodl)} La demande reste utile (pseudonymes, annonces, messages, moyen de paiement convenu), mais l'identification de l'acheteur passera surtout par l'adresse de libération (${A(w, release.outputs[0].address).slice(0, 14)}…) et son devenir, ou par le virement reçu par le vendeur.`,
+        },
+        {
+          id: 'o11', type: 'address', points: 8,
+          prompt: 'Sur quelle adresse le groupe conserve-t-il la part des fonds qui n\'a été ni mixée ni vendue ?',
+          answer: [next2],
+          hint: 'La transaction vers le séquestre a deux sorties : l\'une vers l\'adresse multisignature, l\'autre est un rendu.',
+          explanation: `${A(w, next2)} est le rendu de la vente P2P : ${amt(remainderValue, 'BTC')} y restent à la date des faits. C'est la dernière position connue des fonds du groupe hors mixeur. Aucun intermédiaire ne la détient, donc aucun gel immédiat n'est possible, mais l'adresse doit être mise sous surveillance (alerte sur toute dépense) : un futur dépôt sur une plateforme régulée ouvrirait une réquisition et une saisie.`,
         },
       ],
       truth: {
@@ -299,7 +348,7 @@ export const btcDonationFunding: ScenarioTemplate = {
         addresses: [...collect, cons, next1, next2, mixRes.deposit, escrow],
         debrief:
           `1. Du ${fmtDate(posts[0], false)} au ${fmtDate(end, false)}, le groupe publie ${nA} adresses successives sur Telegram et X, et en communique une autre en privé aux soutiens importants.\n` +
-          `2. ${nDon} dons arrivent sur ces adresses, pour ${amt(total, 'BTC')} : ${nReg} depuis des plateformes régulées (${count('coinhouse')} Coinhouse, ${count('coinbase')} Coinbase, ${count('kraken')} Kraken), ${count('huobex')} depuis Huobex, le reste depuis des portefeuilles personnels. Un donateur récurrent a donné ${nRep} fois depuis le même portefeuille.\n` +
+          `2. ${nDon} dons arrivent sur ces adresses, pour ${amt(total, 'BTC')} : ${nReg} depuis des plateformes régulées (${count('coinhouse')} Coinhouse, ${count('coinbase')} Coinbase, ${count('kraken')} Kraken), ${count('huobex')} depuis Huobex, le reste depuis des portefeuilles personnels. Un donateur récurrent a donné ${nRep} fois depuis le même portefeuille. ${lateDons.length} don${lateDons.length > 1 ? 's arrivent' : ' arrive'} sur des adresses déjà remplacées : la rotation n'empêche ni les dons tardifs ni leur regroupement.\n` +
           `3. Regroupements le ${fmtDate(c1.time, false)} et le ${fmtDate(c2.time, false)} vers ${A(w, cons)} ; ${A(w, bridgeAddr).slice(0, 14)}… figure dans les deux et soude le cluster.\n` +
           `4. Sorties : ${amt(mixValue, 'BTC')} vers le mixeur Sinbad, puis ${amt(p2pValue, 'BTC')} vendus en P2P via un séquestre Hodl Hodl. Reliquat : ${amt(remainderValue, 'BTC')} sur ${A(w, next2).slice(0, 14)}….\n` +
           `5. Fausses pistes : l'adresse du compte usurpateur ${xCopy} (portefeuille distinct, encaissé chez Huobex) et l'adresse du donateur récurrent, signalée à tort par le partenaire.\n\n` +
@@ -309,6 +358,7 @@ export const btcDonationFunding: ScenarioTemplate = {
         'Ajoutez au graphe les adresses publiées sur Telegram et X, dans l\'ordre chronologique, puis suivez leur dépense.',
         'Ouvrez le panneau cluster de l\'adresse de regroupement : une adresse du cluster n\'a jamais été publiée. Confrontez chaque adresse de la liste du partenaire à ce cluster.',
         'Pour les dons, regardez l\'origine de chaque transaction entrante : une entrée étiquetée hot wallet signe un retrait de plateforme. Suivez ensuite la dépense de l\'adresse de regroupement.',
+        'Après le mixeur, le rendu continue sa route : séquestre P2P, puis nouveau rendu. Datez aussi les dons par rapport aux publications.',
       ],
     }
   },

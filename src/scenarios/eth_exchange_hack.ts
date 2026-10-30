@@ -72,7 +72,7 @@ export const ethExchangeHack: ScenarioTemplate = {
   difficulty: 4,
   chains: ['eth', 'btc'],
   skills: ['evm', 'tokens', 'dex', 'bridge', 'crosschain', 'coinjoin', 'typologies'],
-  estMinutes: 45,
+  estMinutes: 85,
   lessons: ['acteurs-etatiques', 'blanchiment-pro', 'bridges', 'chain-hopping', 'dex-defi'],
   generate(seed) {
     const w = new World(seed, caseStart(seed))
@@ -393,21 +393,21 @@ export const ethExchangeHack: ScenarioTemplate = {
       seeds: [],
       objectives: [
         {
-          id: 'o1', type: 'amount', points: 15, unit: 'USD', tolerance: 0.02,
+          id: 'o1', type: 'amount', points: 10, unit: 'USD', tolerance: 0.02,
           prompt: `Quel est le montant total dérobé sur le hot wallet de ${VX.name}, tous actifs confondus (en USD, au cours affiché par l'outil) ?`,
           answer: stolenUsd,
           hint: 'Ouvrez les transactions de vol listées dans le communiqué, puis les autres sorties du hot wallet vers l\'adresse principale à la même heure : il y a un actif par transaction.',
           explanation: `Cinq transactions signées « execTransaction » vident le hot wallet vers ${A(w, H0)} : ${amt(stolen.ETH, 'ETH')} (${usdFmt(usdOf.ETH)}), ${amt(stolen.USDT, 'USDT')}, ${amt(stolen.USDC, 'USDC')}, ${amt(stolen.DAI, 'DAI')} et ${amt(stolen.WBTC, 'WBTC')} (${usdFmt(usdOf.WBTC)}), soit ${usdFmt(stolenUsd)}. Les ${amt(frozen, 'USDT')} gelés par Tether font partie du préjudice : ils sont bloqués, pas restitués. La « première estimation » du communiqué n'est qu'un ordre de grandeur.`,
         },
         {
-          id: 'o2', type: 'number', points: 15,
+          id: 'o2', type: 'number', points: 10,
           prompt: 'Combien d\'adresses distinctes reçoivent de l\'ETH directement de l\'adresse principale du pirate lors de la dispersion (premier niveau) ?',
           answer: N1,
           hint: 'Ne comptez que les virements d\'ETH sortant de l\'adresse principale (pas les jambes des swaps Uniswap), et comptez des adresses, pas des transactions.',
           explanation: `${N1} adresses reçoivent chacune environ ${amt(r2(perAvg), 'ETH')}, en ${N1 + 1} virements espacés de quelques minutes : ${A(w, L1[splitIdx])} reçoit sa part en deux fois (complément de ${amt(topUp.transfers[0].value, 'ETH')}). Ces montants proches, envoyés en rafale vers des adresses neuves, sont la signature d'une dispersion automatisée : elle multiplie les pistes à suivre et dilue les alertes des plateformes.`,
         },
         {
-          id: 'o3', type: 'choice', points: 15,
+          id: 'o3', type: 'choice', points: 10,
           prompt: 'Quel jeton le pirate convertit-il en premier, et pourquoi ?',
           ...choice(r,
             'L\'USDT, car son émetteur peut geler les jetons détenus par une adresse : il faut s\'en défaire avant le blocage',
@@ -420,25 +420,66 @@ export const ethExchangeHack: ScenarioTemplate = {
           explanation: `Le premier swap (${usdtSwaps[0].tx.hash.slice(0, 14)}…, ${fmtDate(usdtSwaps[0].tx.time)}) cède de l'USDT : ${usdtSwaps.length} tranches pour ${amt(usdtSwapped, 'USDT')}, découpées pour limiter le glissement de prix. Tether gèle l'adresse le ${fmtDate(freezeT)} : ${amt(frozen, 'USDT')} restent bloqués. Le pirate passe aussitôt à l'USDC (${usdcSwaps.length} tranches ; Circle peut aussi geler), puis, ${hours(daiSwaps[0].tx.time)} h après le vol, au DAI (aucune fonction de gel) et au WBTC (pas de liste noire par adresse). L'ordre des conversions suit le risque de gel : c'est pourquoi la demande de gel aux émetteurs doit partir dans l'heure. ${procedureFor(tether)}`,
         },
         {
-          id: 'o4', type: 'tx', points: 15,
+          id: 'o4', type: 'tx', points: 12,
           prompt: `Le partenaire signale l'adresse ${A(w, rk.l1)}. Quelle transaction fait passer ses fonds sur Bitcoin ?`,
           answer: [rk.out.id, rk.arr.id],
           hint: 'Suivez l\'ETH sur deux sauts. Dans l\'événement du bridge, le nonce et le destinataire relient la transaction de départ à celle d\'arrivée : ne vous fiez pas au seul montant.',
           explanation: `${A(w, rk.l1)} transfère ${amt(rk.hop.transfers[0].value, 'ETH')} à ${A(w, rk.l2)} (${rk.hop.hash.slice(0, 14)}…), qui envoie ${amt(rk.sent, 'ETH')} dans ArcBridge (${rk.out.hash.slice(0, 14)}…, nonce ${rk.out.bridge?.nonce}). La transaction d'arrivée ${rk.arr.hash.slice(0, 14)}… verse ${amt(rk.received, 'BTC')} à ${A(w, rk.btc)}. La transaction citée sur le forum (${decoy.outTx.hash.slice(0, 14)}…) a un montant voisin dans la même fenêtre, mais elle part d'une adresse sans lien avec le pirate et son événement désigne un autre destinataire : corréler par le montant seul mène à l'erreur.`,
         },
         {
-          id: 'o5', type: 'address', points: 15,
+          id: 'o5', type: 'address', points: 12,
           prompt: 'Sur Bitcoin, sur quelle adresse le pirate regroupe-t-il les fonds arrivés des différentes routes ?',
           answer: [C],
           hint: 'Dépliez les dépenses de l\'adresse d\'arrivée : la transaction qui suit a de très nombreuses entrées.',
           explanation: `La transaction ${consTx.hash.slice(0, 14)}… dépense ensemble ${N1} adresses d'arrivée (${nArc} arrivées ArcBridge et 2 paiements de l'échangeur eXch, sans lien on-chain avec Ethereum) vers ${A(w, C)} : ${amt(B, 'BTC')}. Par l'heuristique des entrées communes, toutes ces adresses appartiennent au même portefeuille : la consolidation « recolle » les ${N1} routes, y compris celles passées par eXch, que la corrélation montant/temps seule n'aurait pas établies avec certitude.`,
         },
         {
-          id: 'o6', type: 'entity', points: 15,
+          id: 'o9', type: 'number', points: 8, tolerance: 0, unit: 'UTXO',
+          prompt: 'Avant le mixage, en combien d\'UTXO de montant identique la consolidation est-elle découpée ?',
+          answer: m,
+          hint: 'Ouvrez la dépense de l\'adresse de consolidation : comptez les sorties de même montant, en laissant de côté la sortie différente.',
+          explanation: `${splitTx.hash.slice(0, 14)}… crée ${m} sorties de ${btc8(r8(D + PREMIX_EXTRA))} : la dénomination standard ${btc8(D)} plus une marge pour les frais de coordination et de réseau. Ce découpage « pré-mix » est la signature d'une préparation à un CoinJoin à dénominations fixes ; il annonce aussi combien de sorties mixées il faudra retrouver de l'autre côté (${m}), et sur combien de tours elles se répartissent (${nCj}).`,
+        },
+        {
+          id: 'o8', type: 'address', points: 10,
+          prompt: 'Quelle adresse reçoit le rendu de ce découpage, qui n\'entrera jamais dans un CoinJoin ?',
+          answer: [toxic],
+          hint: 'Dans la transaction de découpage, une seule sortie n\'a pas le montant standard : c\'est le reliquat de la consolidation.',
+          explanation: `${A(w, toxic)} reçoit ${amt(toxicValue, 'BTC')}, le reste de la consolidation qui ne remplit pas une dénomination entière. Ce rendu « toxique » n'est pas mixé : il reste directement rattaché au pirate par la chaîne consolidation → découpage. Le pirate le dépense plus tard avec des sorties mixées, ce qui annule pour elles le bénéfice du CoinJoin.`,
+        },
+        {
+          id: 'o6', type: 'entity', points: 12,
           prompt: 'Quel service reçoit les fonds à la sortie du CoinJoin ?',
           answer: ['satsdesk'],
           hint: 'Le découpage avant mixage laisse un rendu qui n\'entre pas dans le CoinJoin. Où ce rendu est-il dépensé, et avec quoi ?',
           explanation: `${A(w, C)} découpe ${amt(r8(m * (D + PREMIX_EXTRA)), 'BTC')} en ${m} UTXO de ${btc8(r8(D + PREMIX_EXTRA))} et garde un rendu de ${amt(toxicValue, 'BTC')} (${A(w, toxic)}), qui n'est pas mixé. ${nCj > 1 ? `${nCj} CoinJoin coordonnés par zkSNACKs produisent` : 'Un CoinJoin coordonné par zkSNACKs produit'} des sorties de ${btc8(D)}, dénomination standard (2^${Math.round(Math.log2(D * 1e8))} satoshis). Erreur d'hygiène : ${half} sorties mixées sont dépensées avec ce rendu vers une adresse de dépôt de SatsDesk OTC, ce qui les rattache au pirate par entrées communes ; les ${batchB.length} autres partent vers une seconde adresse de dépôt SatsDesk (lien de présomption seulement : même dénomination, mêmes tours, même courtier, délai court). Au total ${amt(toOtc, 'BTC')}.${nOthersToKr ? ` Des sorties d'autres participants partent vers ${kr.entity.name} : fausse piste, rien ne les relie au pirate.` : ''} ${procedureFor(sat.entity)}`,
+        },
+        {
+          id: 'o10', type: 'addresses', points: 10,
+          prompt: 'Sélectionnez les adresses de dépôt du service de sortie qui reçoivent les fonds post-mix du pirate.',
+          answer: [dA, dB],
+          hint: 'Partez de la dépense du rendu pré-mix, puis cherchez, peu après, une seconde dépense regroupant uniquement des sorties mixées des mêmes tours vers le même service.',
+          explanation: `${A(w, dA)} reçoit ${amt(pmA.outputs[0].value, 'BTC')} : le rendu pré-mix et ${half} sorties mixées y sont dépensés ensemble (lien par entrées communes). ${A(w, dB)}, autre adresse de dépôt du même courtier, reçoit ${amt(pmB.outputs[0].value, 'BTC')} ${Math.round((tB - tA) / HOUR)} h plus tard, depuis les ${batchB.length} autres sorties mixées (lien de présomption). Les deux adresses de dépôt sont à viser dans la même demande au courtier, qui pourra dire si elles relèvent du même compte client.`,
+        },
+        {
+          id: 'o11', type: 'amount', points: 8, unit: 'BTC', tolerance: 0.01,
+          prompt: 'Quel montant total (en BTC) parvient au service de sortie ?',
+          answer: toOtc,
+          hint: 'Additionnez les deux versements vers les adresses de dépôt du courtier.',
+          explanation: `${amt(pmA.outputs[0].value, 'BTC')} + ${amt(pmB.outputs[0].value, 'BTC')} = ${amt(toOtc, 'BTC')}, soit environ ${usdFmt(usd('BTC', toOtc))} pour un préjudice de ${usdFmt(stolenUsd)} : l'écart correspond surtout à l'USDT gelé, aux frais (swaps, bridge, CoinJoin) et aux reliquats restés sur les adresses intermédiaires. C'est le montant à indiquer au courtier pour la demande de blocage et de documentation des contreparties.`,
+        },
+        {
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Les sorties mixées envoyées vers la seconde adresse de dépôt du courtier ne sont pas dépensées avec le rendu pré-mix. Comment présenter leur rattachement au pirate ?',
+          ...choice(r,
+            'Comme une présomption (même dénomination, mêmes tours, même courtier, délai court), distincte du lien établi par entrées communes',
+            [
+              'Comme un lien certain : toute sortie de CoinJoin dépensée vers le même courtier appartient au même acteur',
+              'Comme sans intérêt : seules les sorties dépensées avec le rendu peuvent figurer dans le rapport',
+              'Comme un lien certain, puisque l\'heuristique des entrées communes s\'applique au CoinJoin lui-même',
+            ]),
+          hint: 'Quelle heuristique relie la première adresse de dépôt au pirate ? S\'applique-t-elle à la seconde ?',
+          explanation: `Les sorties dépensées avec le rendu toxique sont rattachées par entrées communes : lien fort. Les autres ne partagent aucune transaction avec un élément déjà attribué : leur rattachement repose sur un faisceau (dénomination, tours, destination, délai), suffisant pour orienter une réquisition mais à exposer comme une présomption. L'heuristique des entrées communes ne s'applique jamais à la transaction de CoinJoin elle-même, qui réunit par construction des participants différents. La réponse du courtier (même compte client ou non) tranchera.`,
         },
         {
           id: 'o7', type: 'choice', points: 10,
@@ -466,14 +507,15 @@ export const ethExchangeHack: ScenarioTemplate = {
           `3. Conversions sur Uniswap : l'USDT d'abord (${amt(usdtSwapped, 'USDT')} en ${usdtSwaps.length} tranches), jusqu'au gel de Tether qui bloque ${amt(frozen, 'USDT')} ; puis l'USDC, et seulement ensuite le DAI et le WBTC. Total obtenu : ${amt(roundAsset('ETH', ethFromSwaps), 'ETH')}.\n` +
           `4. Dispersion : ${N1} adresses de premier niveau reçoivent ~${amt(r2(perAvg), 'ETH')} chacune, puis transfèrent tout vers une deuxième couche d'adresses neuves.\n` +
           `5. Passage sur Bitcoin : ${nArc} routes par ArcBridge (événements à nonce) et 2 par eXch (sans lien on-chain). Toutes les arrivées sont regroupées par ${consTx.hash.slice(0, 14)}… sur ${A(w, C)} (${amt(B, 'BTC')}).\n` +
-          `6. Mixage : découpage en ${m} UTXO de ${btc8(D)} + marge, rendu de ${amt(toxicValue, 'BTC')}, ${nCj > 1 ? `${nCj} tours` : 'un tour'} de CoinJoin (zkSNACKs).\n` +
-          `7. Sortie : le rendu est dépensé avec ${half} sorties mixées vers SatsDesk OTC, les ${batchB.length} autres suivent vers une seconde adresse de dépôt du même courtier : ${amt(toOtc, 'BTC')} au total.\n\n` +
+          `6. Mixage : découpage en ${m} UTXO de ${btc8(D)} + marge, rendu de ${amt(toxicValue, 'BTC')} sur ${A(w, toxic)}, ${nCj > 1 ? `${nCj} tours` : 'un tour'} de CoinJoin (zkSNACKs).\n` +
+          `7. Sortie : le rendu est dépensé avec ${half} sorties mixées vers une adresse de dépôt de SatsDesk OTC (${A(w, dA)}), les ${batchB.length} autres suivent vers une seconde adresse de dépôt du même courtier (${A(w, dB)}) : ${amt(toOtc, 'BTC')} au total.\n\n` +
           `À retenir : face à un acteur organisé, la vitesse compte (gel des émetteurs dans l'heure, alertes aux plateformes), et la piste se reconstruit aux points de convergence : consolidation après un bridge, erreurs post-mix, courtier de sortie. Le courtier OTC (Hong Kong, coopération par entraide) est le maillon où l'argent redevient « propre » : c'est là que se jouent le renseignement et la coopération internationale. Enfin, l'attribution à un État ne se déduit pas d'un graphe : on écrit « compatible avec », on cite ses sources et leur niveau de confiance.`,
       },
       hints: [
         'Partez de l\'adresse principale du communiqué : ses entrées racontent le vol, ses sorties les swaps puis la dispersion.',
         'Pour le passage sur Bitcoin, ouvrez l\'événement du bridge sur la transaction de départ : chaîne cible, destinataire et nonce désignent la transaction d\'arrivée.',
         'Sur Bitcoin, cherchez où convergent les arrivées, puis le rendu du découpage pré-mix : c\'est lui qui trahit la sortie du CoinJoin.',
+        'Toutes les sorties mixées ne sont pas dépensées avec le rendu : cherchez une seconde dépense de sorties des mêmes tours, vers le même service, dans les heures qui suivent.',
       ],
     }
   },
