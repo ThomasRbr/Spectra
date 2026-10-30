@@ -8,6 +8,18 @@ Plateforme d'entraînement au traçage de crypto-actifs, inspirée des outils d'
 - Sinon : `npm install` puis `npm run dev`, et ouvrez http://localhost:5173.
 - Version autonome : `npm run build` produit le dossier `dist/`, à servir avec `npm run preview`.
 
+## Application Windows (.exe)
+
+SPECTRA existe aussi en application de bureau (Tauri), sans serveur ni navigateur :
+
+- `npm run desktop:build` produit :
+  - `src-tauri/target/release/spectra.exe` : exécutable autonome, un seul fichier à copier et lancer ;
+  - `src-tauri/target/release/bundle/nsis/SPECTRA_1.0.0_x64-setup.exe` : installateur (sans droits administrateur, avec raccourcis).
+- `npm run desktop:dev` lance la version de bureau en développement.
+- Prérequis pour compiler : Rust (cible MSVC) et les Visual Studio Build Tools. Pour lancer : Windows 10 ou 11 avec WebView2 (présent par défaut ; l'installateur l'ajoute si besoin).
+- L'exécutable n'est pas signé : au premier lancement, Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » → « Informations complémentaires » → « Exécuter quand même ».
+- La progression est enregistrée par l'application, séparément de la version navigateur.
+
 ## Ce qu'il y a dedans
 
 - **Moteur de blockchain simulée** (`src/engine/`) : Bitcoin, Litecoin, Ethereum, BNB Chain, Tron, XRP, Solana, Monero. Modèle UTXO réel (entrées, sorties, rendu, frais), modèle à comptes avec jetons (USDT, USDC, DAI, WBTC), exchanges avec adresses de dépôt et balayage, échangeurs instantanés, mixeurs, CoinJoin, DEX, bridges, pools de confidentialité.

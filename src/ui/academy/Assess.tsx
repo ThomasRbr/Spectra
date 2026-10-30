@@ -5,6 +5,7 @@ import { useProfile, type CardGrade, type Certificate } from '../../store/profil
 import { useUi } from '../../store/ui'
 import { dueCards, pathProgress, type CardRef } from '../../lib/academy'
 import { Empty, Icon, ProgressBar, fmtDuration } from '../common'
+import { openPrintable } from '../../lib/printable'
 import { QuestionCard, isCorrect } from './Quiz'
 import { DrillQuestion, checkDrill } from './Practice'
 import { PracticalCerts, printPractical } from './Practical'
@@ -363,16 +364,7 @@ h1{font-size:42px;margin:10mm 0 4mm;color:#111}.n{font-size:30px;margin:6mm 0;fo
 <div class="k">SPECTRA · Académie du traçage de crypto-actifs</div><h1>Certificat de réussite</h1><div>Décerné à</div><div class="n">${esc(name)}</div><div>${esc(unit)}</div>
 <div style="margin-top:8mm">pour avoir ${c.kind === 'path' ? 'achevé le parcours' : 'réussi l\'examen'}</div><div class="t">${esc(c.title)}</div>
 <div class="m">Délivré le ${new Date(c.date).toLocaleDateString('fr-FR', { dateStyle: 'long' })}${c.score !== undefined ? ` · score ${c.score} %` : ''}<br>Certificat d'entraînement interne — sans valeur de diplôme</div></div></div></body></html>`
-  const w = window.open('', '_blank')
-  if (w) {
-    w.document.write(html)
-    w.document.close()
-  } else {
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
-    a.download = `certificat-${c.id}.html`
-    a.click()
-  }
+  openPrintable(html, `certificat-${c.id}.html`)
 }
 
 export { LESSONS }
