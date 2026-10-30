@@ -105,7 +105,7 @@ export const btcChangeAnatomy: ScenarioTemplate = {
     const remaining = txD.outputs.find((o) => o.address === s3)!.value
     const sumInD = txD.inputs.reduce((s, i) => s + i.value, 0)
     const sumOutD = txD.outputs.reduce((s, o) => s + o.value, 0)
-    const kindLabel: Record<AddrKind, string> = { p2pkh: 'Legacy (1…)', p2sh: 'P2SH (3…)', p2wpkh: 'SegWit natif (bc1q…)', p2tr: 'Taproot (bc1p…)', eoa: '', contract: '', account: '', stealth: '' }
+    const kindLabel: Record<AddrKind, string> = { p2pkh: 'Legacy (1…)', p2sh: 'P2SH (3…)', p2wpkh: 'SegWit natif (bc1q…)', p2tr: 'Taproot (bc1p…)', eoa: '', contract: '', account: '', stealth: '', p2wsh: '', ton_wallet: '' }
 
     return {
       world: w,

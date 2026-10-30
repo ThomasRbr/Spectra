@@ -14,6 +14,7 @@ import { PeelModal } from './Heuristics'
 import { LiveClockBar } from './Live'
 import { DemixModal } from './Demix'
 import { CaseBar } from './CaseBar'
+import { HdToolModal, openHdTool } from './HdTool'
 import { CertBanner, CertReportModal } from './CertExam'
 import { Briefing, ConfirmSubmit, Correlator, Debrief, HintModal, ReportModal, RequisitionModal, SearchPalette, ShortcutsModal } from './Tools'
 
@@ -140,6 +141,7 @@ export function Workspace() {
             useUi.getState().set({ correlator: { open: true, preset: tx ? { time: tx.time, usd: Math.round(inst.world.txUsd(tx)), excludeTx: tx.id } : { time: inst.world.t0, usd: 1000 } } })
           }} />
           <TopBtn icon="Route" label="Traçage" kbd="R" onClick={openTracerFromSelection} />
+          <TopBtn icon="KeyRound" label="Dérivation HD" onClick={() => openHdTool()} />
           <TopBtn icon="FileText" label="Ordre de mission" onClick={() => useUi.getState().set({ briefingOpen: true })} />
           <TopBtn icon="PanelLeft" label="Dossier" kbd="[" active={leftOpen} onClick={() => useUi.getState().set({ leftOpen: !leftOpen })} />
           <TopBtn icon="PanelBottom" label="Frise" kbd="T" active={timelineOpen} onClick={() => useUi.getState().set({ timelineOpen: !timelineOpen })} />
@@ -180,6 +182,7 @@ export function Workspace() {
       <TracerModal />
       <PeelModal />
       <DemixModal />
+      <HdToolModal />
       <CertReportModal />
       <SearchPalette />
       <RequisitionModal />

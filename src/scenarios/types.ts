@@ -42,7 +42,7 @@ export const SKILLS: Record<SkillId, { label: string; group: string }> = {
   gel: { label: 'Gel & saisie', group: 'Enquête' },
 }
 
-export type EvidenceType = 'plainte' | 'capture' | 'telegram' | 'forum' | 'email' | 'note' | 'pv' | 'rancon' | 'osint' | 'rapport' | 'sms'
+export type EvidenceType = 'plainte' | 'capture' | 'telegram' | 'forum' | 'email' | 'note' | 'pv' | 'rancon' | 'osint' | 'rapport' | 'sms' | 'extraction' | 'perquisition' | 'releve'
 
 export interface Evidence {
   id: string

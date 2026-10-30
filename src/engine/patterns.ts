@@ -1,7 +1,7 @@
 // Briques réutilisables pour composer des affaires : exchanges, échangeurs
 // instantanés, mixeurs, CoinJoin, DEX, bridges, pools de confidentialité,
 // peel chains et bruit de fond.
-import { CHAINS, type AssetId, type ChainId, fromUsd, roundAsset, usd } from './chains'
+import { CHAINS, EUR_USD, type AssetId, type ChainId, fromUsd, isEvm, roundAsset, usd } from './chains'
 import type { Entity } from './entities'
 import type { Tx, World } from './world'
 import type { AddrKind } from './addressgen'
@@ -58,19 +58,33 @@ export interface ExchangeKit {
   withdraw(to: string, value: number, time: number, asset?: AssetId, memo?: string): Tx
   /** Activité de fond : retraits et dépôts sans lien avec l'affaire. */
   noise(n: number, from: number, to: number, asset?: AssetId): void
+  /** Dépôts sur une adresse partagée, client identifié par le tag / commentaire (XRP, TON). */
+  shared: boolean
+  /** Nouvel identifiant client (destination tag XRP, commentaire TON) pour un dépôt sur adresse partagée. */
+  newMemo(): string
 }
 
-export function exchange(w: World, key: string, chain: ChainId): ExchangeKit {
+/**
+ * Exchange centralisé sur une chaîne. Sur XRP et TON, les dépôts arrivent par
+ * défaut sur l'adresse partagée du hot wallet, le client étant identifié par
+ * le destination tag (XRP) ou le commentaire (TON) : passez `memo` à `receive`.
+ * `opts.sharedDeposit` force l'un ou l'autre modèle sur TON.
+ */
+export function exchange(w: World, key: string, chain: ChainId, opts: { sharedDeposit?: boolean } = {}): ExchangeKit {
   const entity = w.entity(key)
   const hot = w.addr(chain, { entity, label: `${entity.name} — Hot Wallet`, tags: ['liquid', 'hot'], kind: chain === 'btc' ? 'p2wpkh' : undefined })
   const native = nativeOf(chain)
-  // XRP : adresse partagée + destination tag
-  const shared = chain === 'xrp'
+  // XRP (toujours) et TON (par défaut) : adresse partagée + destination tag / commentaire
+  const shared = chain === 'xrp' || (chain === 'ton' && opts.sharedDeposit !== false)
 
   const kit: ExchangeKit = {
     entity,
     chain,
     hot,
+    shared,
+    newMemo() {
+      return String(w.rng.int(100000, 99999999))
+    },
     newDeposit() {
       if (shared) return hot
       return w.addr(chain, { entity, label: `${entity.name} — Adresse de dépôt`, tags: ['deposit'] })
@@ -462,3 +476,389 @@ export function backgroundIn(w: World, addr: string, n: number, from: number, to
 
 export const HOUR = H
 export const DAY = 24 * H
+
+// ── Lightning Network ───────────────────────────────────────────────────────
+//
+// Sur la blockchain, on ne voit que l'ouverture (financement d'une sortie
+// P2WSH 2-de-2) et la fermeture d'un canal. Les paiements faits dans le canal
+// restent hors chaîne.
+
+const LN_ANCHOR = 0.0000033 // 330 sats
+const lspNodes = new WeakMap<World, Map<string, string>>()
+
+/** Adresse on-chain du nœud d'un LSP (une par entité et par monde). */
+export function lspNode(w: World, peer: string | Entity, chain: ChainId = 'btc'): string {
+  const e = typeof peer === 'string' ? (w.entities.get(peer) ?? w.entity(peer)) : peer
+  let m = lspNodes.get(w)
+  if (!m) lspNodes.set(w, (m = new Map()))
+  const k = `${e.id}|${chain}`
+  let a = m.get(k)
+  if (!a) {
+    a = w.addr(chain, { entity: e, label: `${e.name} — Nœud Lightning`, kind: 'p2wpkh', tags: ['liquid', 'hot'] })
+    m.set(k, a)
+  }
+  return a
+}
+
+export interface LnForceClose {
+  /** Transaction d'engagement (commitment) diffusée unilatéralement. */
+  commitTx: Tx
+  /** Sortie retardée (to_local, P2WSH à délai CSV) du diffuseur. */
+  delayed: string
+  /** Récupération de la sortie retardée après le délai (si demandée). */
+  sweepTx?: Tx
+  /** Adresse où le diffuseur récupère ses fonds. */
+  sweptTo?: string
+  /** Adresse qui reçoit immédiatement le solde de l'autre partie. */
+  remoteTo: string
+}
+
+export interface LnChannel {
+  chain: ChainId
+  /** Transaction de financement (ouverture). */
+  tx: Tx
+  /** Adresse P2WSH 2-de-2 du canal. */
+  funding: string
+  capacity: number
+  /** Adresse qui a financé le canal (portefeuille de l'utilisateur). */
+  from: string
+  peer: Entity
+  /** Adresse on-chain du nœud du pair (LSP). */
+  peerNode: string
+  open: boolean
+  closeTx?: Tx
+  cooperativeClose(o: { time: number; toLocal: number; toRemote?: number; localAddr?: string; remoteAddr?: string; fee?: number }): Tx
+  forceClose(o: { time: number; toLocal: number; toRemote?: number; by?: 'local' | 'remote'; csvBlocks?: number; sweep?: boolean; sweepTo?: string; anchors?: boolean }): LnForceClose
+}
+
+/**
+ * Ouverture de canal Lightning : `from` finance une sortie P2WSH 2-de-2
+ * partagée avec le nœud du pair (un LSP du catalogue, ex. 'lumen_lsp').
+ *
+ * ```ts
+ * const ch = openChannel(w, { from: wallet, peer: 'lumen_lsp', capacity: 0.02, time: t })
+ * ch.cooperativeClose({ time: t + 30 * DAY, toLocal: 0.004 })   // le reste au LSP
+ * ```
+ */
+export function openChannel(w: World, o: { from: string; peer: string | Entity; capacity: number; time: number; change?: string | null }): LnChannel {
+  const src = w.get(o.from)
+  const chain = src.chain
+  if (chain !== 'btc' && chain !== 'ltc') throw new Error('openChannel : Bitcoin ou Litecoin uniquement')
+  const peer = typeof o.peer === 'string' ? w.entity(o.peer) : o.peer
+  const peerNode = lspNode(w, peer, chain)
+  const funding = w.addr(chain, { kind: 'p2wsh', wallet: `ln:${o.from}`, tags: ['ln-channel'] })
+  const tx = w.utxoTx({ time: o.time, from: [o.from], to: [{ address: funding, value: o.capacity }], change: o.change, tags: ['ln-open'] })
+  const ch: LnChannel = {
+    chain, tx, funding, capacity: o.capacity, from: o.from, peer, peerNode, open: true,
+    cooperativeClose: (c) => cooperativeClose(w, ch, c),
+    forceClose: (c) => forceClose(w, ch, c),
+  }
+  return ch
+}
+
+function channelOwnAddr(w: World, ch: LnChannel): string {
+  const src = w.get(ch.from)
+  return w.addr(ch.chain, { kind: 'p2wpkh', entity: src.entityId, wallet: src.wallet })
+}
+
+function peerAddr(w: World, ch: LnChannel): string {
+  return w.addr(ch.chain, { kind: 'p2wpkh', entity: ch.peer, wallet: ch.peer.id })
+}
+
+/** Fermeture coopérative : une transaction qui dépense la sortie du canal vers les deux parties. */
+export function cooperativeClose(w: World, ch: LnChannel, o: { time: number; toLocal: number; toRemote?: number; localAddr?: string; remoteAddr?: string; fee?: number }): Tx {
+  if (!ch.open) throw new Error('Canal déjà fermé')
+  if (o.time <= ch.tx.time) throw new Error('La fermeture doit suivre l\'ouverture')
+  const fee = o.fee ?? w.estimateFee(ch.chain, 1, 2)
+  const toLocal = Math.min(o.toLocal, ch.capacity - fee)
+  const toRemote = o.toRemote ?? ch.capacity - toLocal - fee
+  const outputs: { address: string; value: number }[] = []
+  if (toLocal > 0.00000546) outputs.push({ address: o.localAddr ?? channelOwnAddr(w, ch), value: toLocal })
+  if (toRemote > 0.00000546) outputs.push({ address: o.remoteAddr ?? peerAddr(w, ch), value: toRemote })
+  const tx = w.rawUtxoTx({ time: o.time, spend: [{ address: ch.funding }], outputs, tags: ['ln-close'] })
+  tx.fp = { version: 2, locktime: 0, rbf: false }
+  ch.open = false
+  ch.closeTx = tx
+  return tx
+}
+
+/**
+ * Fermeture forcée (unilatérale) : la transaction d'engagement verse le solde
+ * du diffuseur sur une sortie retardée (délai CSV, 144 blocs par défaut) et
+ * celui de l'autre partie immédiatement ; deux sorties « ancres » de 330 sats.
+ * `sweep` (par défaut vrai) ajoute la récupération après le délai.
+ */
+export function forceClose(w: World, ch: LnChannel, o: { time: number; toLocal: number; toRemote?: number; by?: 'local' | 'remote'; csvBlocks?: number; sweep?: boolean; sweepTo?: string; anchors?: boolean }): LnForceClose {
+  if (!ch.open) throw new Error('Canal déjà fermé')
+  if (o.time <= ch.tx.time) throw new Error('La fermeture doit suivre l\'ouverture')
+  const anchors = o.anchors !== false
+  const fee = w.estimateFee(ch.chain, 1, anchors ? 4 : 2)
+  const toLocal = Math.min(o.toLocal, ch.capacity - fee - (anchors ? 2 * LN_ANCHOR : 0))
+  const toRemote = o.toRemote ?? ch.capacity - toLocal - fee - (anchors ? 2 * LN_ANCHOR : 0)
+  const byLocal = (o.by ?? 'local') === 'local'
+  const mine = byLocal ? toLocal : toRemote
+  const theirs = byLocal ? toRemote : toLocal
+  const delayed = w.addr(ch.chain, { kind: 'p2wsh', wallet: `ln:${ch.funding}:delayed`, tags: ['ln-delayed'] })
+  const remoteTo = byLocal ? peerAddr(w, ch) : channelOwnAddr(w, ch)
+  const outputs: { address: string; value: number }[] = []
+  if (mine > 0.00000546) outputs.push({ address: delayed, value: mine })
+  if (theirs > 0.00000546) outputs.push({ address: remoteTo, value: theirs })
+  if (anchors) for (let i = 0; i < 2; i++) outputs.push({ address: w.addr(ch.chain, { kind: 'p2wsh', wallet: `ln:${ch.funding}:anchor${i}`, tags: ['ln-anchor'] }), value: LN_ANCHOR })
+  const commitTx = w.rawUtxoTx({ time: o.time, spend: [{ address: ch.funding }], outputs, tags: ['ln-force-close'] })
+  // nLockTime « 0x20…… » et nSequence « 0x80…… » : numéro d'engagement masqué (BOLT 3).
+  commitTx.fp = { version: 2, locktime: 0x20000000 + w.rng.int(0, 0xffffff), rbf: true }
+  ch.open = false
+  ch.closeTx = commitTx
+  const res: LnForceClose = { commitTx, delayed, remoteTo }
+  if (o.sweep !== false && mine > 0.00001) {
+    const csv = o.csvBlocks ?? 144
+    const t = o.time + csv * CHAINS[ch.chain].blockTime + w.rng.int(600, 6 * H)
+    const sweptTo = o.sweepTo ?? (byLocal ? channelOwnAddr(w, ch) : peerAddr(w, ch))
+    const fee2 = w.estimateFee(ch.chain, 1, 1)
+    res.sweepTx = w.rawUtxoTx({ time: t, spend: [{ address: delayed }], outputs: [{ address: sweptTo, value: mine - fee2 }], tags: ['ln-sweep'] })
+    res.sweepTx.fp = { version: 2, locktime: 0, rbf: true }
+    res.sweptTo = sweptTo
+  }
+  return res
+}
+
+export interface LnRecord {
+  time: number
+  /** Compte client chez le service (identifiant interne). */
+  account: string
+  direction: 'send' | 'receive'
+  sats: number
+  /** Facture BOLT 11 (fictive). */
+  invoice: string
+  paymentHash: string
+  counterparty?: string
+  description?: string
+}
+
+/** Facture Lightning BOLT 11 fictive (forme seulement). */
+export function fakeInvoice(w: World, sats: number, chain: ChainId = 'btc'): string {
+  const BECH = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l'
+  const amount = sats % 100 === 0 ? `${sats / 100}u` : `${sats * 10}n`
+  let s = `ln${chain === 'ltc' ? 'ltc' : 'bc'}${amount}1p`
+  for (let i = 0; i < 180; i++) s += BECH[w.rng.int(0, BECH.length - 1)]
+  return s
+}
+
+export interface LnCustodialKit {
+  entity: Entity
+  /** Portefeuille chaud on-chain du service (reçoit les balayages, paie les retraits). */
+  hot: string
+  exchange: ExchangeKit
+  /** Registre interne du service : paiements Lightning, invisibles on-chain (à obtenir par réquisition). */
+  records: LnRecord[]
+  /** Dépôt on-chain sur une adresse fournie par le service, balayée ensuite vers le hot wallet. */
+  deposit(from: string, value: number, time: number, opts?: { change?: string | null; sweepDelayH?: number }): { tx: Tx; deposit: string; sweep?: Tx }
+  /** Retrait on-chain payé par le service (tag « ln-custodial-payout »). */
+  withdraw(to: string, value: number, time: number): Tx
+  /** Paiement Lightning interne : aucune transaction, une ligne dans le registre du service. */
+  pay(o: { time: number; account: string; sats: number; direction: 'send' | 'receive'; counterparty?: string; description?: string }): LnRecord
+  noise(n: number, from: number, to: number): void
+}
+
+/**
+ * Portefeuille Lightning custodial (ex. 'voltpocket') : seuls les dépôts et
+ * retraits on-chain sont visibles ; les paiements Lightning ne laissent qu'une
+ * trace dans le registre du service (`records`).
+ */
+export function lnCustodial(w: World, key = 'voltpocket', chain: ChainId = 'btc'): LnCustodialKit {
+  const ex = exchange(w, key, chain)
+  const kit: LnCustodialKit = {
+    entity: ex.entity,
+    hot: ex.hot,
+    exchange: ex,
+    records: [],
+    deposit(from, value, time, opts = {}) {
+      return ex.receive(from, value, time, { change: opts.change, sweepDelayH: opts.sweepDelayH })
+    },
+    withdraw(to, value, time) {
+      const tx = w.utxoTx({ time, from: [ex.hot], to: [{ address: to, value }], change: ex.hot, tags: ['ln-custodial-payout'] })
+      return tx
+    },
+    pay(o) {
+      let ph = ''
+      for (let i = 0; i < 64; i++) ph += '0123456789abcdef'[w.rng.int(0, 15)]
+      const rec: LnRecord = { ...o, invoice: fakeInvoice(w, o.sats, chain), paymentHash: ph }
+      kit.records.push(rec)
+      kit.records.sort((a, b) => a.time - b.time)
+      return rec
+    },
+    noise(n, from, to) {
+      ex.noise(n, from, to)
+    },
+  }
+  return kit
+}
+
+// ── Bridges canoniques des rollups (Arbitrum One, Base) ─────────────────────
+
+export interface L2BridgeKit {
+  entity: Entity
+  l2: 'arb' | 'base'
+  /** Contrat du bridge côté Ethereum (L1). */
+  l1Gateway: string
+  /** Contrat du bridge côté rollup (L2). */
+  l2Gateway: string
+  /** Dépôt L1 → L2 : crédité en quelques minutes ; destinataire par défaut = même adresse 0x sur le L2. */
+  deposit(o: { from: string; value: number; asset?: AssetId; time: number; recipient?: string; delayMin?: [number, number] }): { l1Tx: Tx; l2Tx: Tx; recipient: string }
+  /** Retrait L2 → L1 : initié sur le L2, finalisé sur Ethereum après la période de contestation (~7 jours). */
+  withdraw(o: { from: string; value: number; asset?: AssetId; time: number; recipient?: string; challengeDays?: number; claimDelayH?: [number, number] }): { initTx: Tx; finalizeTx: Tx; recipient: string }
+}
+
+const l2Kits = new WeakMap<World, Map<string, L2BridgeKit>>()
+
+/**
+ * Bridge canonique officiel d'un rollup optimiste (entités 'arbitrum_bridge',
+ * 'base_bridge'). Les deux transactions sont liées par `tx.bridge` (nonce),
+ * comme pour `bridge()` : le traçage et le graphe suivent le passage.
+ *
+ * ```ts
+ * const ab = l2Bridge(w, 'arb')
+ * const { l2Tx, recipient } = ab.deposit({ from: ethAddr, value: 2, time: t })
+ * const { finalizeTx } = ab.withdraw({ from: recipient, value: 1.5, time: t + 3 * DAY })
+ * ```
+ */
+export function l2Bridge(w: World, l2: 'arb' | 'base'): L2BridgeKit {
+  let m = l2Kits.get(w)
+  if (!m) l2Kits.set(w, (m = new Map()))
+  const cached = m.get(l2)
+  if (cached) return cached
+  const isArb = l2 === 'arb'
+  const entity = w.entity(isArb ? 'arbitrum_bridge' : 'base_bridge')
+  const l1Gateway = w.addr('eth', { entity, label: isArb ? 'Arbitrum Bridge : contrat L1 (Ethereum)' : 'Base Bridge : OptimismPortal (Ethereum)', contract: { name: isArb ? 'Arbitrum One Bridge (L1)' : 'Base OptimismPortal (L1)', type: 'bridge' } })
+  const l2Gateway = w.addr(l2, { entity, label: isArb ? 'Arbitrum Bridge : passerelle L2' : 'Base Bridge : L2StandardBridge', contract: { name: isArb ? 'Arbitrum One Gateway (L2)' : 'Base L2StandardBridge', type: 'bridge' } })
+  let nonce = w.rng.int(100000, 900000)
+  const kit: L2BridgeKit = {
+    entity,
+    l2,
+    l1Gateway,
+    l2Gateway,
+    deposit(o) {
+      if (w.get(o.from).chain !== 'eth') throw new Error('l2Bridge.deposit : l\'émetteur doit être une adresse Ethereum (L1)')
+      const asset = o.asset ?? 'ETH'
+      const recipient = o.recipient ?? w.addrSameEoa(o.from, l2)
+      const n = ++nonce
+      const l1Tx = w.transfer({ time: o.time, from: o.from, to: l1Gateway, value: o.value, asset, method: asset === 'ETH' ? (isArb ? 'depositEth' : 'depositTransaction') : (isArb ? 'outboundTransfer' : 'depositERC20'), tags: ['bridge', 'l2-deposit'] })
+      const [d0, d1] = o.delayMin ?? (isArb ? [8, 15] : [1, 4])
+      const l2Tx = w.transfer({ time: o.time + w.rng.int(d0 * 60, d1 * 60), from: l2Gateway, to: recipient, value: o.value, asset, method: isArb ? 'finalizeInboundTransfer' : 'finalizeDeposit', tags: ['bridge', 'l2-deposit'] })
+      l1Tx.bridge = { direction: 'out', otherChain: l2, otherTx: l2Tx.id, nonce: n, recipient }
+      l2Tx.bridge = { direction: 'in', otherChain: 'eth', otherTx: l1Tx.id, nonce: n, recipient }
+      return { l1Tx, l2Tx, recipient }
+    },
+    withdraw(o) {
+      if (w.get(o.from).chain !== l2) throw new Error(`l2Bridge.withdraw : l'émetteur doit être une adresse ${CHAINS[l2].name}`)
+      const asset = o.asset ?? 'ETH'
+      const recipient = o.recipient ?? w.addrSameEoa(o.from, 'eth')
+      const n = ++nonce
+      const initTx = w.transfer({ time: o.time, from: o.from, to: l2Gateway, value: o.value, asset, method: isArb ? (asset === 'ETH' ? 'withdrawEth' : 'outboundTransfer') : 'withdraw', tags: ['bridge', 'l2-withdraw-init'] })
+      const days = o.challengeDays ?? 7
+      const [c0, c1] = o.claimDelayH ?? [1, 30]
+      const tf = o.time + Math.round(days * DAY) + w.rng.int(Math.round(c0 * H), Math.round(c1 * H))
+      const finalizeTx = w.multi({ time: tf, signer: recipient, chain: 'eth', legs: [{ from: l1Gateway, to: recipient, value: o.value, asset }], method: isArb ? 'executeTransaction' : 'finalizeWithdrawalTransaction', tags: ['bridge', 'l2-withdraw-finalize'] })
+      initTx.bridge = { direction: 'out', otherChain: 'eth', otherTx: finalizeTx.id, nonce: n, recipient }
+      finalizeTx.bridge = { direction: 'in', otherChain: l2, otherTx: initTx.id, nonce: n, recipient }
+      return { initTx, finalizeTx, recipient }
+    },
+  }
+  m.set(l2, kit)
+  return kit
+}
+
+// ── DAB crypto (distributeur automatique) ───────────────────────────────────
+
+export interface AtmKit {
+  entity: Entity
+  chain: ChainId
+  /** Portefeuille chaud de l'exploitant (paie les achats au guichet). */
+  hot: string
+  /** Achat au guichet : le client insère des espèces, l'exploitant envoie la crypto à l'adresse du client. */
+  cashIn(o: { cashEur: number; to: string; time: number; asset?: AssetId; feePct?: number }): { tx: Tx; value: number; feeEur: number }
+  /** Vente au guichet : le client envoie la crypto à une adresse propre au ticket, puis retire des espèces. */
+  cashOut(o: { from: string; value: number; time: number; asset?: AssetId; feePct?: number; change?: string | null; sweepDelayH?: number }): { tx: Tx; deposit: string; cashEur: number; sweep?: Tx }
+  noise(n: number, from: number, to: number): void
+}
+
+/**
+ * Exploitant de DAB crypto (ex. 'cryptoguichet'). Les seuils KYC figurent
+ * dans la fiche conformité de l'entité.
+ *
+ * ```ts
+ * const dab = atm(w, 'cryptoguichet', 'btc')
+ * const { tx, value } = dab.cashIn({ cashEur: 900, to: suspectAddr, time: t })
+ * ```
+ */
+export function atm(w: World, key = 'cryptoguichet', chain: ChainId = 'btc'): AtmKit {
+  const entity = w.entity(key)
+  const native = nativeOf(chain)
+  const hot = w.addr(chain, { entity, label: `${entity.name} — Portefeuille des distributeurs`, tags: ['liquid', 'hot'], kind: chain === 'btc' ? 'p2wpkh' : undefined })
+  const kit: AtmKit = {
+    entity,
+    chain,
+    hot,
+    cashIn(o) {
+      const asset = o.asset ?? native
+      const feePct = o.feePct ?? w.rng.float(0.08, 0.12)
+      const value = roundAsset(asset, fromUsd(asset, o.cashEur * EUR_USD * (1 - feePct)))
+      const tx = isUtxo(chain)
+        ? w.utxoTx({ time: o.time, from: [hot], to: [{ address: o.to, value }], change: hot, tags: ['atm-cash-in'], method: 'Vente au guichet' })
+        : w.transfer({ time: o.time, from: hot, to: o.to, value, asset, tags: ['atm-cash-in'], method: 'Vente au guichet' })
+      return { tx, value, feeEur: Math.round(o.cashEur * feePct * 100) / 100 }
+    },
+    cashOut(o) {
+      const asset = o.asset ?? native
+      const feePct = o.feePct ?? w.rng.float(0.07, 0.1)
+      const deposit = w.addr(chain, { entity, label: `${entity.name} — Adresse de ticket (vente)`, tags: ['deposit'] })
+      const tx = isUtxo(chain)
+        ? w.utxoTx({ time: o.time, from: [o.from], to: [{ address: deposit, value: o.value }], change: o.change, tags: ['atm-cash-out'], method: 'Rachat au guichet' })
+        : w.transfer({ time: o.time, from: o.from, to: deposit, value: o.value, asset, tags: ['atm-cash-out'], method: 'Rachat au guichet' })
+      const cashEur = Math.floor((usd(asset, o.value) * (1 - feePct)) / EUR_USD / 10) * 10
+      let sweep: Tx | undefined
+      if (o.sweepDelayH !== undefined || w.rng.chance(0.7)) {
+        const t = o.time + (o.sweepDelayH ?? w.rng.float(1, 20)) * H
+        if (isUtxo(chain)) {
+          const fee = w.estimateFee(chain, 1, 1)
+          sweep = w.utxoTx({ time: t, from: [deposit], to: [{ address: hot, value: w.unspentValue(deposit, t) - fee }], fee, change: null, spendAll: true, tags: ['sweep'] })
+        } else sweep = w.transfer({ time: t, from: deposit, to: hot, value: o.value, asset, method: 'sweep', tags: ['sweep'] })
+      }
+      return { tx, deposit, cashEur, sweep }
+    },
+    noise(n, from, to) {
+      for (let i = 0; i < n; i++) {
+        const t = Math.round(w.rng.float(from, to))
+        const cust = w.addr(chain)
+        if (w.rng.chance(0.75)) kit.cashIn({ cashEur: Math.round(w.rng.float(2, 95)) * 10, to: cust, time: t })
+        else {
+          const v = roundAsset(native, fromUsd(native, w.rng.float(100, 1500)))
+          if (isUtxo(chain)) w.fund(cust, v * 1.05, t - w.rng.int(2 * H, 20 * DAY))
+          kit.cashOut({ from: cust, value: v, time: t })
+        }
+      }
+    },
+  }
+  return kit
+}
+
+// ── TON : transferts avec commentaire ──────────────────────────────────────
+
+/**
+ * Transfert TON (natif) ou USDT (jetton) avec commentaire facultatif, visible
+ * en clair sur l'explorateur (`tx.memo`).
+ *
+ * ```ts
+ * tonTransfer(w, { from, to: ex.hot, value: 250, asset: 'USDT', comment: ex.newMemo(), time: t })
+ * ```
+ */
+export function tonTransfer(w: World, o: { from: string; to: string; value: number; time: number; asset?: 'TON' | 'USDT'; comment?: string; tags?: string[] }): Tx {
+  if (w.get(o.from).chain !== 'ton') throw new Error('tonTransfer : adresse TON attendue')
+  const asset = o.asset ?? 'TON'
+  return w.transfer({ time: o.time, from: o.from, to: o.to, value: o.value, asset, memo: o.comment, method: asset === 'TON' ? 'transfer' : 'jetton transfer', tags: o.tags })
+}
+
+/** Même compte EVM sur plusieurs chaînes (raccourci de `w.addrSameEoa`). */
+export function sameEoaOn(w: World, id: string, chains: ChainId[]): string[] {
+  return chains.filter(isEvm).map((c) => (c === w.get(id).chain ? id : w.addrSameEoa(id, c)))
+}

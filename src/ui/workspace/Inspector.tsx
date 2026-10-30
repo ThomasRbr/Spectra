@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import { CHAINS, fmtAsset, fmtUsd, usd, type AssetId } from '../../engine/chains'
 import { CATEGORY, COOPERATION_LABEL, type EntityCategory } from '../../engine/entities'
 import { KIND_LABEL, shortAddr } from '../../engine/addressgen'
-import { attribution, changeAnalysis, clusterLabel, clusterOf, detectCoinjoin, exposure, riskScore, type Exposure } from '../../engine/analysis'
+import { attribution, changeAnalysis, clusterLabel, clusterOf, detectCoinjoin, detectLightning, exposure, riskScore, type Exposure } from '../../engine/analysis'
+import { hdWalletOf } from '../../engine/hd'
+import { openHdTool } from './HdTool'
 import type { Tx, World } from '../../engine/world'
 import { useGame, FLAG_META, type Flag } from '../../store/game'
 import { useUi } from '../../store/ui'
@@ -77,6 +79,13 @@ function AddressInspector({ w, id }: { w: World; id: string }) {
   const logo = entityLogo(at.entity?.id)
   const isUtxo = CHAINS[a.chain].model === 'utxo'
   const balanceEntries = Object.entries(sum.balance) as [AssetId, number][]
+  // Le chemin HD n'est montré que si l'enquêteur a dérivé ce portefeuille avec l'outil
+  const hdRevealed = useGame((s) => (a.hd ? !!s.hdRevealed[a.hd.wallet] : false))
+  const hdPath = useMemo(() => {
+    if (!a.hd || !hdRevealed) return null
+    const hw = hdWalletOf(w, id)
+    return hw ? { path: a.hd.path, xpub: hw.xpub } : null
+  }, [w, id, a.hd, hdRevealed])
 
   return (
     <div className="flex h-full flex-col">
@@ -90,6 +99,11 @@ function AddressInspector({ w, id }: { w: World; id: string }) {
             <div className="mt-1 flex flex-wrap gap-1">
               <ChainBadge chain={a.chain} />
               <span className="chip bg-ink-700 text-ink-200">{KIND_LABEL[a.kind]}</span>
+              {hdPath && (
+                <button className="chip border border-amber-400/40 bg-amber-400/10 font-mono text-amber-200 hover:bg-amber-400/20" title="Chemin de dérivation HD (révélé par l'outil de dérivation)" onClick={() => openHdTool(hdPath.xpub)}>
+                  <Icon name="KeyRound" size={11} /> {hdPath.path}
+                </button>
+              )}
               {at.entity && <EntityChip entity={at.entity} via={at.source} />}
               {flag && <span className="chip" style={{ color: FLAG_META[flag].color, background: `${FLAG_META[flag].color}1c` }}>⚑ {FLAG_META[flag].label}</span>}
             </div>
@@ -241,7 +255,7 @@ function TxList({ w, id }: { w: World; id: string }) {
                     <span key={t} className={`chip !px-1 !py-0 !text-[9.5px] ${t === 'coinjoin' ? 'bg-rose-500/15 text-rose-300' : 'bg-ink-700 text-ink-300'}`}>{t}</span>
                   ))}
                 </div>
-                <div className="text-[10.5px] text-ink-400">{fmtTime(tx.time)}{tx.memo ? ` · tag ${tx.memo}` : ''}</div>
+                <div className="text-[10.5px] text-ink-400">{fmtTime(tx.time)}{tx.memo ? ` · ${tx.chain === 'xrp' ? 'tag' : 'memo'} ${tx.memo}` : ''}</div>
               </div>
               <div className="text-right">
                 {(net.length ? net : flows).slice(0, 2).map((f, i) => (
@@ -447,7 +461,9 @@ function TxInspector({ w, id }: { w: World; id: string }) {
   const tx = w.tx(id)
   const revealed = useGame((s) => !!s.revealed[id])
   const cj = detectCoinjoin(tx)
-  const change = useMemo(() => changeAnalysis(w, tx), [w, tx])
+  const ln = useMemo(() => detectLightning(w, tx), [w, tx])
+  // Pas d'analyse de rendu sur une fermeture de canal : les sorties reviennent à chacun des pairs
+  const change = useMemo(() => (ln.kind === 'none' || ln.kind === 'open' ? changeAnalysis(w, tx) : []), [w, tx, ln.kind])
   const [openReason, setOpenReason] = useState<number | null>(null)
   const native = CHAINS[tx.chain].native
   const totalUsd = w.txUsd(tx)
@@ -495,6 +511,7 @@ function TxInspector({ w, id }: { w: World; id: string }) {
                 <span key={t} className="chip bg-ink-700 text-ink-200">{t}</span>
               ))}
               {cj.is && <span className="chip bg-rose-500/15 text-rose-300">CoinJoin détecté</span>}
+              {ln.kind !== 'none' && <span className="chip bg-amber-400/15 text-amber-200"><Icon name="Zap" size={11} /> Lightning</span>}
             </div>
           </div>
         </div>
@@ -523,7 +540,7 @@ function TxInspector({ w, id }: { w: World; id: string }) {
           <div className="mt-3 flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/5 p-3">
             <Icon name="Hash" size={16} className="text-cyan-300" />
             <div className="flex-1">
-              <div className="label !text-[10px] !text-cyan-300">Destination tag / memo</div>
+              <div className="label !text-[10px] !text-cyan-300">{tx.chain === 'xrp' ? 'Destination tag' : tx.chain === 'ton' ? 'Commentaire (memo)' : 'Destination tag / memo'}</div>
               <div className="font-mono text-[15px] font-semibold text-white">{tx.memo}</div>
             </div>
             <CopyButton text={tx.memo} />
@@ -548,8 +565,14 @@ function TxInspector({ w, id }: { w: World; id: string }) {
                 </>
               )}
             </dl>
+            {(tx.tags.includes('l2-withdraw-init') || tx.tags.includes('l2-withdraw-finalize')) && (
+              <div className="mt-2 text-[11px] leading-relaxed text-ink-300">Retrait d'un rollup optimiste vers Ethereum : initié sur le L2, il n'est exécutable sur Ethereum qu'après la période de contestation (environ 7 jours). Pendant ce délai, les fonds ne sont nulle part ailleurs : surveillez l'adresse de destination.</div>
+            )}
+            {tx.tags.includes('l2-deposit') && (
+              <div className="mt-2 text-[11px] leading-relaxed text-ink-300">Dépôt via le bridge canonique du rollup : crédité sur le L2 en quelques minutes, en général sur la même adresse 0x.</div>
+            )}
             {tx.bridge.otherTx && !w.visible(w.tx(tx.bridge.otherTx)) && (
-              <div className="mt-2 rounded-lg border border-dashed border-violet-400/30 px-2 py-1.5 text-center text-[11px] text-violet-200">Arrivée pas encore confirmée sur {CHAINS[tx.bridge.otherChain].name} à l'heure de l'horloge.</div>
+              <div className="mt-2 rounded-lg border border-dashed border-violet-400/30 px-2 py-1.5 text-center text-[11px] text-violet-200">{tx.tags.includes('l2-withdraw-init') ? `Retrait en période de contestation : pas encore exécuté sur ${CHAINS[tx.bridge.otherChain].name} à l'heure de l'horloge.` : `Arrivée pas encore confirmée sur ${CHAINS[tx.bridge.otherChain].name} à l'heure de l'horloge.`}</div>
             )}
             {tx.bridge.otherTx && w.visible(w.tx(tx.bridge.otherTx)) && (
               <button className="btn-outline mt-2 w-full !py-1 text-xs" onClick={() => {
@@ -571,6 +594,7 @@ function TxInspector({ w, id }: { w: World; id: string }) {
           </div>
         )}
         {cj.is && <CoinjoinDemixCard w={w} txId={tx.id} />}
+        {ln.kind !== 'none' && <LightningCard v={ln} />}
         {tx.model === 'account' && tx.transfers.some((t) => w.get(t.to).contract?.type === 'mixer') && (
           <button className="btn-outline mt-3 w-full !py-1.5 text-xs !border-rose-400/40 text-rose-200" onClick={() => openDemix(tx.transfers.find((t) => w.get(t.to).contract?.type === 'mixer')!.from)}>
             <Icon name="ScanSearch" size={13} /> Démixer les dépôts de cette adresse
@@ -698,6 +722,37 @@ function TxInspector({ w, id }: { w: World; id: string }) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function LightningCard({ v }: { v: ReturnType<typeof detectLightning> }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/5 p-3 text-[11.5px] leading-relaxed text-ink-200">
+      <div className="flex items-center gap-1.5 font-semibold text-amber-200">
+        <Icon name="Zap" size={13} /> {v.title}
+        <span className="ml-auto font-mono text-[10.5px] font-normal text-amber-300/80">indice {Math.round(v.confidence * 100)} %</span>
+      </div>
+      <ul className="mt-1.5 space-y-0.5">
+        {v.reasons.map((r, i) => <li key={i} className="flex gap-1.5"><span className="text-amber-300">•</span><span>{r}</span></li>)}
+      </ul>
+      <button className="mt-2 flex items-center gap-1 text-[11px] text-amber-200 hover:text-white" onClick={() => setOpen((x) => !x)}>
+        <Icon name={open ? 'ChevronUp' : 'ChevronDown'} size={12} /> Ce que la blockchain montre… et ne montre pas
+      </button>
+      {open && (
+        <div className="mt-1.5 grid gap-2 md:grid-cols-2">
+          <div>
+            <div className="label !text-[10px] !text-emerald-300">Visible on-chain</div>
+            <ul className="mt-0.5 space-y-0.5">{v.visible.map((x, i) => <li key={i}>✓ {x}</li>)}</ul>
+          </div>
+          <div>
+            <div className="label !text-[10px] !text-rose-300">Invisible (hors chaîne)</div>
+            <ul className="mt-0.5 space-y-0.5">{v.invisible.map((x, i) => <li key={i}>✗ {x}</li>)}</ul>
+          </div>
+          <div className="text-[10.5px] text-ink-400 md:col-span-2">Pour aller plus loin : réquisition du fournisseur de service Lightning ou du portefeuille custodial (registre des paiements, factures, identifiant de nœud), exploitation du téléphone saisi (base de données du portefeuille Lightning).</div>
+        </div>
+      )}
     </div>
   )
 }

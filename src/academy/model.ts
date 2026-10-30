@@ -15,7 +15,7 @@ export const LEVELS: Record<Level, { label: string; short: string; color: string
   5: { label: 'Expert', short: 'N5', color: '#a78bfa', description: 'Analyse comportementale, démixage, acteurs étatiques, expertise judiciaire.' },
 }
 
-export type Track = 'bases' | 'bitcoin' | 'comptes' | 'stablecoins' | 'interchaines' | 'confidentialite' | 'typologies' | 'enquete' | 'methodo'
+export type Track = 'bases' | 'bitcoin' | 'comptes' | 'stablecoins' | 'interchaines' | 'confidentialite' | 'typologies' | 'enquete' | 'methodo' | 'affaires'
 
 export const TRACKS: Record<Track, { label: string; icon: string; color: string }> = {
   bases: { label: 'Fondamentaux', icon: 'Blocks', color: '#94a3b8' },
@@ -27,6 +27,7 @@ export const TRACKS: Record<Track, { label: string; icon: string; color: string 
   typologies: { label: 'Typologies criminelles', icon: 'Siren', color: '#f97316' },
   enquete: { label: 'Procédure & enquête', icon: 'Scale', color: '#22d3ee' },
   methodo: { label: 'Méthodologie d\'analyse', icon: 'Microscope', color: '#38bdf8' },
+  affaires: { label: 'Affaires décryptées', icon: 'Newspaper', color: '#eab308' },
 }
 
 // ── Blocs de contenu ───────────────────────────────────────────────────────
@@ -173,6 +174,12 @@ export type DrillId =
   | 'peel-read' // totaliser les pelures d'une peel chain
   | 'pool-demix' // retraits d'un pool rattachables au déposant
   | 'wallet-fingerprint' // rendu départagé par l'empreinte du logiciel
+  | 'hd-path' // type d'adresse et chemin de dérivation à partir d'une xpub / ypub / zpub
+  | 'ln-channel' // reconnaître une ouverture ou une fermeture de canal Lightning
+  | 'ton-comment' // retrouver le commentaire (memo) d'un dépôt TON
+  | 'ponzi-flow' // reconnaître un schéma de Ponzi dans les flux
+  | 'l2-withdrawal' // dépôt / retrait via un bridge canonique de L2 (délais, preuve)
+  | 'wash-trade' // reconnaître un wash trading entre portefeuilles liés
 
 export interface DrillItem {
   prompt: string
@@ -258,6 +265,11 @@ export const CURRICULUM: CurriculumEntry[] = [
   { id: 'osint', title: 'OSINT : relier une adresse à une personne', level: 2, track: 'enquete' },
   { id: 'requisitions', title: 'Réquisitions aux prestataires', level: 2, track: 'enquete' },
   { id: 'opsec-enqueteur', title: 'OPSEC de l\'enquêteur crypto', level: 2, track: 'enquete' },
+  { id: 'portefeuilles-hd', title: 'Portefeuilles HD : seed, xpub et chemins de dérivation', level: 2, track: 'bitcoin' },
+  { id: 'ton-telegram', title: 'TON et l\'écosystème Telegram', level: 2, track: 'comptes' },
+  { id: 'dab-cash-p2p', title: 'DAB crypto, cash et P2P : les portes d\'entrée', level: 2, track: 'stablecoins' },
+  { id: 'stupefiants-crypto', title: 'Stupéfiants : du point de deal au paiement en crypto', level: 2, track: 'typologies' },
+  { id: 'ponzi-mlm', title: 'Ponzi, MLM et fausses plateformes de rendement', level: 2, track: 'typologies' },
   // Niveau 3 — Confirmé
   { id: 'bridges', title: 'Bridges : suivre les fonds d\'une chaîne à l\'autre', level: 3, track: 'interchaines' },
   { id: 'chain-hopping', title: 'Chain hopping et échangeurs instantanés', level: 3, track: 'interchaines' },
@@ -271,6 +283,15 @@ export const CURRICULUM: CurriculumEntry[] = [
   { id: 'gel-saisie', title: 'Gel et saisie des crypto-actifs', level: 3, track: 'enquete' },
   { id: 'tracage-outille', title: 'Traçage assisté : utiliser et contester un outil d\'analyse', level: 3, track: 'methodo' },
   { id: 'rapport', title: 'Rédiger un rapport d\'analyse blockchain', level: 3, track: 'enquete' },
+  { id: 'echangeurs-instantanes', title: 'Échangeurs instantanés : fonctionnement, traces et réquisition', level: 3, track: 'interchaines' },
+  { id: 'gel-stablecoins', title: 'Émetteurs de stablecoins : listes noires, gel et coopération', level: 3, track: 'stablecoins' },
+  { id: 'forensique-supports', title: 'Forensique des supports : téléphones, ordinateurs, extensions', level: 3, track: 'enquete' },
+  { id: 'violences-seed', title: 'Extorsions physiques et enlèvements liés aux crypto-actifs', level: 3, track: 'enquete' },
+  { id: 'nft-fraudes', title: 'NFT : wash trading, vols et blanchiment', level: 3, track: 'typologies' },
+  { id: 'manipulation-marche', title: 'Pump and dump et manipulation de marché', level: 3, track: 'typologies' },
+  { id: 'affaire-colonial', title: 'Affaire décryptée : la rançon de Colonial Pipeline', level: 3, track: 'affaires' },
+  { id: 'affaire-silk-road', title: 'Affaire décryptée : Silk Road et les bitcoins de « l\'individu X »', level: 3, track: 'affaires' },
+  { id: 'affaire-hydra', title: 'Affaire décryptée : Hydra, le marché du darknet russe', level: 3, track: 'affaires' },
   // Niveau 4 — Avancé
   { id: 'coinjoin', title: 'CoinJoin : reconnaître et analyser', level: 4, track: 'confidentialite' },
   { id: 'privacy-pools', title: 'Pools de confidentialité (type Tornado)', level: 4, track: 'confidentialite' },
@@ -280,6 +301,9 @@ export const CURRICULUM: CurriculumEntry[] = [
   { id: 'solana', title: 'Solana et ses spécificités', level: 4, track: 'comptes' },
   { id: 'smart-contracts-lecture', title: 'Lire un smart contract : logs, input data, événements', level: 4, track: 'comptes' },
   { id: 'defi-exploits', title: 'Hacks DeFi : flash loans, oracles, MEV', level: 4, track: 'typologies' },
+  { id: 'affaire-bitfinex', title: 'Affaire décryptée : le piratage de Bitfinex et son blanchiment', level: 4, track: 'affaires' },
+  { id: 'affaire-chipmixer', title: 'Affaire décryptée : le démantèlement de ChipMixer', level: 4, track: 'affaires' },
+  { id: 'affaire-garantex', title: 'Affaire décryptée : Garantex, sanctions et démantèlement', level: 4, track: 'affaires' },
   { id: 'cooperation-internationale', title: 'Coopération internationale et entraide', level: 4, track: 'enquete' },
   // Niveau 5 — Expert
   { id: 'analyse-comportementale', title: 'Empreintes de portefeuilles et analyse comportementale', level: 5, track: 'methodo' },
@@ -287,5 +311,6 @@ export const CURRICULUM: CurriculumEntry[] = [
   { id: 'acteurs-etatiques', title: 'Acteurs étatiques et groupes APT', level: 5, track: 'typologies' },
   { id: 'blanchiment-pro', title: 'Blanchiment professionnel : OTC, mules, cash-out', level: 5, track: 'typologies' },
   { id: 'expertise-judiciaire', title: 'L\'expertise judiciaire : fiabilité et contradictoire', level: 5, track: 'enquete' },
+  { id: 'affaire-bybit', title: 'Affaire décryptée : le piratage de Bybit et le blanchiment à grande échelle', level: 5, track: 'affaires' },
   { id: 'saisie-avancee', title: 'Perquisition et saisie avancées', level: 5, track: 'enquete' },
 ]

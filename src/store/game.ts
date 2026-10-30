@@ -4,6 +4,7 @@ import { attribution } from '../engine/analysis'
 import { TRACE_METHODS, findPath, traceFunds, type TraceOptions, type TraceResult, type TraceSource } from '../engine/tracing'
 import { freezeOption, resolveFreeze, type FreezeRequest } from '../engine/freeze'
 import { shortAddr } from '../engine/addressgen'
+import { deriveAddresses, hdWalletById } from '../engine/hd'
 import type { World } from '../engine/world'
 import { scenarioById } from '../scenarios'
 import type { ScenarioInstance, ScenarioTemplate } from '../scenarios/types'
@@ -145,6 +146,8 @@ interface GameState {
   cert: CertRun | null
   /** Demandes de gel (mode temps réel). */
   freezes: FreezeRequest[]
+  /** Portefeuilles HD dérivés par l'enquêteur (id → nombre d'adresses dérivées par branche). */
+  hdRevealed: Record<string, { receive: number; change: number }>
   minUsd: number
   showTruth: boolean
   score?: CaseScore
@@ -192,6 +195,8 @@ interface GameState {
   toggleWatch(id: string): void
   /** Demande de gel d'une adresse (mode temps réel) ; renvoie un message d'erreur, ou '' si la demande part. */
   requestFreeze(id: string): string
+  /** Enregistre la dérivation d'un portefeuille HD par l'outil (les chemins deviennent visibles dans l'inspecteur). */
+  revealHd(walletId: string, n: { receive: number; change: number }): void
   newView(copy: boolean): void
   switchView(id: string): void
   renameView(id: string, name: string): void
@@ -233,6 +238,7 @@ export interface SavedCase {
   viewName?: string
   cert?: CertRun
   freezes?: FreezeRequest[]
+  hdRevealed?: Record<string, { receive: number; change: number }>
   /** Temps d'analyse actif (ms) au moment de la sauvegarde. */
   elapsed?: number
 }
@@ -320,6 +326,7 @@ export const useGame = create<GameState>()((set, get) => ({
   viewName: 'Graphe principal',
   cert: null,
   freezes: [],
+  hdRevealed: {},
   minUsd: 0,
   showTruth: false,
   focus: null,
@@ -343,7 +350,7 @@ export const useGame = create<GameState>()((set, get) => ({
       log: [{ t: Date.now(), text: `Ouverture du dossier « ${inst.title} » (graine ${seed})${live ? ` en temps réel, horloge au ${fmtClock(live.now)}` : ''}`, kind: 'system' }],
       showTruth: false, focus: null, layoutTick: 0, minUsd: 0, links: [], history: [], xpNote: undefined,
       trace: null, pathHighlight: null, live, watch: [], alerts: [], views: [], viewId: 'v1', viewName: 'Graphe principal',
-      cert: opts.cert ?? null, freezes: [],
+      cert: opts.cert ?? null, freezes: [], hdRevealed: {},
     })
   },
 
@@ -352,6 +359,14 @@ export const useGame = create<GameState>()((set, get) => ({
     if (!template) return false
     const inst = template.generate(saved.seed)
     if (saved.coverage === 'partial') applyCoverage(inst.world)
+    // Adresses HD dérivées par l'outil : recréées (dérivation déterministe) avant le filtrage
+    const hdRevealed: Record<string, { receive: number; change: number }> = {}
+    for (const [id, n] of Object.entries(saved.hdRevealed ?? {})) {
+      const hw = hdWalletById(inst.world, id)
+      if (!hw) continue
+      deriveAddresses(inst.world, hw.xpub, n)
+      hdRevealed[id] = n
+    }
     // On ne garde que ce qui existe encore (sécurité si le générateur a évolué)
     const addrPos = Object.fromEntries(Object.entries(saved.addrPos).filter(([k]) => inst.world.addresses.has(k)))
     const txPos = Object.fromEntries(Object.entries(saved.txPos).filter(([k]) => inst.world.txs.has(k)))
@@ -384,7 +399,7 @@ export const useGame = create<GameState>()((set, get) => ({
       showTruth: false, focus: null, layoutTick: 0, trace, pathHighlight: null,
       live, watch: (saved.watch ?? []).filter((a) => w.addresses.has(a)), alerts: (saved.alerts ?? []).filter((a) => w.txs.has(a.txId)),
       views: (saved.views ?? []).map((v) => cleanView(w, v)), viewId: saved.viewId ?? 'v1', viewName: saved.viewName ?? 'Graphe principal',
-      cert: saved.cert ?? null, freezes: (saved.freezes ?? []).filter((f) => w.addresses.has(f.address)),
+      cert: saved.cert ?? null, freezes: (saved.freezes ?? []).filter((f) => w.addresses.has(f.address)), hdRevealed,
     })
     return true
   },
@@ -801,6 +816,20 @@ export const useGame = create<GameState>()((set, get) => ({
     return ''
   },
 
+  revealHd(walletId, n) {
+    const s = get()
+    if (!s.inst) return
+    const hw = hdWalletById(s.inst.world, walletId)
+    if (!hw) return
+    const prev = s.hdRevealed[walletId]
+    const next = { receive: Math.max(prev?.receive ?? 0, n.receive), change: Math.max(prev?.change ?? 0, n.change) }
+    set({ hdRevealed: { ...s.hdRevealed, [walletId]: next } })
+    if (!prev) {
+      const used = hw.used().length
+      get().addLog(`Dérivation HD (${hw.scheme}) : ${next.receive} adresse(s) de réception et ${next.change} de rendu examinées, ${used} utilisée(s)`, 'tool')
+    }
+  },
+
   toggleWatch(id) {
     const s = get()
     if (!s.inst) return
@@ -949,7 +978,7 @@ function currentSave(s: GameState): SavedCase | null {
     hintsUsed: s.hintsUsed, objHints: s.objHints, log: s.log, links: s.links, elapsed: Date.now() - s.startedAt,
     trace: s.trace ? { source: s.trace.source, opts: s.trace.opts } : undefined,
     live: s.live ?? undefined, watch: s.watch, alerts: s.alerts, views: s.views, viewId: s.viewId, viewName: s.viewName,
-    cert: s.cert ?? undefined, freezes: s.freezes,
+    cert: s.cert ?? undefined, freezes: s.freezes, hdRevealed: s.hdRevealed,
   }
 }
 

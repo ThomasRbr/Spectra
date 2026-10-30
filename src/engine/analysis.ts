@@ -22,6 +22,151 @@ export function detectCoinjoin(tx: Tx): { is: boolean; denom?: number; equalCoun
   return { is: false }
 }
 
+// ── Lightning Network (ouverture / fermeture de canal) ──────────────────────
+
+export type LightningKind = 'open' | 'coop-close' | 'force-close' | 'sweep' | 'none'
+
+export interface LightningVerdict {
+  kind: LightningKind
+  /** 0 à 1 : ce sont des indices de structure, pas une preuve. */
+  confidence: number
+  title: string
+  reasons: string[]
+  /** Ce que la blockchain montre. */
+  visible: string[]
+  /** Ce qu'elle ne montre pas (hors chaîne). */
+  invisible: string[]
+  /** Sortie du canal (ouverture) ou sortie retardée (fermeture forcée). */
+  output?: number
+}
+
+const LN_NONE: LightningVerdict = { kind: 'none', confidence: 0, title: '', reasons: [], visible: [], invisible: [] }
+const ANCHOR_MAX = 0.0000033 + 1e-12
+
+function isP2wsh(w: World, id: string): boolean {
+  return w.addresses.get(id)?.kind === 'p2wsh'
+}
+
+/** Structure d'une transaction qui dépense une sortie P2WSH unique (fermeture de canal possible). */
+function closeShape(w: World, tx: Tx): { anchors: number; delayed: number[]; plain: number } | null {
+  if (tx.inputs.length !== 1 || !isP2wsh(w, tx.inputs[0].address)) return null
+  let anchors = 0
+  let plain = 0
+  const delayed: number[] = []
+  for (const o of tx.outputs) {
+    if (isP2wsh(w, o.address)) {
+      if (o.value <= ANCHOR_MAX) anchors++
+      else delayed.push(o.n)
+    } else plain++
+  }
+  if (plain + delayed.length > 2 || plain + delayed.length === 0) return null
+  return { anchors, delayed, plain }
+}
+
+/**
+ * Indices d'une transaction Lightning on-chain : ouverture de canal (une
+ * sortie P2WSH 2-de-2 unique), fermeture coopérative (dépense d'une sortie
+ * P2WSH vers une ou deux adresses ordinaires), fermeture forcée (sortie
+ * retardée P2WSH, ancres de 330 sats, nLockTime 0x20……), récupération de la
+ * sortie retardée. Ne lit que la structure visible de la transaction.
+ */
+export function detectLightning(w: World, tx: Tx): LightningVerdict {
+  if (tx.model !== 'utxo' || (tx.chain !== 'btc' && tx.chain !== 'ltc')) return LN_NONE
+  const native = CHAINS[tx.chain].native
+  const lockObf = !!tx.fp && tx.fp.locktime >= 0x20000000 && tx.fp.locktime < 0x21000000
+
+  const shape = closeShape(w, tx)
+  if (shape) {
+    const prevId = tx.inputs[0].prev?.tx
+    const prev = prevId ? w.txs.get(prevId) : undefined
+    const prevShape = prev ? closeShape(w, prev) : null
+    const prevForce = !!prev && !!prevShape && (prevShape.anchors > 0 || prevShape.delayed.length > 0 || (!!prev.fp && prev.fp.locktime >= 0x20000000 && prev.fp.locktime < 0x21000000))
+    // Récupération de la sortie retardée d'une fermeture forcée
+    if (prevForce && prevShape!.delayed.includes(tx.inputs[0].prev!.n) && shape.plain === 1 && !shape.delayed.length) {
+      const dtH = prev ? (tx.time - prev.time) / 3600 : 0
+      return {
+        kind: 'sweep', confidence: 0.75, title: 'Récupération d\'une sortie Lightning retardée',
+        reasons: [
+          'Dépense la sortie retardée (P2WSH) d\'une fermeture forcée de canal',
+          `Diffusée ${dtH >= 1 ? `${Math.round(dtH)} h` : `${Math.round(dtH * 60)} min`} après la fermeture : compatible avec le délai CSV imposé au diffuseur`,
+          'Une seule sortie ordinaire : retour vers le portefeuille on-chain du diffuseur',
+        ],
+        visible: ['L\'adresse où le diffuseur de la fermeture forcée récupère son solde'],
+        invisible: ['Les paiements effectués dans le canal avant sa fermeture'],
+      }
+    }
+    const fromOpen = !!prev && prev.outputs.filter((o) => isP2wsh(w, o.address)).length === 1 && !prev.inputs.some((i) => isP2wsh(w, i.address))
+    if (shape.anchors > 0 || shape.delayed.length > 0 || lockObf) {
+      const reasons = ['Dépense une sortie P2WSH unique (script 2-de-2 probable)']
+      if (shape.delayed.length) reasons.push('Une sortie P2WSH de montant significatif : sortie « to_local » bloquée par un délai (CSV) pour celui qui a forcé la fermeture')
+      if (shape.anchors) reasons.push(`${shape.anchors} sortie(s) de 330 sats : « ancres » permettant de relever les frais (CPFP)`)
+      if (lockObf) reasons.push('nLockTime commençant par 0x20 : numéro d\'engagement masqué, propre aux transactions d\'engagement Lightning (BOLT 3)')
+      if (fromOpen) reasons.push('La sortie dépensée provient d\'une ouverture de canal probable')
+      return {
+        kind: 'force-close', confidence: Math.min(0.95, 0.55 + (shape.anchors ? 0.15 : 0) + (lockObf ? 0.15 : 0) + (fromOpen ? 0.1 : 0)),
+        title: 'Fermeture forcée de canal Lightning probable', reasons, output: shape.delayed[0],
+        visible: [
+          'Le solde final de chaque partie au moment de la fermeture',
+          'La sortie retardée du diffuseur, qu\'il récupérera après le délai (souvent 144 blocs, environ 1 jour)',
+          'La sortie immédiatement disponible de l\'autre partie',
+        ],
+        invisible: ['Les paiements effectués dans le canal (montants, destinataires, dates)', 'Le motif de la fermeture (pair injoignable, litige, tentative de fraude)'],
+      }
+    }
+    const reasons = ['Dépense une sortie P2WSH unique (script 2-de-2 probable)', `${shape.plain} sortie(s) ordinaire(s) : répartition du solde entre les deux pairs`, 'Ni sortie retardée ni ancre : les deux pairs ont signé ensemble']
+    if (fromOpen) reasons.push('La sortie dépensée provient d\'une ouverture de canal probable')
+    return {
+      kind: 'coop-close', confidence: fromOpen ? 0.75 : 0.5, title: 'Fermeture coopérative de canal Lightning probable', reasons,
+      visible: ['Le solde final de chaque partie (une sortie chacune)', 'Les adresses on-chain où chacun récupère ses fonds'],
+      invisible: ['Les paiements effectués dans le canal pendant sa durée de vie', 'Les autres canaux et les destinataires finaux (routage en oignon)'],
+    }
+  }
+
+  // Ouverture : une seule sortie P2WSH, aucune entrée P2WSH, pas un CoinJoin
+  if (tx.inputs.some((i) => isP2wsh(w, i.address)) || detectCoinjoin(tx).is) return LN_NONE
+  const ws = tx.outputs.filter((o) => isP2wsh(w, o.address))
+  if (ws.length !== 1 || tx.outputs.length > 3) return LN_NONE
+  const ch = ws[0]
+  if (ch.value < 0.0002 || ch.value > 10) return LN_NONE
+  const reasons = [
+    `Une seule sortie P2WSH (script) de ${ch.value.toLocaleString('fr-FR', { maximumFractionDigits: 8 })} ${native} : forme d'un financement de canal 2-de-2`,
+    tx.outputs.length > 1 ? 'Les autres sorties sont des adresses ordinaires (rendu du financeur)' : 'Pas d\'autre sortie : le financeur engage toute l\'UTXO',
+  ]
+  let confidence = 0.5
+  const spender = w.spender(tx.id, ch.n)
+  if (spender) {
+    const s = w.txs.get(spender)!
+    if (closeShape(w, s)) {
+      confidence += 0.25
+      reasons.push(`Sortie dépensée plus tard par une transaction à entrée unique vers ${s.outputs.length} sortie(s) : fermeture de canal`)
+    }
+  } else reasons.push('Sortie non dépensée : canal peut-être encore ouvert')
+  if (decimalsOf(ch.value) <= 3) {
+    confidence += 0.05
+    reasons.push('Capacité ronde, fréquente pour un canal')
+  }
+  reasons.push('Attention : un portefeuille multisignature (coffre 2-de-3, séquestre) a la même apparence. Seule l\'annonce publique du canal dans le graphe Lightning permet de confirmer.')
+  return {
+    kind: 'open', confidence, title: 'Ouverture de canal Lightning probable', reasons, output: ch.n,
+    visible: [
+      'La capacité du canal (montant de la sortie P2WSH)',
+      'Le financeur : ses entrées et son rendu (son portefeuille on-chain)',
+      'Si le canal est annoncé publiquement : l\'identifiant de nœud des deux pairs, consultable sur les explorateurs Lightning (piste OSINT)',
+    ],
+    invisible: [
+      'Les paiements effectués dans le canal (hors chaîne)',
+      'Le pair, si le canal est privé (non annoncé)',
+      'Les destinataires finaux : le routage en oignon masque l\'origine et la destination',
+    ],
+  }
+}
+
+function decimalsOf(v: number): number {
+  const s = v.toFixed(8).replace(/0+$/, '')
+  const i = s.indexOf('.')
+  return i < 0 ? 0 : s.length - i - 1
+}
+
 // ── Clustering (common-input-ownership) ─────────────────────────────────────
 
 export interface ClusterIndex {

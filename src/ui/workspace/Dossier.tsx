@@ -10,6 +10,7 @@ import { evaluate, OBJECTIVE_HINT_RATIO } from '../../lib/scoring'
 import { Icon, Tabs, fmtTime } from '../common'
 import { AddrLine } from './Inspector'
 import { WatchPanel } from './Live'
+import { isKnownHdKey, openHdTool } from './HdTool'
 
 export function Dossier() {
   const tab = useUi((s) => s.leftTab)
@@ -346,6 +347,9 @@ const EVIDENCE_META: Record<Evidence['type'], { icon: string; color: string; lab
   rancon: { icon: 'Lock', color: '#f43f5e', label: 'Note de rançon' },
   osint: { icon: 'Globe', color: '#34d399', label: 'Source ouverte' },
   rapport: { icon: 'ClipboardList', color: '#94a3b8', label: 'Rapport' },
+  extraction: { icon: 'Smartphone', color: '#22d3ee', label: 'Extraction de support' },
+  perquisition: { icon: 'Search', color: '#f59e0b', label: 'PV de perquisition' },
+  releve: { icon: 'Receipt', color: '#a78bfa', label: 'Relevé / réponse à réquisition' },
 }
 
 export function useLinkIndex(w: World | undefined) {
@@ -361,10 +365,23 @@ export function useLinkIndex(w: World | undefined) {
 
 export function LinkedText({ text, w }: { text: string; w: World }) {
   const idx = useLinkIndex(w)
-  const parts = text.split(/([A-Za-z0-9]{24,})/g)
+  // Adresses TON (base64url, « UQ… » / « EQ… »), seeds de démonstration, puis jetons alphanumériques
+  const parts = text.split(/((?:UQ|EQ)[A-Za-z0-9_-]{46}(?![A-Za-z0-9_-])|seed de démonstration [0-9A-F]{4}|[A-Za-z0-9]{24,})/g)
   return (
     <>
       {parts.map((p, i) => {
+        if (/^[xyz]pub|^seed de démonstration/.test(p) && isKnownHdKey(w, p)) {
+          return (
+            <button
+              key={i}
+              className="mx-0.5 inline break-all rounded border border-amber-400/40 bg-amber-400/10 px-1 font-mono text-[11px] text-amber-200 hover:bg-amber-400/25"
+              title="Ouvrir l'outil de dérivation HD"
+              onClick={() => openHdTool(p)}
+            >
+              {p}
+            </button>
+          )
+        }
         const aid = idx.addr.get(p)
         if (aid) {
           return (

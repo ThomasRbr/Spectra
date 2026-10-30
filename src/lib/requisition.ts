@@ -31,12 +31,12 @@ export function requisitionText(p: RequisitionInput): string {
   const c = CADRE_LABEL[p.cadre]
   const addrLines = p.addresses.map((id) => {
     const a = p.w.get(id)
-    return `   - ${a.addr} (réseau ${CHAINS[a.chain].name})`
+    return `   - ${a.addr} (réseau ${CHAINS[a.chain].name}${a.chain === 'ton' && a.addr.startsWith('UQ') ? ', forme non-bounceable ; la même adresse s\'écrit aussi en « EQ… » bounceable ou en forme brute 0:…' : ''})`
   })
   const txLines = p.txIds.map((id) => {
     const t = p.w.tx(id)
     const d = new Date(t.time * 1000).toISOString().replace('T', ' ').slice(0, 19)
-    return `   - ${t.hash} (${CHAINS[t.chain].name}, ${d} UTC${t.memo ? `, destination tag / memo ${t.memo}` : ''})`
+    return `   - ${t.hash} (${CHAINS[t.chain].name}, ${d} UTC${t.memo ? `, ${t.chain === 'xrp' ? 'destination tag' : t.chain === 'ton' ? 'commentaire (memo)' : 'destination tag / memo'} ${t.memo}` : ''})`
   })
   const authorisation =
     p.cadre === 'preliminaire'

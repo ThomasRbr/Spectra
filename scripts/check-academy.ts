@@ -6,11 +6,12 @@ import { LESSONS_L01 } from '../src/academy/content/l0l1'
 import { LESSONS_L2 } from '../src/academy/content/l2'
 import { LESSONS_L3 } from '../src/academy/content/l3'
 import { LESSONS_L45 } from '../src/academy/content/l4l5'
+import { LESSONS_EXT } from '../src/academy/content/ext'
 import { DRILLS } from '../src/academy/drills/index'
 import { SCENARIOS } from '../src/scenarios/index'
 
 const WIDGET_IDS: WidgetId[] = ['hash-playground', 'chain-tamper', 'keys-derivation', 'unit-converter', 'address-anatomy', 'utxo-builder', 'fee-mempool', 'account-vs-utxo', 'change-detective', 'cioh-cluster', 'peel-chain', 'exchange-flow', 'amm-swap', 'bridge-flow', 'coinjoin-visualizer', 'privacy-pool', 'timing-correlation', 'risk-exposure']
-const all: Lesson[] = [...LESSONS_L01, ...LESSONS_L2, ...LESSONS_L3, ...LESSONS_L45]
+const all: Lesson[] = [...LESSONS_L01, ...LESSONS_L2, ...LESSONS_L3, ...LESSONS_L45, ...LESSONS_EXT]
 const problems: string[] = []
 const ids = new Set<string>()
 for (const l of all) {
