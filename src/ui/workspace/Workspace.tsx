@@ -106,7 +106,7 @@ export function Workspace() {
   }
   const replay = () => {
     useGame.getState().start(template.id, randomSeed(), { mode, coverage, live })
-    useUi.getState().set({ briefingOpen: true, timeRange: null, leftTab: 'evidence' })
+    useUi.getState().set({ briefingOpen: true, timeRange: null, leftTab: template.guided ? 'objectives' : 'evidence' })
   }
 
   return (
@@ -157,7 +157,7 @@ export function Workspace() {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className={`w-[360px] shrink-0 border-r border-ink-700/70 bg-ink-900/70 ${leftOpen ? '' : 'hidden'}`}>
+        <aside className={`w-[300px] xl:w-[360px] shrink-0 border-r border-ink-700/70 bg-ink-900/70 ${leftOpen ? '' : 'hidden'}`}>
           <Dossier />
         </aside>
         <main className="flex min-w-0 flex-1 flex-col">
@@ -172,7 +172,7 @@ export function Workspace() {
             </div>
           )}
         </main>
-        <aside className={`w-[390px] shrink-0 border-l border-ink-700/70 bg-ink-900/70 ${rightOpen ? '' : 'hidden'}`}>
+        <aside className={`w-[330px] xl:w-[390px] shrink-0 border-l border-ink-700/70 bg-ink-900/70 ${rightOpen ? '' : 'hidden'}`}>
           <Inspector />
         </aside>
       </div>

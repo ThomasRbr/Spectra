@@ -205,7 +205,11 @@ export function GraphCanvas() {
     cy.on('drag', 'node', () => setHover(null))
     // Le conteneur change de taille (frise, panneaux) : Cytoscape doit le savoir
     // sinon les clics sont décalés.
-    const ro = new ResizeObserver(() => cy.resize())
+    const ro = new ResizeObserver(() => {
+      cy.resize()
+      // Petit graphe : on le garde centré quand les panneaux s'ouvrent ou se ferment
+      if (cy.nodes().length && cy.nodes().length <= 4) fitGraph(cy, 0)
+    })
     ro.observe(ref.current)
     return () => {
       ro.disconnect()

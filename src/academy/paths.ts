@@ -27,8 +27,8 @@ export const EXAMS: Exam[] = [
 /** Le grand cursus : toutes les leçons dans l'ordre, ponctuées de pratique et d'examens. */
 function cursusSteps(): PathStep[] {
   const practice: Partial<Record<Level, PathStep[]>> = {
-    0: [D('chain-from-address', 5), D('hash-or-address', 5), D('unit-convert', 5), M('first-trace')],
-    1: [D('address-type', 5), D('utxo-fee', 5), D('token-vs-native', 5), M('eth-first'), M('xrp-destination-tag')],
+    0: [M('guide-premiers-pas'), D('chain-from-address', 5), D('hash-or-address', 5), D('unit-convert', 5), M('first-trace'), M('deb-capture-adresse'), M('deb-victimes-multiples')],
+    1: [M('guide-exchange'), M('guide-usdt-tron'), D('address-type', 5), D('utxo-fee', 5), D('token-vs-native', 5), M('eth-first'), M('deb-tron-usdt'), M('deb-litecoin'), M('deb-bsc-airdrop'), M('deb-solana-support'), M('deb-ton-commentaire'), M('deb-premier-swap'), M('xrp-destination-tag'), M('guide-rapport')],
     2: [D('utxo-change', 6), D('cioh-cluster', 5), D('peel-read', 4), D('deposit-pattern', 4), D('taint-method', 5), D('hd-path', 4), D('ton-comment', 4), D('ponzi-flow', 4), M('change-anatomy'), M('peel-chain'), M('pig-butchering-tron'), M('stups-telegram'), M('ton-telegram-scam'), M('dab-cash-p2p'), M('sol-drainer'), M('ledger-phishing'), M('recovery-scam'), M('sol-memecoin-rug')],
     3: [D('requisition-target', 5), D('swap-match', 5), D('l2-withdrawal', 4), D('wash-trade', 4), M('chain-hopping'), M('centralized-mixer'), M('address-poisoning'), M('hd-perquisition'), M('forensique-telephone'), M('l2-arbitrum-base'), M('ponzi-mlm'), M('pump-dump'), M('nft-wash'), M('eth-bec-president'), M('eth-account-takeover'), M('donation-funding'), M('money-mules')],
     4: [D('coinjoin-spot', 6), D('pool-demix', 4), D('ln-channel', 4), M('coinjoin-demix'), M('monero-wall'), M('defi-exploit'), M('lightning-cashout'), M('monero-atomic'), M('coinjoin-remix')],
@@ -51,21 +51,21 @@ export const PATHS: LearningPath[] = [
     id: 'decouverte', title: 'Découverte', subtitle: 'Je pars de zéro',
     description: 'Comprendre ce qu\'est une crypto-monnaie, une blockchain, une clé et un exchange, lire un explorateur, puis réaliser son premier traçage.',
     icon: 'Sprout', color: '#94a3b8', levels: [0, 0],
-    steps: [...levelIds(0).map(L), D('chain-from-address', 5), D('hash-or-address', 5), D('unit-convert', 5), M('first-trace'), E('exam-n0')],
+    steps: [M('guide-premiers-pas'), ...levelIds(0).map(L), D('chain-from-address', 5), D('hash-or-address', 5), D('unit-convert', 5), M('guide-exchange'), M('first-trace'), M('deb-capture-adresse'), M('deb-victimes-multiples'), M('guide-rapport'), E('exam-n0')],
     certificate: 'Fondamentaux des crypto-actifs',
   },
   {
     id: 'analyste-bitcoin', title: 'Analyste Bitcoin', subtitle: 'Maîtriser le modèle UTXO',
     description: 'Transactions, frais, rendu, clustering et peel chains : toutes les heuristiques d\'analyse Bitcoin, avec leurs limites.',
     icon: 'Bitcoin', color: '#f7931a', levels: [1, 2],
-    steps: [L('utxo'), D('address-type', 5), L('frais-mempool'), D('utxo-fee', 6), L('portefeuilles-hd'), D('hd-path', 5), M('hd-perquisition'), L('change-heuristics'), D('utxo-change', 8), M('change-anatomy', 70), L('clustering'), D('cioh-cluster', 6), M('sextortion-cluster'), L('peel-chains'), D('peel-read', 5), M('peel-chain'), E('exam-bitcoin')],
+    steps: [L('utxo'), M('deb-litecoin'), D('address-type', 5), L('frais-mempool'), D('utxo-fee', 6), L('portefeuilles-hd'), D('hd-path', 5), M('hd-perquisition'), L('change-heuristics'), D('utxo-change', 8), M('change-anatomy', 70), L('clustering'), D('cioh-cluster', 6), M('sextortion-cluster'), L('peel-chains'), D('peel-read', 5), M('peel-chain'), E('exam-bitcoin')],
     certificate: 'Analyste Bitcoin',
   },
   {
     id: 'ethereum-stablecoins', title: 'Ethereum, jetons & stablecoins', subtitle: 'Le modèle à comptes',
     description: 'Comptes EVM, jetons ERC-20 et TRC-20, stablecoins et leurs émetteurs, Tron, swaps sur DEX et destination tags.',
     icon: 'Hexagon', color: '#8c9eff', levels: [1, 2],
-    steps: [L('comptes-evm'), L('tokens-erc20'), D('token-vs-native', 6), M('eth-first'), L('stablecoins'), L('tron-usdt'), D('deposit-pattern', 5), M('pig-butchering-tron'), L('dex-defi'), M('dex-swap'), L('xrp-memos'), D('xrp-tag', 5), M('xrp-destination-tag'), L('ton-telegram'), D('ton-comment', 5), M('ton-telegram-scam'), L('gel-stablecoins'), E('exam-comptes')],
+    steps: [L('comptes-evm'), M('guide-exchange'), L('tokens-erc20'), D('token-vs-native', 6), M('eth-first'), M('deb-bsc-airdrop'), M('deb-solana-support'), L('stablecoins'), L('tron-usdt'), M('guide-usdt-tron'), M('deb-tron-usdt'), D('deposit-pattern', 5), M('pig-butchering-tron'), L('dex-defi'), M('deb-premier-swap'), M('dex-swap'), L('xrp-memos'), D('xrp-tag', 5), M('xrp-destination-tag'), L('ton-telegram'), D('ton-comment', 5), M('deb-ton-commentaire'), M('ton-telegram-scam'), L('gel-stablecoins'), E('exam-comptes')],
     certificate: 'Ethereum, jetons et stablecoins',
   },
   {
@@ -93,7 +93,7 @@ export const PATHS: LearningPath[] = [
     id: 'enqueteur', title: 'Enquêteur judiciaire', subtitle: 'De la plainte à l\'audience',
     description: 'Réflexes, OSINT, OPSEC, réquisitions, réglementation, gel et saisie, traçage outillé, rapport, coopération internationale, expertise et contradictoire.',
     icon: 'Scale', color: '#22d3ee', levels: [0, 5],
-    steps: [L('premiers-reflexes'), L('osint'), L('opsec-enqueteur'), L('dab-cash-p2p'), M('dab-cash-p2p'), L('requisitions'), D('requisition-target', 10), M('first-trace'), L('cadre-reglementaire'), L('gel-saisie'), L('gel-stablecoins'), M('pig-butchering-tron'), L('forensique-supports'), M('forensique-telephone'), L('violences-seed'), M('tron-kidnapping-ransom'), L('tracage-outille'), D('taint-method', 5), L('rapport'), L('cooperation-internationale'), L('expertise-judiciaire'), L('saisie-avancee'), M('hd-perquisition'), E('exam-procedure')],
+    steps: [L('premiers-reflexes'), L('osint'), L('opsec-enqueteur'), L('dab-cash-p2p'), M('dab-cash-p2p'), L('requisitions'), D('requisition-target', 10), M('first-trace'), M('guide-rapport'), L('cadre-reglementaire'), L('gel-saisie'), L('gel-stablecoins'), M('pig-butchering-tron'), L('forensique-supports'), M('forensique-telephone'), L('violences-seed'), M('tron-kidnapping-ransom'), L('tracage-outille'), D('taint-method', 5), L('rapport'), L('cooperation-internationale'), L('expertise-judiciaire'), L('saisie-avancee'), M('hd-perquisition'), E('exam-procedure')],
     certificate: 'Enquêteur judiciaire crypto-actifs',
   },
 ]

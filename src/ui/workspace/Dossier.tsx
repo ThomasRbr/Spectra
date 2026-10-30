@@ -7,6 +7,7 @@ import type { Evidence, Objective } from '../../scenarios/types'
 import { useGame, FLAG_META, type Flag } from '../../store/game'
 import { useUi } from '../../store/ui'
 import { evaluate, OBJECTIVE_HINT_RATIO } from '../../lib/scoring'
+import { GuidePanel } from './GuidePanel'
 import { Icon, Tabs, fmtTime } from '../common'
 import { AddrLine } from './Inspector'
 import { WatchPanel } from './Live'
@@ -15,6 +16,8 @@ import { isKnownHdKey, openHdTool } from './HdTool'
 export function Dossier() {
   const tab = useUi((s) => s.leftTab)
   const inst = useGame((s) => s.inst)
+  const scored = useGame((s) => !!s.score)
+  const guideSteps = inst?.guide?.length && !scored ? inst.guide : null
   const answers = useGame((s) => s.answers)
   const flags = useGame((s) => s.flags)
   const watched = useGame((s) => s.watch.length)
@@ -38,6 +41,7 @@ export function Dossier() {
         />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+        {guideSteps && <div className="mb-3"><GuidePanel steps={guideSteps} /></div>}
         {tab === 'objectives' && <Objectives />}
         {tab === 'evidence' && <EvidenceList />}
         {tab === 'flags' && <FlagList />}
@@ -57,9 +61,10 @@ function Objectives() {
   const mode = useGame((s) => s.mode)
   const inCert = useGame((s) => !!s.cert)
   const difficulty = useGame((s) => s.template?.difficulty)
+  const guided = useGame((s) => !!s.template?.guided)
   return (
     <div className="space-y-2.5">
-      {difficulty === 1 && !score && mode !== 'examen' && <FirstSteps />}
+      {!inst.guide?.length && difficulty === 1 && !score && mode !== 'examen' && <FirstSteps />}
       {inst.objectives.map((o, i) => (
         <ObjectiveCard key={o.id} o={o} index={i} />
       ))}
@@ -67,7 +72,7 @@ function Objectives() {
         <div className="space-y-2 pt-1">
           {mode !== 'examen' && (
             <button className="btn-outline w-full text-xs" disabled={hintsUsed >= inst.hints.length} onClick={() => useUi.getState().set({ hintOpen: true })}>
-              <Icon name="Lightbulb" size={14} className="text-yellow-300" /> Indice général ({hintsUsed}/{inst.hints.length}) · −5 pts
+              <Icon name="Lightbulb" size={14} className="text-yellow-300" /> Indice général ({hintsUsed}/{inst.hints.length}) · {guided ? 'gratuit' : '−5 pts'}
             </button>
           )}
           <button className="btn-primary w-full" onClick={() => useUi.getState().set({ confirmSubmit: true })}>
@@ -121,6 +126,7 @@ function FirstSteps() {
 
 function ObjectiveCard({ o, index }: { o: Objective; index: number }) {
   const inst = useGame((s) => s.inst)!
+  const guidedCase = useGame((s) => !!s.template?.guided)
   const value = useGame((s) => s.answers[o.id])
   const score = useGame((s) => s.score)
   const objHint = useGame((s) => s.objHints.includes(o.id))
@@ -148,7 +154,7 @@ function ObjectiveCard({ o, index }: { o: Objective; index: number }) {
           </div>
         ) : (
           <button className="mt-2 flex items-center gap-1 text-[10.5px] text-ink-400 hover:text-yellow-300" onClick={() => useGame.getState().useObjHint(o.id)}>
-            <Icon name="Lightbulb" size={11} /> Indice (−{Math.round(o.points * OBJECTIVE_HINT_RATIO)} pts)
+            <Icon name="Lightbulb" size={11} /> Indice ({guidedCase ? 'gratuit' : `−${Math.round(o.points * OBJECTIVE_HINT_RATIO)} pts`})
           </button>
         )
       )}

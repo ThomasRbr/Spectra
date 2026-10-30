@@ -134,6 +134,9 @@ interface GameState {
   objHints: string[]
   log: LogEntry[]
   links: ManualLink[]
+  /** Repères du guide : sélections faites (sel:<id>), outils ouverts (tool:<nom>), étapes manuelles (step:<n>). */
+  guideMarks: Record<string, true>
+  markGuide(key: string): void
   trace: ActiveTrace | null
   pathHighlight: PathHighlight | null
   live: LiveClock | null
@@ -229,6 +232,7 @@ export interface SavedCase {
   objHints: string[]
   log: LogEntry[]
   links?: ManualLink[]
+  guideMarks?: Record<string, true>
   trace?: { source: TraceSource; opts: TraceOptions }
   live?: LiveClock
   watch?: string[]
@@ -332,6 +336,7 @@ export const useGame = create<GameState>()((set, get) => ({
   focus: null,
   layoutTick: 0,
   history: [],
+  guideMarks: {},
 
   start(templateId, seed, opts = {}) {
     const template = scenarioById(templateId)
@@ -348,7 +353,7 @@ export const useGame = create<GameState>()((set, get) => ({
       addrPos, txPos: {}, revealed: {}, selection: inst.seeds[0] ? { kind: 'address', id: inst.seeds[0] } : null,
       multi: [], flags: {}, notes: {}, answers: {}, hintsUsed: 0, objHints: [], score: undefined, xpGained: undefined,
       log: [{ t: Date.now(), text: `Ouverture du dossier « ${inst.title} » (graine ${seed})${live ? ` en temps réel, horloge au ${fmtClock(live.now)}` : ''}`, kind: 'system' }],
-      showTruth: false, focus: null, layoutTick: 0, minUsd: 0, links: [], history: [], xpNote: undefined,
+      showTruth: false, focus: null, layoutTick: 0, minUsd: 0, links: [], history: [], xpNote: undefined, guideMarks: {},
       trace: null, pathHighlight: null, live, watch: [], alerts: [], views: [], viewId: 'v1', viewName: 'Graphe principal',
       cert: opts.cert ?? null, freezes: [], hdRevealed: {},
     })
@@ -392,7 +397,7 @@ export const useGame = create<GameState>()((set, get) => ({
       ? { ...st, result: traceFunds(w, st.source, st.opts) }
       : null
     set({
-      template, inst, seed: saved.seed, mode: saved.mode, coverage: saved.coverage, startedAt, history: [], xpNote: undefined,
+      template, inst, seed: saved.seed, mode: saved.mode, coverage: saved.coverage, startedAt, history: [], xpNote: undefined, guideMarks: saved.guideMarks ?? {},
       finishedAt: undefined, addrPos, txPos, revealed, flags, notes, answers,
       hintsUsed: saved.hintsUsed, objHints: saved.objHints, log: saved.log, selection: null, multi: [], score: undefined,
       links: (saved.links ?? []).filter((l) => inst.world.addresses.has(l.source) && inst.world.addresses.has(l.target)),
@@ -601,7 +606,16 @@ export const useGame = create<GameState>()((set, get) => ({
     set({ addrPos, txPos })
   },
 
-  select: (selection) => set({ selection }),
+  select: (selection) =>
+    set((s) => {
+      const ids = selection ? ('id' in selection ? [selection.id] : selection.kind === 'edge' ? selection.txIds : []) : []
+      const fresh = ids.filter((id) => !s.guideMarks[`sel:${id}`])
+      if (!fresh.length) return { selection }
+      const marks = { ...s.guideMarks }
+      for (const id of fresh) marks[`sel:${id}`] = true
+      return { selection, guideMarks: marks }
+    }),
+  markGuide: (key) => set((s) => (s.guideMarks[key] ? {} : { guideMarks: { ...s.guideMarks, [key]: true } })),
   setMulti: (multi) => set({ multi }),
   focusOn: (key) => set((s) => ({ focus: { key, n: (s.focus?.n ?? 0) + 1 } })),
 
@@ -640,7 +654,8 @@ export const useGame = create<GameState>()((set, get) => ({
   submit() {
     const s = get()
     if (!s.inst || !s.template) return
-    const score = scoreCase(s.inst.objectives, s.answers, s.hintsUsed, s.objHints)
+    // Mission guidée : les indices sont gratuits
+    const score = s.template.guided ? scoreCase(s.inst.objectives, s.answers, 0, []) : scoreCase(s.inst.objectives, s.answers, s.hintsUsed, s.objHints)
     const finishedAt = Date.now()
     if (s.cert) {
       writeSave(null)
@@ -975,7 +990,7 @@ function currentSave(s: GameState): SavedCase | null {
   return {
     templateId: s.template.id, seed: s.seed, mode: s.mode, coverage: s.coverage, startedAt: s.startedAt,
     addrPos: s.addrPos, txPos: s.txPos, revealed: s.revealed, flags: s.flags, notes: s.notes, answers: s.answers,
-    hintsUsed: s.hintsUsed, objHints: s.objHints, log: s.log, links: s.links, elapsed: Date.now() - s.startedAt,
+    hintsUsed: s.hintsUsed, objHints: s.objHints, log: s.log, links: s.links, guideMarks: s.guideMarks, elapsed: Date.now() - s.startedAt,
     trace: s.trace ? { source: s.trace.source, opts: s.trace.opts } : undefined,
     live: s.live ?? undefined, watch: s.watch, alerts: s.alerts, views: s.views, viewId: s.viewId, viewName: s.viewName,
     cert: s.cert ?? undefined, freezes: s.freezes, hdRevealed: s.hdRevealed,
