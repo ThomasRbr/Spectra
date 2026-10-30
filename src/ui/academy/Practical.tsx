@@ -8,6 +8,7 @@ import { certStatus, closeAttempt, resumeCertification, startCertification } fro
 import { useProfile, type Certificate, type VoletResult } from '../../store/profile'
 import { useUi } from '../../store/ui'
 import { Empty, Icon, Modal } from '../common'
+import { openPrintable } from '../../lib/printable'
 
 const fmtDur = (min: number) => (min >= 60 ? `${min / 60} h` : `${min} min`)
 const fmtDate = (t: number) => new Date(t).toLocaleDateString('fr-FR')
@@ -289,16 +290,7 @@ h1{font-size:40px;margin:8mm 0 3mm;color:#111}.n{font-size:30px;margin:5mm 0;fon
 <div class="m">Délivré le ${new Date(c.date).toLocaleDateString('fr-FR', { dateStyle: 'long' })} · score ${c.score} % · valide jusqu'au ${c.expires ? new Date(c.expires).toLocaleDateString('fr-FR', { dateStyle: 'long' }) : '—'}<br>
 Code de vérification : <span class="code">${esc(c.code ?? '')}</span><br>
 Certificat d'entraînement interne à SPECTRA, sans valeur de diplôme.</div></div></div></body></html>`
-  const win = window.open('', '_blank')
-  if (win) {
-    win.document.write(html)
-    win.document.close()
-  } else {
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
-    a.download = `certification-${c.id}.html`
-    a.click()
-  }
+  openPrintable(html, `certification-${c.id}.html`)
 }
 
 function VerifyBox() {

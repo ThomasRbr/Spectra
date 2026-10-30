@@ -1,0 +1,54 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "SPECTRA",
+  "version": "1.0.0",
+  "identifier": "fr.spectra.tracinglab",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "SPECTRA — Crypto Tracing Lab",
+        "width": 1600,
+        "height": 960,
+        "minWidth": 1200,
+        "minHeight": 720,
+        "center": true,
+        "maximized": true,
+        "resizable": true,
+        "fullscreen": false,
+        "backgroundColor": "#05070d"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "SPECTRA",
+    "shortDescription": "Plateforme d'entraînement au traçage de crypto-actifs",
+    "longDescription": "SPECTRA — Crypto Tracing Lab : missions d'enquête générées, outils d'analyse blockchain et académie, entièrement hors ligne.",
+    "category": "Education",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["French"],
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}

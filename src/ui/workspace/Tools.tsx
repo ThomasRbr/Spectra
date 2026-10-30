@@ -16,6 +16,7 @@ import { LESSONS, TRACKS } from '../../academy'
 import { ChainBadge, CopyButton, DifficultyBadge, Icon, Modal, ProgressBar, RichText, fmtDuration, fmtTime } from '../common'
 import { AddrLine } from './Inspector'
 import { flowDiagramSvg } from './Synthesis'
+import { openPrintable } from '../../lib/printable'
 
 // ── Corrélateur montant / temps ──────────────────────────────────────────
 
@@ -608,24 +609,12 @@ table{width:100%;border-collapse:collapse;margin-top:8px}td,th{border:1px solid 
 <h2>6. Graphe des flux</h2>${png ? `<img src="${png}">` : '<div class="muted">Graphe indisponible.</div>'}
 <h2>7. Journal des opérations d'analyse</h2><ul>${journal}</ul>
 </body></html>`
-    // Nouvel onglet si possible, sinon téléchargement du fichier HTML
-    const win = window.open('', '_blank')
-    if (win) {
-      win.document.write(html)
-      win.document.close()
-    } else {
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
-      a.download = `rapport-${g.template!.id}-${g.seed}.html`
-      a.click()
-      setTimeout(() => URL.revokeObjectURL(a.href), 2000)
-      useUi.getState().notify('Rapport enregistré dans vos téléchargements')
-    }
+    openPrintable(html, `rapport-${g.template!.id}-${g.seed}.html`)
     close()
   }
   return (
     <Modal open={open} onClose={close} title="Rapport d'analyse" icon="Printer" width="max-w-lg">
-      <p className="text-[13px] text-ink-200">Le rapport reprend le contexte, la méthodologie, vos constatations, les adresses marquées avec vos notes, le graphe et le journal horodaté. Il s'ouvre dans un nouvel onglet, prêt à imprimer ou à enregistrer en PDF.</p>
+      <p className="text-[13px] text-ink-200">Le rapport reprend le contexte, la méthodologie, vos constatations, les adresses marquées avec vos notes, le graphe et le journal horodaté. Il s'ouvre dans un aperçu, prêt à imprimer ou à enregistrer en PDF.</p>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <label className="block"><span className="label">Rédacteur</span><input className="input mt-1" value={profile.name} onChange={(e) => profile.setIdentity(e.target.value, profile.unit)} /></label>
         <label className="block"><span className="label">Unité</span><input className="input mt-1" value={profile.unit} onChange={(e) => profile.setIdentity(profile.name, e.target.value)} /></label>
