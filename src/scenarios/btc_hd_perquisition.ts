@@ -23,7 +23,7 @@ export const btcHdPerquisition: ScenarioTemplate = {
   difficulty: 3,
   chains: ['btc'],
   skills: ['utxo', 'cioh', 'exchange_id', 'requisition', 'gel'],
-  estMinutes: 35,
+  estMinutes: 60,
   lessons: ['portefeuilles-hd', 'forensique-supports', 'gel-saisie', 'saisie-avancee', 'requisitions', 'cles-portefeuilles'],
   generate(seed) {
     const w = new World(seed)
@@ -34,6 +34,7 @@ export const btcHdPerquisition: ScenarioTemplate = {
     const brand = r.pick(BRANDS)
     const complainant = fakePerson(r)
     const opj = fakePerson(r)
+    const advisorAlias = r.pick(['Kévin conseil', 'Max patrimoine', 'Yanis gestion', 'Dylan conseiller', 'Steve placements'])
 
     const keys = r.shuffle(['coinhouse', 'kraken', 'bitstamp', 'binance', 'coinbase'] as const)
     const exA = exchange(w, keys[0], 'btc')
@@ -41,6 +42,7 @@ export const btcHdPerquisition: ScenarioTemplate = {
     const cardhub = w.entity('cardhub')
     const suspect = w.customEntity({ name: `${sp.name} (mis en cause)`, category: 'suspect' })
     const victimE = w.customEntity({ name: complainant.name, category: 'victim' })
+    const advisorE = w.customEntity({ name: `« ${advisorAlias} » (démarcheur téléphonique, non identifié)`, category: 'suspect' })
     const hd = createHdWallet(w, { chain: 'btc', kind: 'p2wpkh', entity: suspect, label: 'Portefeuille matériel (scellé n° 1)' })
 
     // ── Versements des victimes : une adresse de réception neuve par client ──
@@ -96,9 +98,16 @@ export const btcHdPerquisition: ScenarioTemplate = {
     deposit(exA, at(Math.floor(nV * 0.4)), r.float(0.6, 0.75))
     const invoice = w.addr('btc', { entity: cardhub, label: 'CardHub — Facture', tags: ['invoice'] })
     const cardSpend = spend(at(Math.floor(nV * 0.55)), invoice, roundCoin(w, 0.004, 0.012, 0.0001))
+    // Commissions du démarcheur téléphonique (le « conseiller »), payées depuis le portefeuille
+    const advisor = w.addr('btc', { entity: advisorE, kind: 'p2wpkh' })
+    const commissions: { tx: Tx; value: number }[] = []
+    const commission = (time: number) => commissions.push(spend(time, advisor, (a) => Math.min(roundCoin(w, 0.008, 0.025, 0.0005), a * 0.3)))
+    commission(at(Math.floor(nV * 0.65)))
     deposit(exB, at(Math.floor(nV * 0.75)), r.float(0.3, 0.45))
+    commission(at(nV - 1))
     deposit(exA, at(nV - 1) + Math.round(r.float(1, 3) * DAY), r.float(0.5, 0.65))
     const tLast = Math.max(...deposits.map((d) => d.sweep.time), cardSpend.tx.time)
+    const commTotal = r8(commissions.reduce((s, c) => s + c.value, 0))
 
     // ── Factures du logiciel d'encaissement : index de dérivation consommés ──
     // Le logiciel dérive une adresse par facture ; les factures impayées
@@ -138,6 +147,8 @@ export const btcHdPerquisition: ScenarioTemplate = {
     const pvNum = `${r.int(10, 99)}/${String(r.int(1, 9999)).padStart(5, '0')}`
     const nInvoices = h2Idx - lastIdx + r.int(2, 6)
     const shownReq = r.shuffle([...pays]).slice(0, 4).sort((a, b) => a.idx - b.idx)
+    // Plus petite limite d'écart qui fait apparaître l'adresse de la première facture payée
+    const minGap = hIdx - lastIdx
 
     return {
       world: w,
@@ -145,7 +156,7 @@ export const btcHdPerquisition: ScenarioTemplate = {
       briefing:
         `Depuis plusieurs mois, le site « ${brand} » promet un rendement garanti sur un « livret » en bitcoins. Les épargnants versent des bitcoins sur une adresse que leur « conseiller » leur communique par courriel, une adresse différente pour chaque client. Aucun intérêt n'a jamais été versé ; ${pays.length} versements ont été recensés à partir des plaintes et des premières constatations.\n\n` +
         `${sp.name}, ${ge('identifié', 'identifiée')} comme l'animateur présumé, a été ${ge('interpellé', 'interpellée')} à son domicile de ${city}. La perquisition a permis de saisir un portefeuille matériel, une feuille de récupération, un carnet et un téléphone. Le carnet porte une clé publique étendue (zpub) ; le téléphone contient une application de suivi en lecture seule.\n\n` +
-        `Le magistrat souhaite savoir, avant la fin de la garde à vue, ce que détient réellement ce portefeuille, où sont partis les fonds déjà sortis et comment sécuriser ce qui reste. Utilisez l'outil « Dérivation HD » (cliquez sur la zpub dans les pièces) et confrontez son résultat aux autres pièces.`,
+        `Le magistrat souhaite savoir, avant la fin de la garde à vue, ce que détient réellement ce portefeuille, où sont partis les fonds déjà sortis qui d'autre a été rémunéré, et comment sécuriser ce qui reste. Utilisez l'outil « Dérivation HD » (cliquez sur la zpub dans les pièces) et confrontez son résultat aux autres pièces.`,
       evidence: [
         {
           id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: victimPay.time + Math.round(r.float(20, 50) * DAY), author: complainant.name,
@@ -187,6 +198,16 @@ export const btcHdPerquisition: ScenarioTemplate = {
             `Aucune clé privée n'est présente dans l'application (signature déléguée au portefeuille matériel).`,
         },
         {
+          id: 'sms', type: 'sms', title: `Extraction du smartphone (scellé n° 4) — messagerie, contact « ${advisorAlias} »`, date: tPerq + Math.round(r.float(1, 3) * DAY), author: 'Section de recherches — cellule d\'appui numérique',
+          body:
+            `Conversation avec le contact enregistré « ${advisorAlias} » (numéro prépayé, sans abonné identifié à ce stade). Extraits :\n\n` +
+            `[${fmtDate(commissions[0].tx.time - Math.round(r.float(3, 20) * HOUR))}] ${advisorAlias} : « ${initials[Math.floor(nV * 0.4) % initials.length]} et ${initials[Math.floor(nV * 0.55) % initials.length]} ont payé, je t'avais dit qu'ils étaient chauds. Ma part ? »\n` +
+            `[${fmtDate(commissions[0].tx.time + Math.round(r.float(10, 50) * 60))}] ${sp.name.split(' ')[0]} : « Envoyé sur ton adresse habituelle, comme convenu. »\n` +
+            `[${fmtDate(commissions[1].tx.time - Math.round(r.float(5, 30) * HOUR))}] ${advisorAlias} : « J'ai encore relancé trois prospects. On fait les comptes avant la fin du mois ? Toujours en BTC, pas de virement. »\n` +
+            `[${fmtDate(commissions[1].tx.time + Math.round(r.float(10, 50) * 60))}] ${sp.name.split(' ')[0]} : « C'est parti. Efface les messages. »\n\n` +
+            `Aucune adresse n'apparaît dans la conversation.`,
+        },
+        {
           id: 'encaissement', type: 'extraction', title: 'Extraction de l\'ordinateur portable — logiciel d\'encaissement (export)', date: tPerq + Math.round(r.float(2, 5) * DAY), author: 'Section de recherches — cellule d\'appui numérique',
           body:
             `Logiciel d'encaissement auto-hébergé, configuré avec la même clé publique étendue (une adresse dérivée par facture). Export de l'historique :\n\n` +
@@ -207,7 +228,7 @@ export const btcHdPerquisition: ScenarioTemplate = {
       seeds: [],
       objectives: [
         {
-          id: 'o1', type: 'choice', points: 10,
+          id: 'o1', type: 'choice', points: 8,
           prompt: 'Que permet, à elle seule, la clé publique étendue relevée sur le carnet ?',
           ...choice(r,
             'Recalculer et surveiller toutes les adresses du compte, sans pouvoir dépenser',
@@ -219,28 +240,44 @@ export const btcHdPerquisition: ScenarioTemplate = {
           explanation: `Une zpub (BIP 84) est une clé publique : elle permet de dériver toutes les adresses du compte, passées et futures, sur les branches de réception et de rendu, donc de reconstituer l'historique et de surveiller le portefeuille. Elle ne contient aucune clé privée : impossible de signer, donc de saisir les fonds avec elle seule. Le fabricant d'un portefeuille matériel ne détient ni les clés ni l'identité de l'utilisateur.`,
         },
         {
-          id: 'o2', type: 'number', points: 15, tolerance: 1, unit: 'adresses',
+          id: 'o2', type: 'number', points: 10, tolerance: 1, unit: 'adresses',
           prompt: 'Combien d\'adresses de ce portefeuille (réception et rendu confondus) ont été réellement utilisées ?',
           answer: used.length,
           hint: 'L\'outil « Dérivation HD » compte les adresses utilisées. Le résultat dépend de la limite d\'écart choisie : confrontez-le à l\'export du logiciel d\'encaissement.',
           explanation: `${used.length} adresses : ${usedReceive.length} de réception et ${usedChange} de rendu. Avec la limite par défaut (20), l'outil comme l'application n'en trouvent que ${appUsed.length} : les deux adresses dérivées pour les factures payées (index ${hIdx} et ${h2Idx}) se trouvent après plus de 20 adresses vides, laissées par les factures expirées.`,
         },
         {
-          id: 'o3', type: 'address', points: 20,
+          id: 'o8', type: 'number', points: 10, tolerance: 1, unit: 'adresses',
+          prompt: 'Quelle est la plus petite limite d\'écart (gap limit) qui fait apparaître toutes les adresses utilisées de ce portefeuille ?',
+          answer: minGap,
+          hint: 'Repérez la dernière adresse de réception remise à un épargnant, puis la première adresse de facture payée : comptez les adresses vides consécutives qui les séparent. Le balayage s\'arrête dès qu\'il en a vu autant que la limite.',
+          explanation:
+            `La dernière adresse remise à un épargnant est à l'index ${lastIdx} de la branche de réception ; la première facture payée est à l'index ${hIdx}. Entre les deux, ${hIdx - lastIdx - 1} adresses consécutives n'ont jamais servi (factures expirées). Un logiciel qui s'arrête après N adresses vides doit donc avoir N ≥ ${minGap} pour atteindre l'index ${hIdx} ; ensuite, l'index ${h2Idx} n'est plus qu'à ${h2Idx - hIdx - 1} adresse(s) vide(s). ` +
+            `Avec la valeur par défaut (20), l'application et l'outil s'arrêtent avant. En pratique, on ne cherche pas la valeur « juste » : on balaie large (50, 100 ou plus) dès qu'une pièce évoque des index élevés, puis on consigne au procès-verbal la limite retenue.`,
+        },
+        {
+          id: 'o3', type: 'address', points: 12,
           prompt: 'Quelle adresse du portefeuille détient aujourd\'hui le solde le plus élevé ?',
           answer: [hBig],
           hint: 'L\'export du logiciel d\'encaissement mentionne des factures payées dont l\'adresse n\'apparaît pas dans la liste par défaut. Augmentez la limite d\'écart dans l\'outil.',
           explanation: `${A(w, hBig)} (chemin m/84'/0'/0'/0/${hIdx}) détient ${btc(bigValue)}, versés le ${fmtDate(bigTx.time)} pour la facture « grands comptes ». Elle est invisible avec la limite d'écart par défaut : entre l'index ${lastIdx} (dernière adresse remise à un client par l'application) et l'index ${hIdx}, le logiciel d'encaissement a consommé ${hIdx - lastIdx - 1} adresses restées vides. Il faut porter la limite à 50 pour la faire apparaître.`,
         },
         {
-          id: 'o4', type: 'amount', points: 15, unit: 'BTC', tolerance: 0.005,
+          id: 'o4', type: 'amount', points: 12, unit: 'BTC', tolerance: 0.005,
           prompt: 'Quel montant total (en BTC) ce portefeuille détient-il encore, toutes adresses confondues ?',
           answer: total,
           hint: 'Additionnez le solde de chaque adresse utilisée, sur les deux branches, après un balayage complet. Le solde affiché par l\'application n\'est pas une référence.',
           explanation: `${btc(total)} (≈ ${Math.round(usd('BTC', total)).toLocaleString('fr-FR')} $), dont ${btc(r8(bigValue + smallValue))} sur les deux adresses de factures. L'application n'affiche que ${btc(appTotal)} : elle s'arrête à la limite de 20 adresses vides. C'est précisément ce que le mis en cause invitait à « regarder ». Le montant à saisir doit être établi par un balayage complet, puis confirmé au moment du transfert.`,
         },
         {
-          id: 'o5', type: 'addresses', points: 15,
+          id: 'o11', type: 'amount', points: 10, unit: 'BTC', tolerance: 0.005,
+          prompt: 'Quel montant total (en BTC) les épargnants ont-ils versé sur les adresses de réception remises par l\'application (hors factures « grands comptes ») ?',
+          answer: totalVictims,
+          hint: 'Additionnez les entrées reçues par les adresses de réception utilisées jusqu\'à la dernière adresse remise à un épargnant ; écartez les deux adresses de factures, situées bien plus loin dans la branche.',
+          explanation: `${pays.length} versements sur les index 0 à ${lastIdx} de la branche de réception, pour ${btc(totalVictims)} (≈ ${Math.round(usd('BTC', totalVictims)).toLocaleString('fr-FR')} $). C'est l'assiette du préjudice connu à ce stade : chaque adresse correspond à un épargnant, que l'on peut rechercher à partir de la transaction qui l'a alimentée (adresse de retrait d'une plateforme, le cas échéant). Les deux factures « grands comptes » (${btc(r8(bigValue + smallValue))}) proviennent d'autres payeurs, eux aussi à identifier.`,
+        },
+        {
+          id: 'o5', type: 'addresses', points: 12,
           prompt: 'Sélectionnez toutes les adresses de dépôt d\'exchange alimentées par ce portefeuille.',
           answer: deposits.map((d) => d.addr),
           hint: 'Ajoutez au graphe toutes les adresses utilisées (bouton de l\'outil) puis dépliez leurs sorties : les adresses de dépôt sont étiquetées et balayées vers un hot wallet.',
@@ -250,13 +287,41 @@ export const btcHdPerquisition: ScenarioTemplate = {
             `\nChaque adresse de dépôt est propre à un compte client : c'est la donnée à citer dans la réquisition. Le paiement CardHub (${btc(cardSpend.value)}) est un achat de cartes cadeaux, pas un compte à requérir en priorité.`,
         },
         {
-          id: 'o6', type: 'entity', points: 10,
+          id: 'o6', type: 'entity', points: 8,
           prompt: 'Quelle plateforme a reçu le plus de fonds depuis ce portefeuille ?',
           answer: [mainEx],
+          hint: 'Additionnez, plateforme par plateforme, les montants envoyés vers les adresses de dépôt identifiées.',
           explanation: `${mainKit.entity.name} a reçu ${btc(byEx.get(mainEx)!)} contre ${btc(byEx.get(otherKit.entity.id) ?? 0)} pour ${otherKit.entity.name}. Les deux plateformes sont à requérir (identité, IP, IBAN de retrait, solde), en priorité ${mainKit.entity.name}. ${procedureFor(mainKit.entity)}`,
         },
         {
-          id: 'o7', type: 'choice', points: 15,
+          id: 'o9', type: 'address', points: 10,
+          prompt: 'Hors exchanges, rendus et achat de cartes cadeaux, une même adresse externe reçoit plusieurs paiements de ce portefeuille. Laquelle ?',
+          answer: [advisor],
+          hint: 'Ajoutez au graphe les adresses utilisées et dépliez leurs sorties : écartez les adresses étiquetées (dépôts d\'exchange, CardHub) et celles de la branche de rendu. La messagerie du téléphone évoque une « adresse habituelle ».',
+          explanation: `${A(w, advisor)} reçoit ${commissions.length} paiements du portefeuille (${commissions.map((c) => `${btc(c.value)} le ${fmtDate(c.tx.time, false)}`).join(', ')}). Elle n'est ni étiquetée ni dérivée de la zpub. Les paiements suivent de près les messages de « ${advisorAlias} » réclamant « sa part » : c'est vraisemblablement l'adresse du démarcheur qui appelait les épargnants. Elle est à placer sous surveillance, et son historique (sources, dépenses vers une plateforme) peut conduire à son identification.`,
+        },
+        {
+          id: 'o10', type: 'amount', points: 10, unit: 'BTC', tolerance: 0.01,
+          prompt: 'Quel montant total (en BTC) le portefeuille a-t-il versé à cette adresse ?',
+          answer: commTotal,
+          hint: 'Additionnez les sorties du portefeuille vers l\'adresse externe qui revient plusieurs fois (pas les rendus).',
+          explanation: `${btc(commTotal)} (≈ ${Math.round(usd('BTC', commTotal)).toLocaleString('fr-FR')} $) en ${commissions.length} paiements, soit environ ${Math.round((commTotal / totalVictims) * 100)} % des versements des épargnants. Ce montant documente la rémunération du démarcheur et pourra être confronté à ses déclarations et à ses éventuels avoirs, une fois identifié.`,
+        },
+        {
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Que permettent d\'affirmer, à ce stade, les paiements vers l\'adresse du « conseiller » ?',
+          hint: 'L\'adresse dérive-t-elle de la zpub ? Que disent les messages, et que ne disent-ils pas ?',
+          ...choice(r,
+            'Des versements répétés à un tiers, concordants avec la messagerie : un indice de rémunération d\'un complice présumé, à corroborer',
+            [
+              'La preuve que le « conseiller » est l\'auteur principal et le véritable propriétaire du portefeuille matériel',
+              'Rien d\'utile : une adresse qui ne dérive pas de la zpub sort du périmètre de l\'enquête',
+              'Des rendus vers une seconde branche du même portefeuille, à additionner aux avoirs à saisir',
+            ]),
+          explanation: `L'adresse ne dérive pas de la zpub : ce ne sont pas des rendus mais de vrais paiements vers un tiers. La concordance des dates avec les messages (« ma part ? », « envoyé sur ton adresse habituelle ») en fait un indice sérieux de rémunération du démarcheur, sans établir à elle seule son identité ni son degré de participation. À corroborer par la téléphonie (numéro prépayé), l'audition du mis en cause et des épargnants (voix, prénom utilisé), et la recherche d'un point de sortie identifiable depuis cette adresse.`,
+        },
+        {
+          id: 'o7', type: 'choice', points: 10,
           prompt: 'Comment sécuriser les fonds encore présents sur ce portefeuille ?',
           ...choice(r,
             'Sur instruction du magistrat, transférer vers le portefeuille de saisie du service, à deux, chaque étape au PV',
@@ -270,10 +335,10 @@ export const btcHdPerquisition: ScenarioTemplate = {
       ],
       truth: {
         path: [...pays.map((p) => p.tx.id), ...spends.map((x) => x.id), ...deposits.map((d) => d.sweep.id), bigTx.id, smallTx.id],
-        addresses: [...used, ...deposits.map((d) => d.addr)],
+        addresses: [...used, ...deposits.map((d) => d.addr), advisor],
         debrief:
           `1. ${pays.length} épargnants versent au total ${btc(totalVictims)}, chacun sur une adresse de réception neuve du même portefeuille HD (index 0 à ${lastIdx}, quelques index sautés pour des prospects qui n'ont pas payé).\n` +
-          `2. Le mis en cause dépense depuis ces adresses : ${deposits.length} dépôts (${deposits.map((d) => `${d.ex.entity.name} ${btc(d.value)}`).join(', ')}) et un achat CardHub. Chaque rendu revient sur la branche de rendu (m/84'/0'/0'/1/i) : ${usedChange} adresses de rendu utilisées.\n` +
+          `2. Le mis en cause dépense depuis ces adresses : ${deposits.length} dépôts (${deposits.map((d) => `${d.ex.entity.name} ${btc(d.value)}`).join(', ')}) un achat CardHub et ${commissions.length} paiements (${btc(commTotal)}) vers ${A(w, advisor).slice(0, 14)}…, l'« adresse habituelle » du démarcheur « ${advisorAlias} ». Chaque rendu revient sur la branche de rendu (m/84'/0'/0'/1/i) : ${usedChange} adresses de rendu utilisées.\n` +
           `3. En parallèle, un logiciel d'encaissement branché sur la même zpub crée une adresse par facture. ${nInvoices - 2} factures expirent sans paiement, ce qui laisse plus de 20 adresses vides consécutives ; deux factures sont payées, sur les index ${hIdx} (${btc(bigValue)}) et ${h2Idx} (${btc(smallValue)}).\n` +
           `4. L'application de suivi, réglée sur une limite d'écart de 20, s'arrête avant ces adresses et affiche ${btc(appTotal)}. Le portefeuille détient en réalité ${btc(total)} sur ${used.length} adresses.\n\n` +
           `À retenir : une clé publique étendue trouvée en perquisition est une pièce majeure. Elle relie avec certitude toutes les adresses d'un compte (bien plus fort qu'une heuristique), permet de chiffrer les avoirs et de désigner les comptes d'exchange à requérir. Mais le résultat dépend de la limite d'écart : en cas de doute (logiciel d'encaissement, factures, index élevés dans les pièces), on balaie large. Une même graine peut aussi porter d'autres comptes (compte 1, autres schémas) que cette seule clé ne montre pas. Pour saisir, il faut la phrase ou le boîtier : transfert vers le portefeuille de saisie sur instruction du magistrat, à deux, tout au procès-verbal.`,
@@ -283,6 +348,7 @@ export const btcHdPerquisition: ScenarioTemplate = {
         'Comparez le nombre d\'adresses et le solde que donne l\'outil avec ceux de l\'application : identiques avec la limite par défaut… mais l\'export du logiciel d\'encaissement mentionne des factures payées absentes de la liste.',
         'Montez la limite d\'écart (gap limit) à 50 : 20 adresses vides consécutives ne prouvent pas que le portefeuille s\'arrête là.',
         'Ajoutez toutes les adresses utilisées au graphe et dépliez leurs sorties : les adresses étiquetées « Adresse de dépôt » désignent les comptes à requérir.',
+        'Parmi les sorties non étiquetées, une adresse revient plusieurs fois, juste après les messages du contact « conseiller » : rapprochez les dates de la messagerie et des transactions.',
       ],
     }
   },

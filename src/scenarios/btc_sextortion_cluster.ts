@@ -1,5 +1,5 @@
 import { World, type Tx } from '../engine/world'
-import { exchange, person, HOUR, DAY } from '../engine/patterns'
+import { exchange, person, swapper, HOUR, DAY } from '../engine/patterns'
 import { fromUsd, roundAsset, usd } from '../engine/chains'
 import type { AddrKind } from '../engine/addressgen'
 import type { ScenarioTemplate } from './types'
@@ -12,11 +12,11 @@ export const btcSextortionCluster: ScenarioTemplate = {
   title: 'Campagne de sextorsion',
   tagline: 'Des centaines de mails, quelques adresses, un seul portefeuille : le clustering à l\'œuvre.',
   description:
-    'Une vague de courriels de « sextorsion » exige des paiements en bitcoins. Chaque mail contient une adresse différente, mais l\'escroc finit par regrouper ses gains. Utilisez l\'heuristique des entrées communes (CIOH) pour reconstituer toutes les adresses de la campagne, chiffrer le préjudice et trouver la sortie.',
+    'Une vague de courriels de « sextorsion » exige des paiements en bitcoins. Chaque mail contient une adresse différente, mais l\'escroc finit par regrouper ses gains. Utilisez l\'heuristique des entrées communes (CIOH) pour reconstituer toutes les adresses de la campagne, chiffrer le préjudice, trouver la sortie et suivre le reliquat jusqu\'à son second point de sortie.',
   difficulty: 2,
   chains: ['btc'],
   skills: ['cioh', 'utxo', 'typologies', 'exchange_id'],
-  estMinutes: 20,
+  estMinutes: 45,
   lessons: ['utxo', 'clustering', 'typologies', 'exchanges', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -113,6 +113,14 @@ export const btcSextortionCluster: ScenarioTemplate = {
     const cashTx = w.utxoTx({ time: c2.time + r.float(6, 40) * HOUR, from: [consol], to: [{ address: deposit, value: depValue }], change: rest, spendAll: true })
     const sweep = out.sweep([deposit], cashTx.time + r.float(1, 8) * HOUR)[0]
 
+    // ── Le reliquat (rendu) part quelques jours plus tard vers un échangeur instantané ──
+    const sw = swapper(w, 'changenow')
+    const restBal = w.unspentValue(rest)
+    const restOrder = sw.order({
+      from: rest, value: r8(Math.floor(restBal * r.float(0.9, 0.96) * 1e5) / 1e5), time: cashTx.time + Math.round(r.float(2, 5) * DAY),
+      toChain: 'eth', recipient: w.addr('eth'),
+    })
+
     // ── Bruit ────────────────────────────────────────────────────────────────
     cv.noise(14, w.at(-22 * 24), w.at(6 * 24))
     bitstamp.noise(8, w.at(-22 * 24), w.at(6 * 24))
@@ -125,6 +133,8 @@ export const btcSextortionCluster: ScenarioTemplate = {
     const other = camp[(k + 1 + r.int(0, n - 2)) % n]
     const exName = out.entity.name
     const demandUsd = Math.round(usd('BTC', plaintValue) / 50) * 50
+    const nFromCv = plan.filter((p) => p.target !== decoy && p.via === 'cv').length
+    const nFromBs = plan.filter((p) => p.target !== decoy && p.via === 'bitstamp').length
 
     return {
       world: w,
@@ -132,7 +142,7 @@ export const btcSextortionCluster: ScenarioTemplate = {
       briefing:
         `${victimName} (${city}) a reçu un courriel affirmant que sa webcam avait été piratée et menaçant de diffuser une vidéo intime à ses contacts. Sous le coup de la panique, la victime a payé la somme exigée en bitcoins depuis son compte Coinhouse.\n\n` +
         `PHAROS signale une campagne massive : des milliers de destinataires, le même texte, mais des adresses Bitcoin qui varient d'un envoi à l'autre. Ces adresses semblent n'avoir aucun lien entre elles… jusqu'à ce que l'escroc les dépense.\n\n` +
-        `Objectifs : reconstituer l'ensemble des adresses de la campagne par clustering, chiffrer le montant total versé par les victimes, et identifier la plateforme de sortie.`,
+        `Objectifs : reconstituer l'ensemble des adresses de la campagne par clustering, chiffrer le nombre de paiements et le montant total versé par les victimes, préparer l'identification des autres victimes, identifier la plateforme de sortie et suivre le reliquat jusqu'à son second point de sortie.`,
       evidence: [
         {
           id: 'email', type: 'email', title: 'Courriel reçu par la victime', date: plaint.time - r.int(6, 30) * HOUR, author: 'expéditeur usurpé (son propre nom de compte)',
@@ -156,38 +166,90 @@ export const btcSextortionCluster: ScenarioTemplate = {
             `• ${A(w, camp[k])}\n• ${A(w, other)}\n• ${A(w, decoy)}\n\n` +
             `Attention : ce modèle circule sur des forums et est réutilisé par plusieurs groupes. Rattachement à un même auteur non établi.`,
         },
+        {
+          id: 'note', type: 'note', title: 'Note de l\'analyste : regroupements et rendu', date: w.at(4 * 24), author: 'Cellule d\'appui',
+          body:
+            `• Entrées communes (CIOH) : toutes les entrées d'une transaction sont réputées signées par le même portefeuille. Une adresse présente dans deux regroupements relie les deux groupes.\n` +
+            `• Rendu : quand une transaction paie un tiers, la sortie restante revient en général au payeur, souvent sur une adresse neuve, parfois d'un autre type que l'adresse de paiement. Un montant rond désigne plutôt le paiement, un montant « tordu » plutôt le rendu.\n` +
+            `• Le rendu n'est pas un point d'arrêt : il faut le suivre, il mène souvent à un second point de sortie.`,
+        },
       ],
       seeds: [],
       objectives: [
         {
-          id: 'o1', type: 'addresses', points: 30,
+          id: 'o1', type: 'addresses', points: 10,
           prompt: 'Sélectionnez toutes les adresses de réception de la campagne (adresses ayant reçu des paiements de victimes et appartenant au même portefeuille).',
           answer: [...camp],
           hint: 'Suivez la dépense de l\'adresse du mail : la transaction de regroupement a plusieurs entrées. Ouvrez ensuite le panneau cluster.',
           explanation: `${n} adresses de réception sont reliées par deux transactions de regroupement. L'adresse ${A(w, bridgeAddr).slice(0, 14)}… figure dans les deux : c'est elle qui « soude » le cluster. Par l'heuristique des entrées communes, toutes ces adresses sont contrôlées par la même personne.`,
         },
         {
-          id: 'o2', type: 'amount', points: 25, unit: 'BTC', tolerance: 0.02,
+          id: 'o6', type: 'address', points: 8,
+          prompt: 'Quelle adresse de la campagne figure en entrée des deux transactions de regroupement et « soude » ainsi le cluster ?',
+          answer: [bridgeAddr],
+          hint: 'Ouvrez les deux transactions qui alimentent l\'adresse de regroupement et comparez leurs listes d\'entrées : une seule adresse est commune.',
+          explanation: `${A(w, bridgeAddr)} dépense une seule UTXO dans le regroupement n° 1 (${fmtDate(c1.time, false)}) et le reste de ses UTXO dans le regroupement n° 2 (${fmtDate(c2.time, false)}). Sans elle, on aurait deux groupes distincts de ${g1.length + 1} et ${g2.length + 1} adresses ; grâce à elle, la CIOH fusionne les ${n} adresses en un seul portefeuille. C'est l'adresse à citer en premier pour justifier le rattachement.`,
+        },
+        {
+          id: 'o4', type: 'address', points: 8,
+          prompt: 'Quelle est l\'adresse de regroupement de la campagne ?',
+          hint: 'C\'est l\'unique sortie des transactions de regroupement à plusieurs entrées.',
+          answer: [consol],
+          explanation: `${A(w, consol)} reçoit les deux transactions de regroupement, puis alimente le dépôt chez ${exName}.`,
+        },
+        {
+          id: 'o7', type: 'number', points: 8, unit: 'paiements', tolerance: 1,
+          prompt: 'Combien de paiements de victimes les adresses de la campagne ont-elles reçus au total ?',
+          answer: nPay,
+          hint: 'Pour chaque adresse du cluster, comptez les transactions entrantes (avant les regroupements).',
+          explanation: `${nPay} paiements, répartis sur ${n} adresses. Chaque paiement est une victime potentielle : une même personne peut payer deux fois, mais l'ordre de grandeur du nombre de plaignants à rechercher est donné par ce comptage.`,
+        },
+        {
+          id: 'o2', type: 'amount', points: 9, unit: 'BTC', tolerance: 0.02,
           prompt: 'Quel montant total (en BTC) les victimes ont-elles versé sur ces adresses ?',
           answer: total,
           hint: 'Additionnez les montants reçus par chaque adresse du cluster (avant regroupement).',
           explanation: `${nPay} paiements pour un total de ${amt(total, 'BTC')}. Chaque paiement correspond potentiellement à une victime à identifier, notamment par réquisition aux plateformes d'où proviennent les fonds (Coinhouse, Bitstamp…).`,
         },
         {
-          id: 'o3', type: 'entity', points: 20,
+          id: 'o8', type: 'number', points: 8, unit: 'paiements',
+          prompt: 'Combien de ces paiements proviennent directement du hot wallet de Coinhouse ?',
+          answer: nFromCv,
+          hint: 'Pour chaque paiement reçu par le cluster, regardez l\'adresse en entrée : est-elle étiquetée « Coinhouse — Hot Wallet » ?',
+          explanation: `${nFromCv} paiements sont des retraits Coinhouse envoyés directement aux adresses de la campagne (${nFromBs} autres viennent de Bitstamp). Chacun correspond à un client identifié par la plateforme : la réquisition à Coinhouse (établi en France) donne autant de victimes à contacter, avec leur identité et les montants. Les paiements venus de portefeuilles personnels exigeront d'autres pistes.`,
+        },
+        {
+          id: 'o3', type: 'entity', points: 9,
           prompt: 'Sur quelle plateforme l\'escroc a-t-il encaissé les fonds ?',
+          hint: 'Suivez la dépense de l\'adresse de regroupement : la sortie au montant rond aboutit à une adresse de dépôt, ensuite balayée.',
           answer: [outKey],
           explanation: `Depuis l'adresse de regroupement, ${amt(depValue, 'BTC')} partent vers une adresse de dépôt ${exName}, ensuite balayée vers son hot wallet. ${procedureFor(out.entity)}`,
         },
         {
-          id: 'o4', type: 'address', points: 10,
-          prompt: 'Quelle est l\'adresse de regroupement de la campagne ?',
-          answer: [consol],
-          explanation: `${A(w, consol)} reçoit les deux transactions de regroupement, puis alimente le dépôt chez ${exName}.`,
+          id: 'o9', type: 'amount', points: 8, unit: 'BTC', tolerance: 0.01,
+          prompt: 'Quel montant (en BTC) l\'escroc a-t-il déposé sur sa plateforme d\'encaissement ?',
+          answer: depValue,
+          hint: 'Dans la transaction qui dépense l\'adresse de regroupement, prenez la sortie vers l\'adresse de dépôt (pas le balayage vers le hot wallet).',
+          explanation: `${amt(depValue, 'BTC')} sont versés sur l'adresse de dépôt ${exName} le ${fmtDate(cashTx.time)} : montant rond, signe d'un paiement choisi. C'est le montant à mentionner dans la réquisition, avec le hash ${cashTx.hash.slice(0, 16)}… et l'adresse de dépôt.`,
         },
         {
-          id: 'o5', type: 'choice', points: 15,
+          id: 'o10', type: 'address', points: 8,
+          prompt: 'Sur quelle adresse le rendu de la transaction d\'encaissement est-il revenu à l\'escroc ?',
+          answer: [rest],
+          hint: 'La transaction d\'encaissement a deux sorties : le dépôt sur la plateforme (montant rond) et le rendu, sur une adresse neuve.',
+          explanation: `${A(w, rest)} reçoit ${amt(r8(restBal), 'BTC')}, la différence entre le solde regroupé et le dépôt (frais déduits). Montant non rond, adresse neuve contrôlée par le même portefeuille : c'est le rendu. Il reste à l'escroc et doit être suivi.`,
+        },
+        {
+          id: 'o11', type: 'entity', points: 8,
+          prompt: 'Quelques jours plus tard, ce rendu repart : vers quel service ?',
+          answer: ['changenow'],
+          hint: 'Dépliez les sorties de l\'adresse de rendu : l\'adresse destinataire est étiquetée, puis balayée vers un hot wallet.',
+          explanation: `Le ${fmtDate(restOrder.depositTx.time)}, l'adresse de rendu envoie ${amt(restOrder.depositTx.outputs.find((o) => o.address === restOrder.deposit)!.value, 'BTC')} vers une adresse de dépôt ChangeNOW (le solde revient sur un nouveau rendu) : échangeur instantané sans compte, qui convertit les BTC vers une autre chaîne. C'est le second point de sortie ; ChangeNOW peut, sur réquisition et à partir du hash de dépôt, indiquer l'adresse de paiement de la commande. ${procedureFor(sw.entity)}`,
+        },
+        {
+          id: 'o5', type: 'choice', points: 8,
           prompt: 'PHAROS signale une troisième adresse avec le même modèle de courriel. Que conclure ?',
+          hint: 'Cette adresse est-elle jamais dépensée avec les adresses du cluster ? Où partent ses fonds ?',
           ...choice(r,
             'Rattachement non établi : aucune dépense commune avec le cluster, fonds partis ailleurs',
             [
@@ -197,23 +259,38 @@ export const btcSextortionCluster: ScenarioTemplate = {
             ]),
           explanation: `${A(w, decoy).slice(0, 14)}… n'est jamais co-dépensée avec les adresses du cluster et ses fonds partent vers une destination distincte. Le modèle de mail est public et réutilisé ; qu'une victime ait payé deux escrocs différents ne prouve rien sur leur lien ; le type d'adresse est un indice trop faible. Seul un lien on-chain (entrées communes, flux commun) ou une donnée de réquisition permettrait le rattachement.`,
         },
+        {
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Que demander en priorité à Coinhouse et à Bitstamp ?',
+          hint: 'Ces plateformes ne détiennent pas les fonds de l\'escroc : quelle donnée détiennent-elles sur les paiements reçus par le cluster ?',
+          ...choice(r,
+            'L\'identité des clients dont les retraits ont alimenté les adresses de la campagne, pour les entendre comme victimes',
+            [
+              'Le gel des bitcoins du cluster, puisque la plupart des paiements proviennent de leurs plateformes',
+              'L\'identité de l\'escroc, qu\'elles connaissent puisque leurs clients lui ont envoyé des fonds',
+              'L\'annulation des retraits des victimes, au titre de leur obligation de vigilance',
+            ]),
+          explanation: `Coinhouse et Bitstamp sont les rampes d'achat des victimes : leurs retraits vers le cluster sont rattachés à des comptes identifiés. Les réquisitions permettent de retrouver, entendre et faire déposer plainte les autres victimes, et de consolider le préjudice. Elles n'ont aucune prise sur les adresses de l'escroc (ni gel, ni identité) et une transaction Bitcoin confirmée ne s'annule pas. ${procedureFor(cv.entity)}`,
+        },
       ],
       truth: {
-        path: [...payments.map((p) => p.tx.id), c1.id, c2.id, cashTx.id, sweep.id],
-        addresses: [...camp, consol, deposit, rest],
+        path: [...payments.map((p) => p.tx.id), c1.id, c2.id, cashTx.id, sweep.id, restOrder.depositTx.id, restOrder.payoutTx.id],
+        addresses: [...camp, consol, deposit, rest, restOrder.deposit],
         debrief:
           `1. La campagne utilise ${n} adresses de réception (${kind === 'p2pkh' ? 'Legacy' : 'SegWit'}), réparties entre les envois. Les victimes y versent ${nPay} paiements, souvent directement depuis Coinhouse ou Bitstamp.\n` +
           `2. Regroupement n°1 (${fmtDate(c1.time, false)}) : ${g1.length + 1} adresses en entrée, dont une seule UTXO de ${A(w, bridgeAddr).slice(0, 14)}….\n` +
           `3. Regroupement n°2 : le reste de cette même adresse avec ${g2.length} autres. Elle relie les deux groupes : le cluster contient les ${n} adresses.\n` +
-          `4. Les deux regroupements alimentent ${A(w, consol)}, qui envoie ${amt(depValue, 'BTC')} vers ${exName} et garde le reste en rendu.\n` +
+          `4. Les deux regroupements alimentent ${A(w, consol)}, qui envoie ${amt(depValue, 'BTC')} vers ${exName} et garde le reste en rendu sur ${A(w, rest)}.\n` +
+          `4 bis. Le ${fmtDate(restOrder.depositTx.time, false)}, ce rendu est envoyé chez ChangeNOW, converti et versé en ETH sur ${A(w, restOrder.payoutTx.transfers[0].to)} : second point de sortie.\n` +
           `5. L'adresse leurre signalée par PHAROS appartient à une autre campagne qui réutilise le même texte : elle n'est jamais co-dépensée avec le cluster.\n\n` +
-          `Leçon : l'heuristique des entrées communes (CIOH) part du principe que toutes les entrées d'une transaction sont signées par le même portefeuille. C'est l'outil de base pour passer d'une adresse à un portefeuille entier, et donc d'une victime à toutes les victimes. Ses limites : CoinJoin et paiements collaboratifs (exclus ici). Réquisitions : ${exName} (titulaire du dépôt) et Coinhouse/Bitstamp (identification des autres victimes).`,
+          `Leçon : l'heuristique des entrées communes (CIOH) part du principe que toutes les entrées d'une transaction sont signées par le même portefeuille. C'est l'outil de base pour passer d'une adresse à un portefeuille entier, et donc d'une victime à toutes les victimes. Ses limites : CoinJoin et paiements collaboratifs (exclus ici). Réquisitions : ${exName} (titulaire du dépôt), ChangeNOW (commande liée au dépôt du rendu) et Coinhouse/Bitstamp (identification des autres victimes : ${nFromCv} paiements directs depuis Coinhouse, ${nFromBs} depuis Bitstamp).`,
       },
       hints: [
         'Ajoutez l\'adresse du courriel au graphe, puis dépliez ses sorties.',
         'Une transaction avec de nombreuses entrées provenant d\'adresses différentes signale un même propriétaire.',
         'Le panneau cluster de l\'adresse liste tous les membres reliés par entrées communes.',
         'Pour le montant total, ne comptez que les paiements reçus par les adresses du cluster, pas les regroupements.',
+        'L\'encaissement a deux sorties : ne vous arrêtez pas au dépôt, le rendu repart plus tard.',
       ],
     }
   },

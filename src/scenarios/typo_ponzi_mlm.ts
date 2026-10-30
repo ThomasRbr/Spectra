@@ -35,7 +35,7 @@ export const ponziMlm: ScenarioTemplate = {
   difficulty: 3,
   chains: ['tron'],
   skills: ['tron', 'tokens', 'typologies', 'exchange_id', 'requisition', 'osint'],
-  estMinutes: 35,
+  estMinutes: 60,
   lessons: ['ponzi-mlm', 'tron-usdt', 'typologies', 'exposition-risque', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -203,13 +203,17 @@ export const ponziMlm: ScenarioTemplate = {
     const proof = [...payouts].filter((p) => leaderAddrs.includes(p.transfers[0].to)).sort((a, b) => b.transfers[0].value - a.transfers[0].value)[0] ?? payouts[0]
     const proofHandle = leaderNames[Math.max(0, leaderAddrs.indexOf(proof.transfers[0].to))]
     const nPayCycles = topups.length
+    // Bénéficiaires des commissions de parrainage (versées directement par l'adresse de collecte)
+    const comRecipients = [...new Set(comTxs.map((t) => t.transfers[0].to))]
+    const comBy = comRecipients.map((a) => ({ a, v: usdt(comTxs.filter((t) => t.transfers[0].to === a).reduce((s, t) => s + t.transfers[0].value, 0)), h: leaderNames[leaderAddrs.indexOf(a)] }))
+    const skimTotal = usdt(skimTxs.reduce((s, t) => s + t.transfers[0].value, 0))
 
     return {
       world: w,
       title: `YieldNova — ${city}`,
       briefing:
         `${victimP.name}, demeurant à ${city}, dépose plainte contre la plateforme « YieldNova », qui promettait ${pct(dailyPct)} de rendement par jour sur des dépôts en USDT (réseau Tron) et ${refPct} % de commission sur les dépôts des filleuls. ${g('Il', 'Elle')} y a été ${g('introduit', 'introduite')} par un « leader » actif sur Telegram. Après quelques semaines, les retraits ont été suspendus « pour maintenance », puis le site a fermé.\n\n` +
-        `Plusieurs autres plaintes sont attendues. Le parquet souhaite une première analyse des flux : qui collectait, combien d'investisseurs, combien a été déposé, quelle part a réellement été reversée, et où sont partis les fonds.\n\n` +
+        `Plusieurs autres plaintes sont attendues. Le parquet souhaite une première analyse des flux : qui collectait, combien d'investisseurs, combien a été déposé, quelle part a réellement été reversée, qui a touché les commissions de parrainage, où sont partis les fonds et ce qui peut encore être gelé.\n\n` +
         `Rappel : un rendement promis ne peut être payé que par une activité réelle. Si les « intérêts » ne proviennent que des dépôts des nouveaux entrants, la plateforme est structurellement condamnée à s'effondrer.`,
       evidence: [
         {
@@ -257,25 +261,11 @@ export const ponziMlm: ScenarioTemplate = {
       seeds: [victim.addr],
       objectives: [
         {
-          id: 'o1', type: 'address', points: 15,
+          id: 'o1', type: 'address', points: 10,
           prompt: 'Quelle est l\'adresse de collecte de la plateforme, qui reçoit les dépôts des investisseurs ?',
           answer: [collector],
           hint: 'Le dépôt cité dans la plainte et la capture du tableau de bord désignent la même adresse.',
           explanation: `${A(w, collector)} reçoit ${depTxs.length} dépôts en USDT. Elle n'est attribuée à aucun service connu : la plateforme n'existe dans aucune base d'attribution, ce qui est courant pour une escroquerie récente.`,
-        },
-        {
-          id: 'o2', type: 'number', points: 10, unit: 'investisseurs', tolerance: 2,
-          prompt: 'Combien d\'investisseurs distincts (adresses déposantes) ont alimenté la plateforme ?',
-          answer: N,
-          hint: 'Dépliez les entrées de l\'adresse de collecte : certaines adresses ont déposé deux fois, ne les comptez qu\'une fois.',
-          explanation: `${N} adresses distinctes ont déposé (${depTxs.length} dépôts au total), parmi lesquelles ${nLeaders} « leaders », entrés dès les premiers jours, qui touchent aussi les commissions de parrainage.`,
-        },
-        {
-          id: 'o3', type: 'amount', points: 15, unit: 'USDT', tolerance: 0.01,
-          prompt: 'Quel montant total d\'USDT a été déposé sur la plateforme ?',
-          answer: usdt(totalDeposited),
-          hint: 'L\'adresse de collecte ne reçoit que des dépôts d\'investisseurs : son total reçu répond à la question.',
-          explanation: `${usd0(totalDeposited)} déposés entre le ${fmtDate(depTxs[0].time, false)} et le ${fmtDate(depTxs[depTxs.length - 1].time, false)}, avec une accélération sur les dernières semaines, typique d'un recrutement par parrainage.`,
         },
         {
           id: 'o4', type: 'address', points: 10,
@@ -285,21 +275,76 @@ export const ponziMlm: ScenarioTemplate = {
           explanation: `${A(w, payer)} est réalimentée ${nPayCycles} fois par l'adresse de collecte, à chaque fois juste avant une vague de paiements, pour exactement le montant versé dans la foulée. Elle n'a aucune autre source de revenus.`,
         },
         {
-          id: 'o5', type: 'number', points: 20, unit: '%', tolerance: 1.5,
+          id: 'o2', type: 'number', points: 10, unit: 'investisseurs', tolerance: 2,
+          prompt: 'Combien d\'investisseurs distincts (adresses déposantes) ont alimenté la plateforme ?',
+          answer: N,
+          hint: 'Dépliez les entrées de l\'adresse de collecte : certaines adresses ont déposé deux fois, ne les comptez qu\'une fois.',
+          explanation: `${N} adresses distinctes ont déposé (${depTxs.length} dépôts au total), parmi lesquelles ${nLeaders} « leaders », entrés dès les premiers jours, qui touchent aussi les commissions de parrainage.`,
+        },
+        {
+          id: 'o3', type: 'amount', points: 10, unit: 'USDT', tolerance: 0.01,
+          prompt: 'Quel montant total d\'USDT a été déposé sur la plateforme ?',
+          answer: usdt(totalDeposited),
+          hint: 'L\'adresse de collecte ne reçoit que des dépôts d\'investisseurs : son total reçu répond à la question.',
+          explanation: `${usd0(totalDeposited)} déposés entre le ${fmtDate(depTxs[0].time, false)} et le ${fmtDate(depTxs[depTxs.length - 1].time, false)}, avec une accélération sur les dernières semaines, typique d'un recrutement par parrainage.`,
+        },
+        {
+          id: 'o5', type: 'number', points: 12, unit: '%', tolerance: 1.5,
           prompt: 'Quelle part des dépôts (en %) a été reversée aux investisseurs sous forme de « rendements » ?',
           answer: share,
           hint: 'Comparez le total envoyé par le portefeuille de paiement au total reçu par l\'adresse de collecte.',
           explanation: `Le portefeuille de paiement a versé ${usd0(returnsPaid)} de « rendements », soit ${pct(share)} des ${usd0(totalDeposited)} déposés. S'y ajoutent ${usd0(commissions)} de commissions de parrainage payées directement par l'adresse de collecte aux leaders (${pct(comShare)}). Les organisateurs captent le reste : ${usd0(orgTotal)} (${pct(orgShare)}), par prélèvements réguliers puis en vidant l'adresse à la fermeture.`,
         },
         {
-          id: 'o6', type: 'entity', points: 15,
+          id: 'o10', type: 'addresses', points: 10,
+          prompt: 'Quelles adresses reçoivent des commissions de parrainage, versées directement par l\'adresse de collecte ?',
+          answer: comRecipients,
+          hint: 'Parmi les sorties de l\'adresse de collecte, écartez les réapprovisionnements du portefeuille de paiement et les virements vers un portefeuille unique (prélèvements) : il reste des versements réguliers à quelques investisseurs entrés dès le début.',
+          explanation: `${comRecipients.length} adresse${comRecipients.length > 1 ? 's' : ''} : ${comBy.map((x) => `${A(w, x.a)}${x.h ? ` (@${x.h})` : ''}, ${usd0(x.v)}`).join(' ; ')}. Ce sont des investisseurs de la première heure, qui reçoivent par ailleurs des « rendements » du portefeuille de paiement : les « leaders » qui animaient les groupes Telegram. Leurs adresses ont été alimentées par des plateformes : ces dernières peuvent les identifier sur réquisition.`,
+        },
+        {
+          id: 'o9', type: 'amount', points: 10, unit: 'USDT', tolerance: 0.01,
+          prompt: 'Quel montant total de commissions de parrainage l\'adresse de collecte a-t-elle versé ?',
+          answer: commissions,
+          hint: 'Additionnez les virements de l\'adresse de collecte vers les adresses des leaders (pas les réapprovisionnements du portefeuille de paiement, ni les prélèvements).',
+          explanation: `${usd0(commissions)} en ${comTxs.length} versements, soit ${pct(comShare)} des dépôts, cohérent avec la commission annoncée de ${refPct} % sur les dépôts des filleuls. Les commissions rémunèrent le recrutement : elles accélèrent l'entrée de nouveaux fonds, sans lesquels les « rendements » ne pourraient être payés. Elles sont à intégrer au calcul des gains nets des leaders.`,
+        },
+        {
+          id: 'o8', type: 'address', points: 10,
+          prompt: 'Quelle adresse capte les prélèvements réguliers puis la vidange finale de l\'adresse de collecte ?',
+          answer: [org],
+          hint: 'Parmi les sorties de l\'adresse de collecte, cherchez une destination qui revient tous les six à neuf jours, puis reçoit deux gros virements le jour de la fermeture.',
+          explanation: `${A(w, org)} reçoit ${skimTxs.length} prélèvement${skimTxs.length > 1 ? 's' : ''} en cours de vie (${usd0(skimTotal)}), puis ${usd0(exit1v)} et ${usd0(usdt(rest - exit1v))} le ${fmtDate(tHalt, false)}, au moment où le site ferme : ${usd0(orgTotal)} au total. Elle ne reverse rien aux investisseurs : c'est le portefeuille des organisateurs, d'où partent ensuite les fonds vers les prestataires de sortie.`,
+        },
+        {
+          id: 'o6', type: 'entity', points: 10,
           prompt: 'Vers quel prestataire part la plus grande partie des fonds extraits par les organisateurs ?',
           answer: ['satsdesk'],
           hint: 'Suivez les prélèvements et la vidange finale de l\'adresse de collecte jusqu\'au portefeuille des organisateurs, puis ses sorties.',
           explanation: `Le portefeuille des organisateurs ${A(w, org)} envoie ${usd0(otcV)} (${Math.round(otcShare * 100)} %) sur une adresse de dépôt de SatsDesk OTC, courtier de gré à gré, et ${usd0(exV)} sur ${dest.entity.name}. ${procedureFor(otc.entity)} ${procedureFor(dest.entity)}`,
         },
         {
-          id: 'o7', type: 'choice', points: 15,
+          id: 'o11', type: 'amount', points: 10, unit: 'USDT', tolerance: 0.01,
+          prompt: 'Quel montant d\'USDT le portefeuille des organisateurs a-t-il déposé sur l\'exchange (et non chez le courtier OTC) ?',
+          answer: exV,
+          hint: 'Suivez les sorties du portefeuille des organisateurs : deux dépôts vont sur la même adresse SatsDesk, un autre sur une adresse de dépôt d\'exchange.',
+          explanation: `${usd0(exV)} déposés le ${fmtDate(e1.tx.time)} sur ${A(w, e1.deposit)}, adresse de dépôt de ${dest.entity.name}. C'est la part la plus directement saisissable : une réquisition rapide, citant l'adresse de dépôt et le hash, peut conduire au gel du compte client s'il n'a pas été vidé, et donne l'identité, les IP et l'IBAN de son titulaire.`,
+        },
+        {
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Comment traiter les leaders qui ressortent gagnants dans la suite de l\'enquête ?',
+          hint: 'Avoir gagné de l\'argent dans un Ponzi ne dit pas, à soi seul, quel rôle on y a joué.',
+          ...choice(r,
+            'Les identifier par réquisition, les entendre et chiffrer leurs gains nets ; leur rôle de recruteurs rémunérés est à apprécier avant toute qualification',
+            [
+              'Les considérer d\'office comme organisateurs, puisqu\'ils ont gagné de l\'argent',
+              'Les écarter de l\'enquête : ayant gagné, ils ne sont pas victimes et n\'apportent rien',
+              'Faire bloquer leurs adresses Tron par l\'émetteur de l\'USDT sans autre élément, à titre préventif',
+            ]),
+          explanation: `Les leaders ont été payés avec l'argent des suivants et ont activement recruté contre commission : ils peuvent être de simples bénéficiaires, des témoins utiles (contacts avec les organisateurs, consignes reçues) ou des complices. Seuls l'identification, l'audition et l'analyse de leurs échanges permettent de trancher. Leurs gains nets (rendements + commissions − dépôts) sont à documenter ; toute mesure sur leurs avoirs relève d'une décision de l'autorité judiciaire, motivée par des éléments précis.`,
+        },
+        {
+          id: 'o7', type: 'choice', points: 10,
           prompt: 'Comment qualifier le fonctionnement de YieldNova au vu des flux ?',
           ...choice(r,
             'Un schéma de Ponzi : les rendements ne sont financés que par les dépôts de nouveaux investisseurs, sans source extérieure',
@@ -313,7 +358,7 @@ export const ponziMlm: ScenarioTemplate = {
       ],
       truth: {
         path: [victim.deposits[0].tx!.id, victim.deposits[1].tx!.id, ...depTxs.filter((t) => t.transfers[0].from !== victim.addr).map((t) => t.id), ...topups.map((t) => t.id), ...payouts.map((t) => t.id), ...comTxs.map((t) => t.id), ...skimTxs.map((t) => t.id), exit1.id, exit2.id, o1.tx.id, o2.tx.id, e1.tx.id],
-        addresses: [collector, payer, org, otcDep, e1.deposit],
+        addresses: [collector, payer, org, otcDep, e1.deposit, ...comRecipients],
         debrief:
           `1. Du ${fmtDate(depTxs[0].time, false)} au ${fmtDate(depTxs[depTxs.length - 1].time, false)}, ${N} investisseurs déposent ${usd0(totalDeposited)} sur ${A(w, collector)}.\n` +
           `2. À ${nPayCycles} reprises, l'adresse de collecte réalimente le portefeuille de paiement ${A(w, payer)}, qui verse aussitôt des « rendements » : ${usd0(returnsPaid)} au total (${pct(share)} des dépôts). Les paiements cessent ${D - lastPayDay} jours avant la fermeture (« maintenance »).\n` +
@@ -327,6 +372,7 @@ export const ponziMlm: ScenarioTemplate = {
         'La transaction publiée comme « preuve » sur Telegram révèle le portefeuille qui paie les rendements.',
         'Comparez les totaux reçus et envoyés des deux adresses de la plateforme : la part reversée se calcule directement.',
         'Les autres sorties de l\'adresse de collecte vont soit aux leaders (commissions), soit à un portefeuille unique qui finit vidé vers deux prestataires.',
+        'Le portefeuille des organisateurs se vide en trois dépôts : deux sur la même adresse de courtier, un sur un exchange.',
       ],
     }
   },

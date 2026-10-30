@@ -13,11 +13,11 @@ export const btcPeelChain: ScenarioTemplate = {
   title: 'La chaîne de pelage',
   tagline: 'Des dizaines de petits dépôts : remontez une peel chain jusqu\'au bout.',
   description:
-    'La réserve en bitcoins d\'un réseau de revente de stupéfiants a été identifiée. Les fonds en sont extraits par petites tranches (« peel chain ») vers plusieurs plateformes, un casino et un vendeur de cartes cadeaux. Suivez la chaîne saut par saut, comptez les dépôts par plateforme et localisez le reliquat.',
+    'La réserve en bitcoins d\'un réseau de revente de stupéfiants a été identifiée. Elle a été constituée par regroupement de plusieurs adresses de collecte, puis ses fonds en sont extraits par petites tranches (« peel chain ») vers plusieurs plateformes, un casino et un vendeur de cartes cadeaux. Remontez la constitution de la réserve, suivez la chaîne saut par saut, comptez les dépôts par plateforme, confrontez les déclarations du trésorier et localisez le reliquat.',
   difficulty: 2,
   chains: ['btc'],
   skills: ['peel', 'change', 'exchange_id', 'requisition'],
-  estMinutes: 25,
+  estMinutes: 45,
   lessons: ['utxo', 'change-heuristics', 'peel-chains', 'exchanges', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -136,6 +136,14 @@ export const btcPeelChain: ScenarioTemplate = {
     const targetName = (t: Target) => (t === 'orbit' ? 'OrbitCasino' : t === 'cardhub' ? 'CardHub' : t === 'unknown' ? 'adresses non attribuées' : kits[t].entity.name)
     const recap = [...byTarget.entries()].sort((a, b) => b[1].n - a[1].n).map(([t, e]) => `   • ${targetName(t)} : ${e.n} tranche(s), ${amt(r8(e.v), 'BTC')}`).join('\n')
     const mainName = kits[main].entity.name
+    const reserveIn = r8(consTotal - consFee)
+    const firstMain = mainDeps[0]
+    const firstMainTx = steps[firstMain.step].tx
+    const orbitTotal = r8(byTarget.get('orbit')?.v ?? 0)
+    const orbitN = byTarget.get('orbit')?.n ?? 0
+    // Déclaration minorée du trésorier en audition (à confronter à la blockchain)
+    const claimed = Math.max(0.05, Math.round(peeledTotal * r.float(0.3, 0.5) * 100) / 100)
+    const tAudition = w.at(16 * 24)
 
     return {
       world: w,
@@ -143,7 +151,7 @@ export const btcPeelChain: ScenarioTemplate = {
       briefing:
         `Dans le cadre d'une information judiciaire pour trafic de stupéfiants à ${city}, l'exploitation du téléphone saisi sur ${suspectName}, « trésorier » présumé du réseau, a révélé un portefeuille Bitcoin baptisé « Réserve ».\n\n` +
         `Les clients du réseau paient sur plusieurs adresses de collecte, regroupées ensuite sur cette réserve. Depuis, les fonds en sortent par petites tranches successives : c'est une peel chain. À chaque saut, une petite sortie part vers un service, et le gros du solde file vers une nouvelle adresse du même portefeuille.\n\n` +
-        `Objectifs : suivre la chaîne jusqu'au bout, identifier la plateforme qui a reçu le plus de tranches et le montant concerné, puis localiser le reliquat.`,
+        `Objectifs : remonter la constitution de la réserve, suivre la chaîne jusqu'au bout, identifier la plateforme qui a reçu le plus de tranches et le montant concerné, mesurer ce qui a été réellement sorti (à confronter à l'audition du trésorier), puis localiser le reliquat.`,
       evidence: [
         {
           id: 'pv', type: 'pv', title: 'PV d\'exploitation du téléphone (extrait)', date: w.at(14 * 24), author: 'Enquêteur NTECH',
@@ -168,42 +176,96 @@ export const btcPeelChain: ScenarioTemplate = {
             `• une entrée, deux sorties ;\n` +
             `• une petite sortie (la « pelure ») vers un service ;\n` +
             `• une grosse sortie vers une adresse neuve du même type, qui devient l'entrée du saut suivant.\n\n` +
-            `Pensez à noter chaque adresse de dépôt : chacune doit figurer dans la réquisition adressée à la plateforme concernée.`,
+            `Pensez à noter chaque adresse de dépôt : chacune doit figurer dans la réquisition adressée à la plateforme concernée.\n\n` +
+            `En amont, une transaction à nombreuses entrées qui alimente la réserve signale un regroupement : par l'heuristique des entrées communes, toutes ces adresses appartiennent au même portefeuille.`,
+        },
+        {
+          id: 'audition', type: 'pv', title: `PV d'audition de ${suspectName} (extrait)`, date: tAudition, author: 'Officier de police judiciaire',
+          body:
+            `Question : Que sont devenus les bitcoins du portefeuille « Réserve » ?\n` +
+            `Réponse : J'en ai sorti un peu, de temps en temps, pour payer des dettes. En tout, pas plus de ${amt(claimed, 'BTC')}, je vous le jure. Le reste, je n'y ai pas touché.\n` +
+            `Question : Sur quelles plateformes ?\n` +
+            `Réponse : Je ne me souviens plus. Une ou deux fois au casino en ligne, c'est tout.\n` +
+            `Question : Combien d'adresses utilisiez-vous pour recevoir les paiements des clients ?\n` +
+            `Réponse : Une seule, toujours la même.`,
         },
       ],
       seeds: [],
       objectives: [
         {
-          id: 'o1', type: 'entity', points: 25,
+          id: 'o6', type: 'tx', points: 9,
+          prompt: 'Quelle transaction a constitué la réserve en regroupant les adresses de collecte ?',
+          answer: [consTx.id],
+          hint: 'Ajoutez l\'adresse de la réserve (PV d\'exploitation) et ouvrez son unique flux entrant : il compte de nombreuses entrées.',
+          explanation: `Le ${fmtDate(consTx.time)}, une seule transaction dépense ${consTx.inputs.length} UTXO réparties sur ${nCollect} adresses et verse ${amt(reserveIn, 'BTC')} sur la réserve, sans rendu. C'est un regroupement (consolidation) : le trésorier a réuni les paiements des clients avant de commencer à les sortir.`,
+        },
+        {
+          id: 'o7', type: 'number', points: 9, unit: 'adresses',
+          prompt: 'Combien d\'adresses de collecte distinctes ont été regroupées sur la réserve ?',
+          answer: nCollect,
+          hint: 'Ouvrez la transaction de regroupement : comptez les adresses distinctes en entrée, pas les UTXO (une même adresse peut apparaître plusieurs fois).',
+          explanation: `${nCollect} adresses distinctes (${consTx.inputs.length} entrées au total, chaque adresse ayant reçu plusieurs paiements). Par l'heuristique des entrées communes, elles appartiennent toutes au portefeuille du trésorier, ce qui contredit sa déclaration (« une seule adresse »). Chacune a reçu des paiements de clients : autant de points d'entrée pour identifier des acheteurs, notamment ceux qui ont payé depuis une plateforme régulée.`,
+        },
+        {
+          id: 'o8', type: 'amount', points: 8, unit: 'BTC', tolerance: 0.01,
+          prompt: 'Quel montant (en BTC) la réserve a-t-elle reçu lors de sa constitution ?',
+          answer: reserveIn,
+          hint: 'C\'est la valeur de l\'unique sortie de la transaction de regroupement (frais déduits).',
+          explanation: `${amt(reserveIn, 'BTC')} : la somme des ${consTx.inputs.length} UTXO de collecte (${amt(r8(consTotal), 'BTC')}) moins ${amt(r8(consFee), 'BTC')} de frais. C'est le point de départ de la peel chain et l'ordre de grandeur du produit du trafic sur la période.`,
+        },
+        {
+          id: 'o1', type: 'entity', points: 10,
           prompt: 'Quelle plateforme a reçu le plus grand nombre de tranches ?',
           answer: [main],
           hint: 'Comptez, saut par saut, les petites sorties attribuées à une plateforme (étiquette « Adresse de dépôt », ou cluster rattaché à un exchange après balayage).',
           explanation: `Répartition des tranches :\n${recap}\n${mainName} reçoit ${mainDeps.length} dépôts distincts : l'adresse de dépôt change à chaque tranche, mais elles sont vraisemblablement rattachées au même compte client, ce que la réquisition confirmera.`,
         },
         {
-          id: 'o2', type: 'amount', points: 25, unit: 'BTC', tolerance: 0.03,
+          id: 'o2', type: 'amount', points: 10, unit: 'BTC', tolerance: 0.03,
           prompt: 'Quel montant total (en BTC) a été versé sur cette plateforme via la peel chain ?',
           answer: mainTotal,
           hint: 'Additionnez les montants des pelures vers les adresses de dépôt de cette plateforme (pas les balayages vers le hot wallet).',
           explanation: `${mainDeps.length} dépôts pour un total de ${amt(mainTotal, 'BTC')}. C'est ce montant, avec la liste des adresses de dépôt et des dates, qui figure dans la réquisition.`,
         },
         {
-          id: 'o3', type: 'number', points: 20, tolerance: 1, unit: 'transactions',
+          id: 'o9', type: 'tx', points: 9,
+          prompt: 'Quelle est la première transaction de pelage à destination de la plateforme qui a reçu le plus de tranches ?',
+          answer: [firstMainTx.id],
+          hint: 'Parcourez la chaîne depuis la réserve, dans l\'ordre : arrêtez-vous au premier saut dont la petite sortie aboutit à une adresse de dépôt de cette plateforme.',
+          explanation: `Le premier dépôt chez ${mainName} intervient au saut n° ${firstMain.step + 1}, le ${fmtDate(firstMainTx.time)} (${amt(steps[firstMain.step].peelValue, 'BTC')}). Sa date borne la période à couvrir dans la réquisition (du premier au dernier dépôt), et son hash permet à la plateforme de retrouver immédiatement le compte crédité.`,
+        },
+        {
+          id: 'o3', type: 'number', points: 9, tolerance: 1, unit: 'transactions',
           prompt: 'Combien de transactions de pelage compte la chaîne, depuis la première dépense de la réserve jusqu\'à la dernière adresse non dépensée ?',
           answer: hops,
           hint: 'Chaque saut = une transaction avec une pelure et un rendu. Arrêtez-vous quand le rendu n\'est plus dépensé.',
           explanation: `La chaîne compte ${hops} sauts. ${amt(peeledTotal, 'BTC')} ont été « pelés » au total.`,
         },
         {
-          id: 'o4', type: 'address', points: 20,
+          id: 'o10', type: 'amount', points: 9, unit: 'BTC', tolerance: 0.02,
+          prompt: 'Quel montant total (en BTC) la peel chain a-t-elle versé à OrbitCasino ?',
+          answer: orbitTotal,
+          hint: 'Repérez les pelures dont l\'adresse de destination est étiquetée « OrbitCasino — Adresse de dépôt » et additionnez-les. Ignorez les dépôts d\'autres joueurs sur le casino.',
+          explanation: `${orbitN} tranche(s) vers OrbitCasino, pour ${amt(orbitTotal, 'BTC')}. Le casino en ligne sert ici de « blanchisseuse » : on mise peu, on retire des gains apparents. Service peu coopératif, mais l'exposition doit être documentée et comparée à la déclaration du trésorier (« une ou deux fois »).`,
+        },
+        {
+          id: 'o11', type: 'amount', points: 9, unit: 'BTC', tolerance: 0.02,
+          prompt: 'Le trésorier affirme en audition n\'avoir sorti qu\'une petite somme. Quel montant total (en BTC) a réellement été « pelé » de la réserve ?',
+          answer: peeledTotal,
+          hint: 'Additionnez toutes les petites sorties de la chaîne, quelle que soit leur destination (plateformes, casino, cartes cadeaux, adresses inconnues). Les frais de transaction ne comptent pas.',
+          explanation: `${amt(peeledTotal, 'BTC')} ont été pelés en ${hops} tranches, contre ${amt(claimed, 'BTC')} déclarés : la déclaration est démentie par la blockchain. Ce tableau (date, hash, montant, destinataire de chaque tranche) est l'annexe à joindre au PV de confrontation.`,
+        },
+        {
+          id: 'o4', type: 'address', points: 10,
           prompt: 'Sur quelle adresse se trouve le reliquat en fin de chaîne ?',
           answer: [finalAddr],
           hint: 'C\'est le dernier rendu de la chaîne : il n\'a aucune sortie dépensée.',
           explanation: `Le reliquat (${amt(remaining, 'BTC')}) dort sur ${A(w, finalAddr)}. Il faut le placer sous surveillance (alerte de mouvement) : s'il part vers une plateforme, une réquisition et un gel rapides sont possibles.`,
         },
         {
-          id: 'o5', type: 'choice', points: 10,
+          id: 'o5', type: 'choice', points: 8,
           prompt: 'Quelle stratégie de réquisition retenir ?',
+          hint: 'Que voit chaque plateforme de vos flux ? Et que désigne l\'adresse de son hot wallet ?',
           ...choice(r,
             'Une réquisition par plateforme listant chaque dépôt (date, montant), et une alerte sur le reliquat',
             [
@@ -218,11 +280,12 @@ export const btcPeelChain: ScenarioTemplate = {
         path: [consTx.id, ...steps.map((s) => s.tx.id), ...sweeps],
         addresses: [reserve, ...steps.map((s) => s.next), ...mainDeps.map((d) => d.address)],
         debrief:
-          `1. ${nCollect} adresses de collecte reçoivent les paiements des clients, puis sont regroupées en une transaction à ${consTx.inputs.length} entrées (plusieurs paiements par adresse) vers la réserve ${A(w, reserve)} (${amt(r8(consTotal - consFee), 'BTC')}).\n` +
+          `1. ${nCollect} adresses de collecte reçoivent les paiements des clients, puis sont regroupées en une transaction à ${consTx.inputs.length} entrées (plusieurs paiements par adresse) vers la réserve ${A(w, reserve)} (${amt(reserveIn, 'BTC')}).\n` +
           `2. À partir du ${fmtDate(steps[0].tx.time, false)}, la réserve est « pelée » en ${hops} sauts : à chaque fois une petite sortie (3 à 8,5 % du solde) vers un service, et le reste vers une adresse neuve du même type.\n` +
           `3. Destination des tranches :\n${recap}\n` +
           `4. Les plateformes balaient ensuite chaque adresse de dépôt vers leur hot wallet : on s'arrête au dépôt.\n` +
-          `5. Le reliquat de ${amt(remaining, 'BTC')} repose sur ${A(w, finalAddr)}.\n\n` +
+          `5. Le reliquat de ${amt(remaining, 'BTC')} repose sur ${A(w, finalAddr)}.\n` +
+          `6. En audition, le trésorier déclare une seule adresse de réception et « pas plus de ${amt(claimed, 'BTC')} » sortis : la blockchain montre ${nCollect} adresses de collecte et ${amt(peeledTotal, 'BTC')} pelés, dont ${amt(orbitTotal, 'BTC')} vers le casino en ${orbitN} fois.\n\n` +
           `Leçon : dans une peel chain, la continuation est presque toujours la grosse sortie, de même type que l'entrée. L'intérêt pour l'enquête est le nombre de points de contact avec des services régulés : ici ${mainDeps.length} dépôts chez ${mainName}, chacun rattaché au même compte KYC. Les petites sorties vers des adresses non attribuées sont des impasses à documenter sans s'y perdre.`,
       },
       hints: [
@@ -230,6 +293,7 @@ export const btcPeelChain: ScenarioTemplate = {
         'À chaque saut, la continuation est la grosse sortie, de même type d\'adresse que l\'entrée.',
         'Ne suivez pas les balayages vers les hot wallets : le dépôt est le point d\'arrêt.',
         'Tenez une liste : plateforme → nombre de dépôts → montant.',
+        'Avant la chaîne, remontez l\'unique entrée de la réserve : ses entrées révèlent les adresses de collecte.',
       ],
     }
   },

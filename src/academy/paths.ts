@@ -1,5 +1,7 @@
 // Parcours guidés et examens de l'Académie.
 import { CURRICULUM, type DrillId, type Exam, type Level, type LearningPath, type PathStep } from './model'
+import { DRILL_ANCHORS, MIN_LEVEL_BY_DIFFICULTY, MISSION_PREREQS } from './prereqs'
+import { SCENARIOS } from '../scenarios'
 
 const L = (id: string): PathStep => ({ kind: 'lesson', id })
 const M = (id: string, minPct = 60): PathStep => ({ kind: 'mission', id, minPct })
@@ -24,84 +26,104 @@ export const EXAMS: Exam[] = [
   { id: 'exam-affaires', title: 'Certification — Affaires décryptées', description: 'Colonial Pipeline, Silk Road, Hydra, Bitfinex, ChipMixer, Garantex et Bybit : faits, techniques et leçons.', level: 4, lessons: ['affaire-colonial', 'affaire-silk-road', 'affaire-hydra', 'affaire-bitfinex', 'affaire-chipmixer', 'affaire-garantex', 'affaire-bybit'], drills: [], questions: 20, minutes: 20, passPct: 80 },
 ]
 
-/** Le grand cursus : toutes les leçons dans l'ordre, ponctuées de pratique et d'examens. */
+/**
+ * Le grand cursus : toutes les leçons dans l'ordre. Chaque exercice suit sa
+ * leçon d'ancrage, chaque mission suit le dernier de ses prérequis (sans
+ * descendre sous le niveau minimal de sa difficulté) et un examen clôt
+ * chaque niveau.
+ */
 function cursusSteps(): PathStep[] {
-  const practice: Partial<Record<Level, PathStep[]>> = {
-    0: [M('guide-premiers-pas'), D('chain-from-address', 5), D('hash-or-address', 5), D('unit-convert', 5), M('first-trace'), M('deb-capture-adresse'), M('deb-victimes-multiples')],
-    1: [M('guide-exchange'), M('guide-usdt-tron'), D('address-type', 5), D('utxo-fee', 5), D('token-vs-native', 5), M('eth-first'), M('deb-tron-usdt'), M('deb-litecoin'), M('deb-bsc-airdrop'), M('deb-solana-support'), M('deb-ton-commentaire'), M('deb-premier-swap'), M('xrp-destination-tag'), M('guide-rapport')],
-    2: [D('utxo-change', 6), D('cioh-cluster', 5), D('peel-read', 4), D('deposit-pattern', 4), D('taint-method', 5), D('hd-path', 4), D('ton-comment', 4), D('ponzi-flow', 4), M('change-anatomy'), M('peel-chain'), M('pig-butchering-tron'), M('stups-telegram'), M('ton-telegram-scam'), M('dab-cash-p2p'), M('sol-drainer'), M('ledger-phishing'), M('recovery-scam'), M('sol-memecoin-rug')],
-    3: [D('requisition-target', 5), D('swap-match', 5), D('l2-withdrawal', 4), D('wash-trade', 4), M('chain-hopping'), M('centralized-mixer'), M('address-poisoning'), M('hd-perquisition'), M('forensique-telephone'), M('l2-arbitrum-base'), M('ponzi-mlm'), M('pump-dump'), M('nft-wash'), M('eth-bec-president'), M('eth-account-takeover'), M('donation-funding'), M('money-mules')],
-    4: [D('coinjoin-spot', 6), D('pool-demix', 4), D('ln-channel', 4), M('coinjoin-demix'), M('monero-wall'), M('defi-exploit'), M('lightning-cashout'), M('monero-atomic'), M('coinjoin-remix')],
-    5: [D('wallet-fingerprint', 5), M('darknet-vendor'), M('ransomware-raas')],
+  const order = CURRICULUM.map((c) => c.id)
+  const pos = (id: string) => order.indexOf(id)
+  const firstOfLevel = (lv: Level) => CURRICULUM.findIndex((c) => c.level >= lv)
+  // Missions rangées par ancrage : « a:i » après la leçon i, « s:i » en ouverture
+  // du niveau qui commence à la leçon i (mission retenue par sa difficulté)
+  const missionsAt = new Map<string, typeof SCENARIOS>()
+  for (const s of SCENARIOS) {
+    const after = Math.max(-1, ...(MISSION_PREREQS[s.id] ?? []).map(pos))
+    const start = firstOfLevel(MIN_LEVEL_BY_DIFFICULTY[s.difficulty] ?? 0)
+    const key = after >= start ? `a:${after}` : `s:${start}`
+    missionsAt.set(key, [...(missionsAt.get(key) ?? []), s])
   }
+  const rank = (s: (typeof SCENARIOS)[number]) => (s.guided ? 0 : 10) + s.difficulty
+  const missions = (at: string) => [...(missionsAt.get(at) ?? [])].sort((a, b) => rank(a) - rank(b)).map((s) => M(s.id))
+  const drills = (lesson: string) =>
+    (Object.entries(DRILL_ANCHORS) as [DrillId, { lesson: string; target: number }][]).filter(([, a]) => a.lesson === lesson).map(([id, a]) => D(id, a.target))
   const steps: PathStep[] = []
-  for (const lv of [0, 1, 2, 3, 4, 5] as Level[]) {
-    steps.push(...levelIds(lv).map(L), ...(practice[lv] ?? []), E(`exam-n${lv}`))
-  }
+  CURRICULUM.forEach((c, i) => {
+    steps.push(...missions(`s:${i}`), L(c.id), ...drills(c.id), ...missions(`a:${i}`))
+    const next = CURRICULUM[i + 1]
+    if (!next || next.level !== c.level) steps.push(E(`exam-n${c.level}`))
+  })
   return steps
 }
 
 export const PATHS: LearningPath[] = [
   {
     id: 'cursus', title: 'Le grand cursus', subtitle: 'De débutant absolu à expert',
-    description: 'Le parcours complet : les 54 leçons dans l\'ordre, des exercices et des missions à chaque étape, et un examen pour valider chacun des six niveaux.',
+    description: `Le parcours complet : les ${CURRICULUM.length} leçons dans l'ordre, chaque exercice juste après sa leçon, chaque mission dès que ses prérequis sont lus, et un examen pour valider chacun des six niveaux.`,
     icon: 'GraduationCap', color: '#22d3ee', levels: [0, 5], steps: cursusSteps(), certificate: 'Cursus complet SPECTRA — Enquêteur crypto-actifs',
   },
   {
     id: 'decouverte', title: 'Découverte', subtitle: 'Je pars de zéro',
     description: 'Comprendre ce qu\'est une crypto-monnaie, une blockchain, une clé et un exchange, lire un explorateur, puis réaliser son premier traçage.',
     icon: 'Sprout', color: '#94a3b8', levels: [0, 0],
-    steps: [M('guide-premiers-pas'), ...levelIds(0).map(L), D('chain-from-address', 5), D('hash-or-address', 5), D('unit-convert', 5), M('guide-exchange'), M('first-trace'), M('deb-capture-adresse'), M('deb-victimes-multiples'), M('guide-rapport'), E('exam-n0')],
+    steps: [L('argent-numerique'), L('crypto-sans-maths'), L('bases-blockchain'), D('chain-from-address', 5), L('cles-portefeuilles'), L('unites-ordres'), D('unit-convert', 5), L('ecosysteme-acteurs'), L('explorateur-blocs'), D('hash-or-address', 5), M('guide-premiers-pas'), L('premiers-reflexes'), M('deb-capture-adresse'), E('exam-n0'), L('utxo'), L('exchanges'), M('first-trace'), L('suivre-flux'), M('deb-victimes-multiples'), M('guide-rapport')],
     certificate: 'Fondamentaux des crypto-actifs',
   },
   {
     id: 'analyste-bitcoin', title: 'Analyste Bitcoin', subtitle: 'Maîtriser le modèle UTXO',
     description: 'Transactions, frais, rendu, clustering et peel chains : toutes les heuristiques d\'analyse Bitcoin, avec leurs limites.',
     icon: 'Bitcoin', color: '#f7931a', levels: [1, 2],
-    steps: [L('utxo'), M('deb-litecoin'), D('address-type', 5), L('frais-mempool'), D('utxo-fee', 6), L('portefeuilles-hd'), D('hd-path', 5), M('hd-perquisition'), L('change-heuristics'), D('utxo-change', 8), M('change-anatomy', 70), L('clustering'), D('cioh-cluster', 6), M('sextortion-cluster'), L('peel-chains'), D('peel-read', 5), M('peel-chain'), E('exam-bitcoin')],
+    steps: [L('utxo'), D('address-type', 5), L('frais-mempool'), D('utxo-fee', 6), L('change-heuristics'), D('utxo-change', 8), M('change-anatomy', 70), M('deb-litecoin'), L('clustering'), D('cioh-cluster', 6), M('sextortion-cluster'), L('peel-chains'), D('peel-read', 5), M('peel-chain'), L('portefeuilles-hd'), D('hd-path', 5), E('exam-bitcoin')],
     certificate: 'Analyste Bitcoin',
   },
   {
     id: 'ethereum-stablecoins', title: 'Ethereum, jetons & stablecoins', subtitle: 'Le modèle à comptes',
-    description: 'Comptes EVM, jetons ERC-20 et TRC-20, stablecoins et leurs émetteurs, Tron, swaps sur DEX et destination tags.',
+    description: 'Comptes EVM, jetons ERC-20 et TRC-20, stablecoins et leurs émetteurs, Tron, swaps sur DEX, destination tags, Solana et TON.',
     icon: 'Hexagon', color: '#8c9eff', levels: [1, 2],
-    steps: [L('comptes-evm'), M('guide-exchange'), L('tokens-erc20'), D('token-vs-native', 6), M('eth-first'), M('deb-bsc-airdrop'), M('deb-solana-support'), L('stablecoins'), L('tron-usdt'), M('guide-usdt-tron'), M('deb-tron-usdt'), D('deposit-pattern', 5), M('pig-butchering-tron'), L('dex-defi'), M('deb-premier-swap'), M('dex-swap'), L('xrp-memos'), D('xrp-tag', 5), M('xrp-destination-tag'), L('ton-telegram'), D('ton-comment', 5), M('deb-ton-commentaire'), M('ton-telegram-scam'), L('gel-stablecoins'), E('exam-comptes')],
+    steps: [L('comptes-evm'), L('tokens-erc20'), D('token-vs-native', 6), L('exchanges'), D('deposit-vs-hot', 5), M('guide-exchange'), M('eth-first'), L('stablecoins'), M('deb-bsc-airdrop'), L('tron-usdt'), M('guide-usdt-tron'), M('deb-tron-usdt'), D('deposit-pattern', 5), L('dex-defi'), M('deb-premier-swap'), M('dex-swap'), L('xrp-memos'), D('xrp-tag', 5), M('xrp-destination-tag'), L('solana'), M('deb-solana-support'), L('ton-telegram'), D('ton-comment', 5), M('deb-ton-commentaire'), L('gel-stablecoins'), E('exam-comptes')],
     certificate: 'Ethereum, jetons et stablecoins',
   },
   {
     id: 'interchaines', title: 'Inter-chaînes & services', subtitle: 'Quand les fonds changent de chaîne',
     description: 'Exchanges, bridges, échangeurs instantanés et mixeurs : suivre les fonds quand le lien on-chain se brise, et corréler.',
     icon: 'Waypoints', color: '#a78bfa', levels: [1, 3],
-    steps: [L('exchanges'), D('deposit-vs-hot', 6), L('bridges'), L('chain-hopping'), L('echangeurs-instantanes'), D('swap-match', 6), M('chain-hopping'), L('layer2-rollups'), D('l2-withdrawal', 5), M('l2-arbitrum-base'), L('mixeurs'), M('centralized-mixer'), L('tracage-outille'), D('taint-method', 6), E('exam-interchaines')],
+    requires: 'Prérequis : niveau 1 (UTXO, modèle à comptes, jetons) et la leçon DEX et DeFi.',
+    steps: [L('exchanges'), D('deposit-vs-hot', 6), L('bridges'), L('chain-hopping'), M('chain-hopping'), L('echangeurs-instantanes'), D('swap-match', 6), M('monero-wall'), L('mixeurs'), M('centralized-mixer'), L('layer2-rollups'), D('l2-withdrawal', 5), M('l2-arbitrum-base'), L('tracage-outille'), D('taint-method', 6), E('exam-interchaines')],
     certificate: 'Inter-chaînes et services',
   },
   {
     id: 'confidentialite', title: 'Confidentialité avancée', subtitle: 'CoinJoin, pools, Monero',
     description: 'Les techniques d\'anonymisation, ce qu\'elles cachent vraiment, les erreurs qui trahissent leurs utilisateurs et les limites du démixage.',
     icon: 'EyeOff', color: '#f43f5e', levels: [4, 5],
-    steps: [L('coinjoin'), D('coinjoin-spot', 8), M('coinjoin-demix'), L('privacy-pools'), D('pool-demix', 5), M('defi-exploit'), L('monero'), M('monero-wall'), M('monero-atomic'), L('lightning'), D('ln-channel', 5), M('lightning-cashout'), L('analyse-comportementale'), D('wallet-fingerprint', 5), M('coinjoin-remix'), L('demixage-avance'), E('exam-confidentialite')],
+    requires: 'Prérequis : le parcours Analyste Bitcoin (UTXO, rendu, clustering) et la leçon Échangeurs instantanés.',
+    steps: [L('coinjoin'), D('coinjoin-spot', 8), M('coinjoin-demix'), L('privacy-pools'), D('pool-demix', 5), L('monero'), L('lightning'), D('ln-channel', 5), M('lightning-cashout'), M('monero-atomic'), L('analyse-comportementale'), D('wallet-fingerprint', 5), L('demixage-avance'), M('coinjoin-remix'), E('exam-confidentialite')],
     certificate: 'Confidentialité avancée',
   },
   {
     id: 'typologies', title: 'Typologies criminelles', subtitle: 'Reconnaître les schémas',
     description: 'Escroqueries, address poisoning, drainers, rug pulls, rançongiciels, darknet, hacks DeFi, blanchiment professionnel et acteurs étatiques.',
     icon: 'Siren', color: '#f97316', levels: [2, 5],
-    steps: [L('typologies'), D('typology', 10), L('stupefiants-crypto'), M('stups-telegram'), L('ponzi-mlm'), D('ponzi-flow', 5), M('ponzi-mlm'), L('address-poisoning'), M('address-poisoning'), L('drainers-approvals'), L('rug-pulls'), M('rugpull-bsc'), M('sol-drainer'), L('nft-fraudes'), D('wash-trade', 5), M('nft-wash'), L('manipulation-marche'), M('pump-dump'), M('sol-memecoin-rug'), L('ransomware'), M('ransomware-raas'), L('darknet'), M('darknet-vendor'), L('defi-exploits'), D('risk-category', 8), M('ledger-phishing'), M('recovery-scam'), M('eth-bec-president'), M('eth-account-takeover'), M('donation-funding'), L('blanchiment-pro'), M('money-mules'), L('acteurs-etatiques'), E('exam-typologies')],
+    requires: 'Prérequis : niveaux 0 et 1, plus Clustering, Bridges, Chain hopping et Mixeurs pour les affaires de fin de parcours.',
+    steps: [L('typologies'), D('typology', 10), M('eth-bec-president'), M('ledger-phishing'), M('recovery-scam'), L('dab-cash-p2p'), L('stupefiants-crypto'), M('stups-telegram'), L('ponzi-mlm'), D('ponzi-flow', 5), M('ponzi-mlm'), L('address-poisoning'), M('address-poisoning'), L('drainers-approvals'), M('sol-drainer'), L('rug-pulls'), M('rugpull-bsc'), M('sol-memecoin-rug'), L('nft-fraudes'), D('wash-trade', 5), M('nft-wash'), L('manipulation-marche'), M('pump-dump'), M('eth-account-takeover'), L('ransomware'), M('ransomware-raas'), L('darknet'), M('darknet-vendor'), L('defi-exploits'), D('risk-category', 8), L('blanchiment-pro'), M('money-mules'), M('donation-funding'), L('acteurs-etatiques'), E('exam-typologies')],
     certificate: 'Typologies criminelles',
   },
   {
     id: 'enqueteur', title: 'Enquêteur judiciaire', subtitle: 'De la plainte à l\'audience',
     description: 'Réflexes, OSINT, OPSEC, réquisitions, réglementation, gel et saisie, traçage outillé, rapport, coopération internationale, expertise et contradictoire.',
     icon: 'Scale', color: '#22d3ee', levels: [0, 5],
-    steps: [L('premiers-reflexes'), L('osint'), L('opsec-enqueteur'), L('dab-cash-p2p'), M('dab-cash-p2p'), L('requisitions'), D('requisition-target', 10), M('first-trace'), M('guide-rapport'), L('cadre-reglementaire'), L('gel-saisie'), L('gel-stablecoins'), M('pig-butchering-tron'), L('forensique-supports'), M('forensique-telephone'), L('violences-seed'), M('tron-kidnapping-ransom'), L('tracage-outille'), D('taint-method', 5), L('rapport'), L('cooperation-internationale'), L('expertise-judiciaire'), L('saisie-avancee'), M('hd-perquisition'), E('exam-procedure')],
+    requires: 'Les missions de ce parcours supposent le niveau 1 (UTXO, exchanges, stablecoins, Tron) : suivez-le d\'abord si besoin.',
+    steps: [L('premiers-reflexes'), L('suivre-flux'), M('guide-rapport'), L('osint'), L('opsec-enqueteur'), L('dab-cash-p2p'), M('dab-cash-p2p'), L('requisitions'), D('requisition-target', 10), L('cadre-reglementaire'), L('gel-saisie'), L('gel-stablecoins'), M('pig-butchering-tron'), L('forensique-supports'), M('forensique-telephone'), L('portefeuilles-hd'), M('hd-perquisition'), L('violences-seed'), M('tron-kidnapping-ransom'), L('tracage-outille'), D('taint-method', 5), L('rapport'), L('cooperation-internationale'), L('expertise-judiciaire'), L('saisie-avancee'), E('exam-procedure')],
     certificate: 'Enquêteur judiciaire crypto-actifs',
   },
 ]
 
-export const PATH_AFFAIRES = {
+export const PATH_AFFAIRES: LearningPath = {
   id: 'affaires', title: 'Affaires décryptées', subtitle: 'Apprendre des grands dossiers',
   description: 'Sept dossiers publics disséqués à partir des documents officiels : ce qui a permis de remonter les fonds, les erreurs des auteurs et ce qu\'un enquêteur français peut en transposer.',
-  icon: 'Newspaper', color: '#eab308', levels: [3, 5] as [Level, Level],
+  icon: 'Newspaper', color: '#eab308', levels: [3, 5],
+  requires: 'Prérequis : niveaux 0 à 2 du grand cursus, puis Rançongiciels, Darknet, Mixeurs, Bridges, Chain hopping et Échangeurs instantanés. Chaque leçon d\'affaire se lit seule ; les missions associées sont exigeantes.',
   steps: [L('affaire-colonial'), M('ransomware-raas'), L('affaire-silk-road'), M('peel-chain'), L('affaire-hydra'), M('darknet-vendor'), L('affaire-bitfinex'), M('chain-hopping'), L('affaire-chipmixer'), M('centralized-mixer'), L('affaire-garantex'), M('tron-sanctions-garantex'), L('affaire-bybit'), M('exchange-hack'), E('exam-affaires')],
   certificate: 'Affaires décryptées',
 }

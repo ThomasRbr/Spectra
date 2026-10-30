@@ -30,7 +30,7 @@ export const nftWash: ScenarioTemplate = {
   difficulty: 3,
   chains: ['eth'],
   skills: ['evm', 'defi', 'typologies', 'exchange_id', 'requisition'],
-  estMinutes: 35,
+  estMinutes: 60,
   lessons: ['nft-fraudes', 'defi-exploits', 'comptes-evm', 'blanchiment-pro', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -170,6 +170,13 @@ export const nftWash: ScenarioTemplate = {
     const funded = eth(fundTxs.filter((x) => x.transfers[0].from === source).reduce((s, x) => s + x.transfers[0].value, 0))
     const hotPrices = washTxs.filter((x) => x.method?.endsWith(`(tokenId ${hot})`)).map((x) => x.transfers[0].value)
     const report = fakePerson(r)
+    // Vente la plus chère du montage (celle produite comme justificatif) et coût réel des reventes
+    const maxPrice = Math.max(...washTxs.map((x) => x.transfers[0].value))
+    const maxSales = washTxs.filter((x) => Math.abs(x.transfers[0].value - maxPrice) < 1e-9)
+    const maxSale = maxSales[0]
+    const maxTokenId = Number(maxSale.method!.match(/tokenId (\d+)/)![1])
+    const washCost = eth(washTxs.reduce((s, x) => s + x.transfers[2].value + x.transfers[3].value, 0))
+    const reserve = eth(w.balanceOf(hacker2, 'ETH'))
 
     return {
       world: w,
@@ -207,21 +214,21 @@ export const nftWash: ScenarioTemplate = {
         {
           id: 'pv', type: 'pv', title: 'PV de renseignement', date: tD + 2 * DAY, author: report.name,
           body:
-            `Un analyste conformité d'un prestataire européen signale, sous couvert d'anonymat, qu'un client a justifié un dépôt important d'ETH par « la revente d'une œuvre NFT de la collection ${collection} », fournissant une capture de la vente la plus chère (${amt(eth(Math.max(...hotPrices)), 'ETH')}).\n` +
-            `Le prestataire n'est pas identifié à ce stade. Pistes : remonter les fonds de l'attaquant de Lendora jusqu'aux ventes de NFT, puis suivre leurs produits.`,
+            `Un analyste conformité d'un prestataire européen signale, sous couvert d'anonymat, qu'un client a justifié un dépôt important d'ETH par « la revente d'une œuvre NFT de la collection ${collection} », fournissant une capture de la vente la plus chère (${amt(eth(maxPrice), 'ETH')}).\n` +
+            `Le prestataire n'est pas identifié à ce stade. Pistes : remonter les fonds de l'attaquant de Lendora jusqu'aux ventes de NFT, retrouver la vente produite comme justificatif, puis suivre leurs produits.`,
         },
       ],
       seeds: [hacker],
       objectives: [
         {
-          id: 'o1', type: 'address', points: 15,
+          id: 'o1', type: 'address', points: 10,
           prompt: 'Quelle adresse a financé les portefeuilles qui ont pratiqué le wash trading ?',
           answer: [source],
           hint: 'Suivez les sorties de l\'adresse de l\'attaquant : l\'une d\'elles redistribue aussitôt les ETH vers plusieurs portefeuilles neufs.',
           explanation: `${A(w, source)} reçoit ${amt(srcIn, 'ETH')} de l'attaquant et finance ${K} portefeuilles neufs en quelques heures, puis les réalimente au besoin (${amt(funded, 'ETH')} au total). C'est la source commune du montage.`,
         },
         {
-          id: 'o2', type: 'addresses', points: 20,
+          id: 'o2', type: 'addresses', points: 12,
           prompt: 'Quels portefeuilles ont participé aux ventes croisées ?',
           answer: allWash,
           hint: 'Les portefeuilles financés par la source s\'achètent et se revendent les mêmes tokenId. Vérifiez si l\'un d\'eux a lui-même financé un portefeuille supplémentaire.',
@@ -235,20 +242,6 @@ export const nftWash: ScenarioTemplate = {
           explanation: `Le tokenId ${top[0]} change de mains ${top[1]} fois entre portefeuilles liés, son prix passant de ${amt(hotPrices[0], 'ETH')} à ${amt(hotPrices[hotPrices.length - 1], 'ETH')}, alors que le prix plancher de la collection reste sous 0,15 ETH. Les deux autres NFT (${tokens.slice(1).join(' et ')}) servent d'appoint.`,
         },
         {
-          id: 'o4', type: 'amount', points: 15, unit: 'ETH', tolerance: 0.01,
-          prompt: 'Quel montant d\'ETH, présenté comme des produits de ventes NFT, a été déposé sur l\'exchange de sortie ?',
-          answer: laundered,
-          hint: 'Les portefeuilles liés regroupent tout leur solde sur une adresse de sortie, qui dépose en deux fois.',
-          explanation: `${allWash.length} portefeuilles versent ${amt(exitIn, 'ETH')} à ${A(w, exit)}, qui dépose ${amt(p1, 'ETH')} puis ${amt(p2, 'ETH')} = ${amt(laundered, 'ETH')} (≈ ${usd0(usd('ETH', laundered))}). Le volume des ventes croisées atteint ${amt(washVolume, 'ETH')}, pour un coût de ${amt(fees, 'ETH')} en commissions et redevances : le volume affiché est sans rapport avec les fonds réellement engagés.`,
-        },
-        {
-          id: 'o5', type: 'entity', points: 15,
-          prompt: 'Sur quel exchange les fonds sont-ils ressortis ?',
-          answer: [destKey],
-          hint: 'L\'adresse de sortie dépose sur une adresse rattachée à un exchange, balayée ensuite vers son hot wallet.',
-          explanation: `Les deux dépôts arrivent sur ${A(w, dep)}, adresse de dépôt de ${destName}. ${procedureFor(dest.entity)} La justification « vente de NFT » avancée par le client tombe : l'acheteur et le vendeur étaient financés par la même source.`,
-        },
-        {
           id: 'o6', type: 'amount', points: 10, unit: 'ETH', tolerance: 0.02,
           prompt: 'Quel volume (en ETH) ont totalisé les reventes entre portefeuilles liés ?',
           answer: washVolume,
@@ -256,7 +249,62 @@ export const nftWash: ScenarioTemplate = {
           explanation: `${washTxs.length} reventes entre portefeuilles liés totalisent ${amt(washVolume, 'ETH')} (≈ ${usd0(usd('ETH', washVolume))}) : c'est le faux volume affiché par la collection. Le contrat d'échange et l'adresse de commissions sont attribués à Mosaïque Market, qui peut être requise pour ses journaux (adresses IP, e-mails facultatifs, signatures des ordres), susceptibles de relier les portefeuilles à un même appareil. ${procedureFor(mosaique)}`,
         },
         {
-          id: 'o7', type: 'choice', points: 15,
+          id: 'o10', type: 'tx', points: 10,
+          prompt: 'Quelle transaction correspond à la vente produite comme justificatif auprès du prestataire (la plus chère du montage) ?',
+          answer: maxSales.map((x) => x.id),
+          hint: 'Le PV de renseignement donne le prix de la vente : cherchez, parmi les ventes entre portefeuilles liés, celle dont l\'acheteur paie ce montant au contrat de Mosaïque.',
+          explanation: `Transaction ${maxSale.hash.slice(0, 18)}…, le ${fmtDate(maxSale.time)} : ${A(w, maxSale.transfers[0].from).slice(0, 12)}… paie ${amt(eth(maxPrice), 'ETH')} pour le tokenId ${maxTokenId}, et le contrat reverse ${amt(maxSale.transfers[1].value, 'ETH')} à ${A(w, maxSale.transfers[1].to).slice(0, 12)}…. Acheteur et vendeur ont tous deux été financés, directement ou non, par la même source : la « vente » qui sert de justificatif n'a pas d'acheteur indépendant. Le hash est la pièce à opposer à la justification fournie à la plateforme.`,
+        },
+        {
+          id: 'o11', type: 'amount', points: 10, unit: 'ETH', tolerance: 0.02,
+          prompt: 'Combien d\'ETH le montage a-t-il coûté en commissions de plateforme et redevances, sur les reventes entre portefeuilles liés ?',
+          answer: washCost,
+          hint: 'À chaque revente, le contrat prélève deux petites sorties (commissions de Mosaïque, redevance du créateur) : additionnez-les sur les seules ventes entre portefeuilles liés.',
+          explanation: `${washTxs.length} reventes × (${pctFr(MP_FEE)} % de commission + ${pctFr(ROYALTY)} % de redevance) = ${amt(washCost, 'ETH')} (≈ ${usd0(usd('ETH', washCost))}). C'est le « prix » du blanchiment : tout le reste du volume tourne en boucle entre les portefeuilles et revient à l'opérateur. Rapporté aux ${amt(laundered, 'ETH')} finalement présentés comme produits de ventes, le coût est faible, ce qui explique l'attrait du procédé.`,
+        },
+        {
+          id: 'o8', type: 'address', points: 10,
+          prompt: 'Sur quelle adresse les portefeuilles liés regroupent-ils leurs soldes en fin de boucle ?',
+          answer: [exit],
+          hint: 'Après la dernière revente, suivez les sorties des portefeuilles liés : ils se vident tous vers une même adresse neuve.',
+          explanation: `Les ${allWash.length} portefeuilles envoient leur solde à ${A(w, exit)} (${amt(exitIn, 'ETH')}) en quelques heures, à partir du ${fmtDate(consol[0].time, false)}. Ce regroupement final confirme l'unité de contrôle du montage et désigne l'adresse qui alimente l'exchange.`,
+        },
+        {
+          id: 'o4', type: 'amount', points: 10, unit: 'ETH', tolerance: 0.01,
+          prompt: 'Quel montant d\'ETH, présenté comme des produits de ventes NFT, a été déposé sur l\'exchange de sortie ?',
+          answer: laundered,
+          hint: 'Les portefeuilles liés regroupent tout leur solde sur une adresse de sortie, qui dépose en deux fois.',
+          explanation: `${allWash.length} portefeuilles versent ${amt(exitIn, 'ETH')} à ${A(w, exit)}, qui dépose ${amt(p1, 'ETH')} puis ${amt(p2, 'ETH')} = ${amt(laundered, 'ETH')} (≈ ${usd0(usd('ETH', laundered))}). Le volume des ventes croisées atteint ${amt(washVolume, 'ETH')}, pour un coût de ${amt(fees, 'ETH')} en commissions et redevances : le volume affiché est sans rapport avec les fonds réellement engagés.`,
+        },
+        {
+          id: 'o5', type: 'entity', points: 8,
+          prompt: 'Sur quel exchange les fonds sont-ils ressortis ?',
+          answer: [destKey],
+          hint: 'L\'adresse de sortie dépose sur une adresse rattachée à un exchange, balayée ensuite vers son hot wallet.',
+          explanation: `Les deux dépôts arrivent sur ${A(w, dep)}, adresse de dépôt de ${destName}. ${procedureFor(dest.entity)} La justification « vente de NFT » avancée par le client tombe : l'acheteur et le vendeur étaient financés par la même source.`,
+        },
+        {
+          id: 'o9', type: 'address', points: 10,
+          prompt: 'Juste après le piratage, l\'attaquant met une partie du butin de côté sur une autre adresse. Laquelle ?',
+          answer: [hacker2],
+          hint: 'Parmi les sorties de l\'adresse de l\'attaquant, l\'une ne redistribue rien : elle reçoit un gros montant quelques heures après l\'exploitation et n\'a plus bougé.',
+          explanation: `${A(w, hacker2)} reçoit ${amt(parkTx.transfers[0].value, 'ETH')} le ${fmtDate(parkTx.time)}, quelques heures après l'exploitation, et conserve ${amt(reserve, 'ETH')} (≈ ${usd0(usd('ETH', reserve))}). Ces fonds n'ont pas encore été blanchis : c'est la réserve de l'attaquant, la part la plus importante restant à suivre.`,
+        },
+        {
+          id: 'o12', type: 'choice', points: 10,
+          prompt: 'Comment traiter les fonds restés sur cette adresse de réserve ?',
+          hint: 'Peut-on geler de l\'ETH détenu en propre ? Qu\'est-ce qui reste possible ?',
+          ...choice(r,
+            'La placer sous surveillance et préparer des demandes de gel vers les plateformes où elle déposerait, dès le premier mouvement',
+            [
+              'La saisir immédiatement par une réquisition adressée au réseau Ethereum',
+              'Demander à Lendora d\'annuler les transactions du piratage pour restituer les fonds au protocole',
+              'Considérer les fonds comme perdus : sans exchange identifié, il n\'y a plus rien à faire',
+            ]),
+          explanation: `Personne ne peut geler de l'ETH en autodétention ni annuler une transaction confirmée : il n'existe ni « opérateur » d'Ethereum à requérir, ni retour arrière possible pour Lendora. En revanche, l'adresse est connue : une surveillance (alerte sur toute sortie) permet d'agir vite vers la plateforme destinataire, en joignant le dossier du piratage. La diffusion de l'adresse aux plateformes partenaires, selon les canaux habituels, augmente les chances de blocage à l'arrivée. La prime de restitution proposée par Lendora relève de la victime, pas de l'enquête.`,
+        },
+        {
+          id: 'o7', type: 'choice', points: 10,
           prompt: 'Quels indicateurs caractérisent ici le wash trading ?',
           ...choice(r,
             'Financement commun, mêmes tokenId revendus en boucle entre ces portefeuilles, prix détachés du plancher, sortie regroupée',
@@ -270,7 +318,7 @@ export const nftWash: ScenarioTemplate = {
       ],
       truth: {
         path: [exploit.id, srcTx.id, parkTx.id, ...fundTxs.map((x) => x.id), lateFund.id, ...acqTxs.map((x) => x.id), ...washTxs.map((x) => x.id), ...consol.map((x) => x.id), d1.tx.id, ...(d1.sweep ? [d1.sweep.id] : []), d2.tx.id, ...(d2.sweep ? [d2.sweep.id] : [])],
-        addresses: [hacker, source, ...allWash, market, exit, dep],
+        addresses: [hacker, hacker2, source, ...allWash, market, exit, dep],
         debrief:
           `1. Le ${fmtDate(t0, false)}, l'attaquant extrait ${amt(stolen, 'ETH')} du contrat de Lendora vers ${A(w, hacker)} et met une partie de côté sur ${A(w, hacker2)}.\n` +
           `2. ${amt(srcIn, 'ETH')} passent sur ${A(w, source)}, qui finance ${K} portefeuilles neufs ; l'un d'eux finance à son tour un portefeuille supplémentaire, entré plus tard dans la boucle.\n` +
@@ -283,6 +331,8 @@ export const nftWash: ScenarioTemplate = {
         'Les ventes de NFT sont des transactions vers le contrat de Mosaïque : lisez la méthode pour connaître le tokenId et repérez qui paie et qui encaisse.',
         'Comptez les ventes par tokenId entre les portefeuilles liés ; écartez les achats initiaux au prix plancher auprès de détenteurs extérieurs.',
         'En fin de boucle, tous les portefeuilles liés se vident vers une même adresse : suivez-la jusqu\'à l\'exchange.',
+        'Le PV de renseignement donne le prix de la vente « justificative » : retrouvez la transaction correspondante parmi les reventes.',
+        'L\'attaquant n\'a pas tout engagé dans le montage : l\'une de ses sorties n\'a plus bougé depuis le piratage.',
       ],
     }
   },

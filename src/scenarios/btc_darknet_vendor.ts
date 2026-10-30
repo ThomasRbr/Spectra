@@ -16,7 +16,7 @@ export const btcDarknetVendor: ScenarioTemplate = {
   difficulty: 4,
   chains: ['btc', 'ltc'],
   skills: ['osint', 'cioh', 'crosschain', 'exchange_id', 'requisition', 'typologies'],
-  estMinutes: 45,
+  estMinutes: 80,
   lessons: ['clustering', 'darknet', 'osint', 'chain-hopping', 'exchanges', 'requisitions', 'typologies'],
   generate(seed) {
     const w = new World(seed)
@@ -116,6 +116,13 @@ export const btcDarknetVendor: ScenarioTemplate = {
     const v4 = w.addr('btc', { entity: vendor, kind: 'p2wpkh' })
     const cvValue = r8(Math.floor(w.unspentValue(v3) * r.float(0.4, 0.6) * 1000) / 1000)
     const cvRes = cv.receive(v3, cvValue, order.depositTx.time + r.float(2, 5) * DAY, { change: v4 })
+    // 4. Second dépôt Coinhouse quelques jours plus tard, sur la MÊME adresse de dépôt
+    //    (adresse attribuée durablement au compte client) : il faut l'additionner au premier.
+    const v5 = w.addr('btc', { entity: vendor, kind: 'p2wpkh' })
+    const cv2Value = r8(Math.floor(w.unspentValue(v4) * r.float(0.35, 0.55) * 1000) / 1000)
+    const cvRes2 = cv.receive(v4, cv2Value, Math.round((cvRes.sweep?.time ?? cvRes.tx.time) + r.float(3, 8) * DAY), { change: v5, depositAddr: cvRes.deposit })
+    const cvTotal = r8(cvValue + cv2Value)
+    const swapDelayMin = Math.round((order.payoutTx.time - order.depositTx.time) / 60)
 
     // ── Bruit ────────────────────────────────────────────────────────────────
     cv.noise(14, w.at(-30 * 24), w.at(20 * 24))
@@ -170,34 +177,7 @@ export const btcDarknetVendor: ScenarioTemplate = {
       seeds: [],
       objectives: [
         {
-          id: 'o1', type: 'address', points: 15,
-          prompt: 'Quelle est l\'adresse principale où le vendeur regroupe ses revenus ?',
-          answer: [main],
-          hint: 'Partez de l\'adresse « tips » du profil PGP et regardez comment elle est dépensée.',
-          explanation: `${A(w, main)} a reçu la première libération de séquestre, puis ${consTxs.length} transactions de regroupement successives où elle se réutilise elle-même en entrée : elles rassemblent toutes les adresses recevant les libérations.`,
-        },
-        {
-          id: 'o2', type: 'amount', points: 20, unit: 'BTC', tolerance: 0.03,
-          prompt: 'Montant total (en BTC) des libérations de séquestre Hydra reçues par le portefeuille du vendeur ?',
-          answer: totalReleased,
-          hint: 'Utilisez le cluster de l\'adresse principale : additionnez ce que chaque adresse a reçu directement du séquestre Hydra.',
-          explanation: `${nRel} libérations pour ${amt(totalReleased, 'BTC')} (environ ${Math.round(exposureUsd).toLocaleString('fr-FR')} $). Celle de ${amt(ucRelease.value, 'BTC')} correspond exactement à l'achat sous pseudonyme moins ${Math.round(MARKET_FEE * 100)} % : elle valide le rattachement du cluster au vendeur.`,
-        },
-        {
-          id: 'o3', type: 'entity', points: 15,
-          prompt: 'Sur quelle plateforme régulée le vendeur a-t-il commis une erreur de KYC ?',
-          answer: ['coinhouse'],
-          explanation: `${amt(cvValue, 'BTC')} sont déposés sur une adresse de dépôt Coinhouse, plateforme française agréée qui applique un KYC renforcé : le compte est rattaché à une identité vérifiée.`,
-        },
-        {
-          id: 'o4', type: 'address', points: 20,
-          prompt: 'Le vendeur a converti une partie de ses BTC en Litecoin via un échangeur instantané. Quelle adresse LTC a reçu le paiement ?',
-          answer: [ltcAddr],
-          hint: 'Outil de corrélation : chaîne LTC, émetteur ChangeNOW, à partir de l\'heure du dépôt BTC, montant en USD du dépôt (moins 1 à 2 % de commission).',
-          explanation: `Dépôt de ${amt(swapValue, 'BTC')} chez ChangeNOW, puis ${amt(order.payoutValue, 'LTC')} payés quelques minutes plus tard depuis le hot wallet LTC de ChangeNOW vers ${A(w, ltcAddr)}. Les autres paiements de ChangeNOW dans la fenêtre s'écartent de plus de 5 % en valeur. Une réquisition à ChangeNOW, avec le hash du dépôt, permettra de confirmer.`,
-        },
-        {
-          id: 'o5', type: 'choice', points: 15,
+          id: 'o5', type: 'choice', points: 10,
           prompt: 'Qu\'est-ce qui permet de rattacher l\'adresse « tips » du forum aux revenus Hydra ?',
           ...choice(r,
             'Elle est co-dépensée avec des adresses de libération de séquestre (entrées communes)',
@@ -206,10 +186,87 @@ export const btcDarknetVendor: ScenarioTemplate = {
               'Elle utilise le même type d\'adresse (SegWit natif) que le séquestre du marché',
               'La signature PGP prouve à elle seule que ses fonds proviennent d\'Hydra',
             ]),
+          hint: 'Ajoutez l\'adresse du profil au graphe et ouvrez la transaction qui la dépense : avec quelles autres entrées est-elle signée ?',
           explanation: 'La signature PGP rattache l\'adresse au pseudonyme ; l\'heuristique des entrées communes rattache cette adresse aux adresses de libération. La combinaison OSINT + on-chain relie le profil public aux revenus du marché. Le type d\'adresse n\'est pas un indice.',
         },
         {
-          id: 'o6', type: 'choice', points: 15,
+          id: 'o1', type: 'address', points: 12,
+          prompt: 'Quelle est l\'adresse principale où le vendeur regroupe ses revenus ?',
+          answer: [main],
+          hint: 'Partez de l\'adresse « tips » du profil PGP et regardez comment elle est dépensée.',
+          explanation: `${A(w, main)} a reçu la première libération de séquestre, puis ${consTxs.length} transactions de regroupement successives où elle se réutilise elle-même en entrée : elles rassemblent toutes les adresses recevant les libérations.`,
+        },
+        {
+          id: 'o7', type: 'tx', points: 10,
+          prompt: 'Quelle libération de séquestre correspond à l\'achat sous pseudonyme ?',
+          answer: [ucRelease.tx.id],
+          hint: 'Le PV donne le montant payé et la commission du marché : calculez la somme attendue côté vendeur, puis cherchez-la parmi les libérations reçues par le cluster, peu après la confirmation de réception.',
+          explanation: `${ucRelease.tx.hash.slice(0, 16)}… verse ${amt(ucRelease.value, 'BTC')} depuis le séquestre Hydra vers ${A(w, ucRelease.addr)}, le ${fmtDate(ucRelease.tx.time)} : c'est exactement le paiement de l'achat (${amt(buyValue, 'BTC')}) diminué de la commission de ${Math.round(MARKET_FEE * 100)} %, juste après la confirmation de réception. Le séquestre étant mutualisé, le lien ne se lit pas « de l'achat au vendeur » ; il se démontre par la concordance du montant et de la date. C'est la pièce maîtresse qui rattache le cluster aux ventes de stupéfiants constatées.`,
+        },
+        {
+          id: 'o2', type: 'amount', points: 12, unit: 'BTC', tolerance: 0.03,
+          prompt: 'Montant total (en BTC) des libérations de séquestre Hydra reçues par le portefeuille du vendeur ?',
+          answer: totalReleased,
+          hint: 'Utilisez le cluster de l\'adresse principale : additionnez ce que chaque adresse a reçu directement du séquestre Hydra.',
+          explanation: `${nRel} libérations pour ${amt(totalReleased, 'BTC')} (environ ${Math.round(exposureUsd).toLocaleString('fr-FR')} $). Celle de ${amt(ucRelease.value, 'BTC')} correspond exactement à l'achat sous pseudonyme moins ${Math.round(MARKET_FEE * 100)} % : elle valide le rattachement du cluster au vendeur.`,
+        },
+        {
+          id: 'o8', type: 'amount', points: 8, unit: 'BTC', tolerance: 0.01,
+          prompt: 'Après le dernier regroupement, quel montant (en BTC) le vendeur envoie-t-il vers le séquestre multisignature de la plateforme de pair à pair ?',
+          answer: lsValue,
+          hint: 'Ouvrez la première dépense de l\'adresse principale après le troisième regroupement : une sortie va vers un séquestre attribué, l\'autre revient au vendeur.',
+          explanation: `${lsTx.hash.slice(0, 16)}… envoie ${amt(lsValue, 'BTC')} (montant arrondi au millième, typique d'une annonce de vente) vers le séquestre multisignature de Hodl Hodl : le vendeur cède des bitcoins à un acheteur contre des espèces ou un virement. La plateforme ne détient pas les fonds mais connaît les deux parties de la transaction (pseudonymes, IP, moyens de paiement convenus). ${procedureFor(w.entity('hodlhodl'))}`,
+        },
+        {
+          id: 'o9', type: 'address', points: 8,
+          prompt: 'Sur quelle adresse le reste des fonds revient-il (rendu) lors de ce versement vers la plateforme de pair à pair ?',
+          answer: [v2],
+          hint: 'Deux sorties : celle qui va au séquestre est attribuée. L\'autre est une adresse neuve, du même type que les adresses du vendeur, et c\'est elle qui est dépensée ensuite.',
+          explanation: `${A(w, v2)} reçoit le rendu (${amt(r8(lsTx.outputs.find((o) => o.address === v2)!.value), 'BTC')}) : adresse neuve, même type SegWit natif que le reste du portefeuille, et c'est elle qui finance l'étape suivante (le dépôt chez l'échangeur instantané). Suivre le rendu plutôt que la sortie « payée » est le réflexe de base d'une sortie en cascade.`,
+        },
+        {
+          id: 'o4', type: 'address', points: 12,
+          prompt: 'Le vendeur a converti une partie de ses BTC en Litecoin via un échangeur instantané. Quelle adresse LTC a reçu le paiement ?',
+          answer: [ltcAddr],
+          hint: 'Outil de corrélation : chaîne LTC, émetteur ChangeNOW, à partir de l\'heure du dépôt BTC, montant en USD du dépôt (moins 1 à 2 % de commission).',
+          explanation: `Dépôt de ${amt(swapValue, 'BTC')} chez ChangeNOW, puis ${amt(order.payoutValue, 'LTC')} payés quelques minutes plus tard depuis le hot wallet LTC de ChangeNOW vers ${A(w, ltcAddr)}. Les autres paiements de ChangeNOW dans la fenêtre s'écartent de plus de 5 % en valeur. Une réquisition à ChangeNOW, avec le hash du dépôt, permettra de confirmer.`,
+        },
+        {
+          id: 'o10', type: 'number', points: 8, tolerance: 2, unit: 'minutes',
+          prompt: 'Combien de minutes séparent le dépôt BTC chez l\'échangeur instantané du paiement reçu sur l\'adresse LTC ?',
+          answer: swapDelayMin,
+          hint: 'Comparez l\'horodatage de la transaction de dépôt BTC et celui du paiement LTC retenu (inspecteur ou chronologie).',
+          explanation: `${swapDelayMin} minutes entre le dépôt (${fmtDate(order.depositTx.time)}) et le paiement LTC (${fmtDate(order.payoutTx.time)}). Un échangeur instantané paie en quelques minutes à quelques dizaines de minutes : ce délai court, joint à la concordance du montant en dollars (commission déduite), fonde le rapprochement. Il fixe aussi la fenêtre horaire à indiquer dans la réquisition.`,
+        },
+        {
+          id: 'o3', type: 'entity', points: 10,
+          prompt: 'Sur quelle plateforme régulée le vendeur a-t-il commis une erreur de KYC ?',
+          answer: ['coinhouse'],
+          hint: 'Suivez le rendu de la commande passée chez l\'échangeur instantané : la sortie suivante part vers une adresse de dépôt, balayée vers le portefeuille chaud d\'une plateforme attribuée.',
+          explanation: `${amt(cvValue, 'BTC')} sont déposés sur une adresse de dépôt Coinhouse, plateforme française agréée qui applique un KYC renforcé : le compte est rattaché à une identité vérifiée.`,
+        },
+        {
+          id: 'o11', type: 'amount', points: 10, unit: 'BTC', tolerance: 0.01,
+          prompt: 'Montant total (en BTC) déposé par le vendeur sur cette plateforme régulée, tous dépôts confondus ?',
+          answer: cvTotal,
+          hint: 'Une plateforme attribue souvent une adresse de dépôt durable à chaque client : ouvrez l\'historique complet de l\'adresse de dépôt, puis suivez aussi le rendu du premier dépôt.',
+          explanation: `Deux dépôts sur la même adresse de dépôt ${A(w, cvRes.deposit)} : ${amt(cvValue, 'BTC')} le ${fmtDate(cvRes.tx.time, false)} puis ${amt(cv2Value, 'BTC')} le ${fmtDate(cvRes2.tx.time, false)}, depuis le rendu du premier (${A(w, v4)}). Total : ${amt(cvTotal, 'BTC')}. La réutilisation de l'adresse de dépôt confirme qu'il s'agit du même compte client ; c'est le montant à viser dans la demande de gel (sous réserve de ce qui a déjà été retiré en euros), le reliquat du vendeur restant sur ${A(w, v5)}.`,
+        },
+        {
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Quelle est la portée du rapprochement entre le dépôt BTC chez l\'échangeur instantané et le paiement LTC ?',
+          ...choice(r,
+            'Une forte présomption (montant et délai concordants), à confirmer par réquisition avant toute mesure sur l\'adresse LTC',
+            [
+              'Une preuve certaine : un dépôt et un paiement proches dans le temps ne peuvent provenir que du même client',
+              'Aucune valeur : un échangeur instantané rompt définitivement toute possibilité de rapprochement',
+              'Une preuve certaine, puisque l\'échangeur n\'a payé aucun autre client en LTC ce jour-là',
+            ]),
+          hint: 'Regardez les autres paiements LTC de l\'échangeur dans la même fenêtre : que fait la corrélation, et que lui manque-t-il ?',
+          explanation: 'La corrélation montant / temps classe des candidats : ici, un seul paiement concorde à quelques pour cent près dans la fenêtre, alors que l\'échangeur paie d\'autres clients au même moment. C\'est une présomption forte, pas une preuve : seule la réponse de l\'échangeur (commande associée au hash du dépôt, adresse de paiement déclarée, IP) l\'établit. On l\'écrit comme tel dans le rapport, et on attend cette confirmation avant de viser l\'adresse LTC dans un acte coercitif.',
+        },
+        {
+          id: 'o6', type: 'choice', points: 10,
           prompt: 'Quelle stratégie de réquisition privilégier ?',
           ...choice(r,
             'Requérir d\'abord la plateforme régulée de sortie (KYC, IP, gel), puis swap et P2P',
@@ -218,24 +275,26 @@ export const btcDarknetVendor: ScenarioTemplate = {
               'Requérir uniquement la plateforme P2P, qui détient le séquestre multisignature',
               'Attendre un nouveau dépôt du vendeur avant toute démarche, pour éviter de l\'alerter',
             ]),
+          hint: 'Comparez les trois services de sortie : lequel connaît l\'identité vérifiée du client, répond vite et peut geler ?',
           explanation: `${procedureFor(cv.entity)} KYC renforcé, délais courts, gel possible : c'est la cible prioritaire. ${procedureFor(swp.entity)} ${procedureFor(w.entity('hodlhodl'))} Ces deux services peuvent fournir IP, adresse de destination et contreparties : utiles pour corroborer. Un marché darknet ne répond pas aux réquisitions.`,
         },
       ],
       truth: {
-        path: [buyTx.id, ...releases.map((x) => x.tx.id), ...consTxs.map((t) => t.id), lsTx.id, order.depositTx.id, order.payoutTx.id, cvRes.tx.id, ...(cvRes.sweep ? [cvRes.sweep.id] : [])],
-        addresses: [tips, main, ...releases.map((x) => x.addr), v2, v3, v4, ltcAddr, cvRes.deposit, order.deposit],
+        path: [buyTx.id, ...releases.map((x) => x.tx.id), ...consTxs.map((t) => t.id), lsTx.id, order.depositTx.id, order.payoutTx.id, cvRes.tx.id, ...(cvRes.sweep ? [cvRes.sweep.id] : []), cvRes2.tx.id, ...(cvRes2.sweep ? [cvRes2.sweep.id] : [])],
+        addresses: [tips, main, ...releases.map((x) => x.addr), v2, v3, v4, v5, ltcAddr, cvRes.deposit, order.deposit],
         debrief:
           `1. OSINT : le profil PGP de ${handle} publie l'adresse ${A(w, tips)}.\n` +
           `2. Cette adresse est dépensée lors du 2ᵉ regroupement vers ${A(w, main)} (adresse de la première libération, réutilisée), avec des adresses recevant des libérations du séquestre Hydra : même portefeuille.\n` +
-          `3. Trois regroupements successifs (chacun réutilisant l'adresse principale en entrée) soudent le cluster : ${nRel} libérations, ${amt(totalReleased, 'BTC')} au total. La libération de ${amt(ucRelease.value, 'BTC')} du ${fmtDate(ucRelease.tx.time, false)} correspond à l'achat sous pseudonyme (−${Math.round(MARKET_FEE * 100)} %).\n` +
-          `4. Sorties : ${amt(lsValue, 'BTC')} vers le séquestre Hodl Hodl (vente P2P), puis ${amt(swapValue, 'BTC')} échangés chez ChangeNOW contre ${amt(order.payoutValue, 'LTC')} reçus sur ${A(w, ltcAddr)}, puis ${amt(cvValue, 'BTC')} déposés chez Coinhouse. Le reliquat reste sur ${A(w, v4)}.\n\n` +
-          `Leçon : face à un marché darknet, le point d'entrée est presque toujours côté vendeur (OSINT, adresse publiée, achat sous pseudonyme). Le clustering transforme une adresse en portefeuille complet, et c'est la sortie vers un prestataire régulé — ici français — qui permet l'identification.`,
+          `3. Trois regroupements successifs (chacun réutilisant l'adresse principale en entrée) soudent le cluster : ${nRel} libérations, ${amt(totalReleased, 'BTC')} au total. La libération de ${amt(ucRelease.value, 'BTC')} du ${fmtDate(ucRelease.tx.time, false)} (${ucRelease.tx.hash.slice(0, 12)}…) correspond à l'achat sous pseudonyme (−${Math.round(MARKET_FEE * 100)} %).\n` +
+          `4. Sorties en cascade, chacune financée par le rendu de la précédente : ${amt(lsValue, 'BTC')} vers le séquestre Hodl Hodl (vente P2P, rendu sur ${A(w, v2)}), puis ${amt(swapValue, 'BTC')} échangés chez ChangeNOW contre ${amt(order.payoutValue, 'LTC')} reçus ${swapDelayMin} min plus tard sur ${A(w, ltcAddr)}, puis deux dépôts chez Coinhouse sur la même adresse de dépôt (${amt(cvValue, 'BTC')} et ${amt(cv2Value, 'BTC')}, soit ${amt(cvTotal, 'BTC')}). Le reliquat reste sur ${A(w, v5)}.\n\n` +
+          `Leçon : face à un marché darknet, le point d'entrée est presque toujours côté vendeur (OSINT, adresse publiée, achat sous pseudonyme). Le clustering transforme une adresse en portefeuille complet, la libération correspondant à l'achat le rattache aux faits constatés, et c'est la sortie vers un prestataire régulé — ici français, avec une adresse de dépôt réutilisée — qui permet l'identification. Le rapprochement avec l'échangeur instantané reste une présomption jusqu'à sa réponse.`,
       },
       hints: [
         'L\'adresse BTC du profil PGP est votre point d\'entrée : ajoutez-la au graphe.',
         'Ouvrez le panneau cluster de l\'adresse de regroupement : il liste les adresses de libération.',
-        'Après les regroupements, suivez la grosse sortie de chaque transaction : trois services se succèdent.',
+        'Après les regroupements, suivez le rendu de chaque transaction : trois services se succèdent.',
         'Pour la partie Litecoin, utilisez la corrélation avec ChangeNOW comme émetteur, sur la chaîne LTC.',
+        'Une adresse de dépôt d\'exchange est souvent attribuée durablement à un client : vérifiez si elle a reçu d\'autres versements.',
       ],
     }
   },

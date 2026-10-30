@@ -19,7 +19,7 @@ export const btcRansomwareRaas: ScenarioTemplate = {
   difficulty: 4,
   chains: ['btc'],
   skills: ['ransomware', 'change', 'mixer', 'exchange_id', 'requisition', 'typologies'],
-  estMinutes: 45,
+  estMinutes: 80,
   lessons: ['ransomware', 'utxo', 'change-heuristics', 'mixeurs', 'exchanges', 'requisitions', 'typologies'],
   generate(seed) {
     const w = new World(seed)
@@ -170,35 +170,77 @@ export const btcRansomwareRaas: ScenarioTemplate = {
       seeds: [],
       objectives: [
         {
-          id: 'o1', type: 'number', points: 20, tolerance: 2, unit: '%',
+          id: 'o1', type: 'number', points: 12, tolerance: 2, unit: '%',
           prompt: 'Quelle part (en %) de chaque rançon revient aux opérateurs de LockBit ?',
           answer: opPct,
           hint: 'Examinez la transaction qui dépense l\'adresse de rançon : deux sorties, dans un rapport constant d\'une victime à l\'autre.',
           explanation: `Chaque transaction de partage envoie ${opPct} % (après frais) aux opérateurs et ${100 - opPct} % à l'affilié. Pour ${plaint.name} : ${amt(plaint.opShare, 'BTC')} contre ${amt(plaint.affShare, 'BTC')}.`,
         },
         {
-          id: 'o2', type: 'address', points: 25,
+          id: 'o2', type: 'address', points: 14,
           prompt: 'Quelle est l\'adresse d\'agrégation des opérateurs ?',
           answer: [operator],
           hint: 'Quelle sortie du partage revient à la même adresse pour plusieurs victimes ?',
           explanation: `${A(w, operator)} reçoit la part « opérateurs » de ${m} transactions de partage. C'est le point commun de toutes les attaques, quel que soit l'affilié.`,
         },
         {
-          id: 'o3', type: 'amount', points: 20, unit: 'BTC', tolerance: 0.02,
+          id: 'o6', type: 'addresses', points: 12,
+          prompt: 'Sélectionnez toutes les adresses de rançon (une par victime) dont la part « opérateurs » aboutit à cette adresse d\'agrégation, y compris celle de l\'entreprise plaignante.',
+          answer: victims.map((v) => v.ransomAddr),
+          hint: 'Chaque entrée de l\'adresse d\'agrégation est une transaction de partage ; l\'entrée de chacune de ces transactions est une adresse de rançon.',
+          explanation: `${m} adresses de rançon, une par victime :\n${victims.map((v) => `   • ${A(w, v.ransomAddr)} — ${v.name}`).join('\n')}\nL'adresse unique par victime cloisonne les paiements, mais la transaction de partage les reconduit toutes vers la même adresse « opérateurs ». Chaque adresse de rançon permet ensuite de remonter au courtier qui a vendu les bitcoins à la victime, donc d'identifier et de contacter des victimes qui n'ont pas porté plainte.`,
+        },
+        {
+          id: 'o3', type: 'amount', points: 12, unit: 'BTC', tolerance: 0.02,
           prompt: 'Montant total (en BTC) des rançons payées par l\'ensemble des victimes reliées à cette adresse ?',
           answer: totalPaid,
           hint: 'Remontez chaque partage jusqu\'à son adresse de rançon, et additionnez tous les paiements reçus (tests compris).',
           explanation: `${m} victimes :\n${recapVictims}\nTotal : ${amt(totalPaid, 'BTC')}.`,
         },
         {
-          id: 'o4', type: 'entity', points: 20,
+          id: 'o7', type: 'number', points: 8, tolerance: 5, unit: 'minutes',
+          prompt: 'Combien de minutes s\'écoulent entre le paiement du solde par l\'entreprise plaignante et la transaction de partage de sa rançon ?',
+          answer: Math.round((plaint.split.time - plaintFinal.time) / 60),
+          hint: 'Le RSSI donne l\'heure et le hash de la transaction du solde ; comparez avec l\'horodatage de la transaction qui dépense l\'adresse de rançon.',
+          explanation: `Le solde est payé le ${fmtDate(plaintFinal.time)} et le partage intervient le ${fmtDate(plaint.split.time)}, soit ${Math.round((plaint.split.time - plaintFinal.time) / 60)} minutes plus tard. Le partage suit chaque paiement de quelques heures au plus, avec la même clé : c'est le comportement d'un panneau d'affiliation automatisé, pas d'une répartition manuelle. Ce délai court signifie aussi qu'une demande de gel visant l'adresse de rançon arrive presque toujours trop tard : on vise les points de sortie.`,
+        },
+        {
+          id: 'o9', type: 'amount', points: 10, unit: 'BTC', tolerance: 0.01,
+          prompt: 'Après un premier saut, quel montant (en BTC) de la part de l\'affilié est envoyé dans un mixeur ?',
+          answer: mixValue,
+          hint: 'Suivez la part affilié du partage de la plaignante : un transfert intégral vers une adresse neuve, puis une transaction dont une sortie va vers une adresse de dépôt attribuée à un mixeur.',
+          explanation: `${A(w, h1)} envoie ${amt(mixValue, 'BTC')} (montant arrondi au millième) vers une adresse de dépôt ${neb.entity.name}, soit ${Math.round((mixValue / plaint.affShare) * 100)} % de la part affilié. Le mixeur ne reçoit qu'une fraction des fonds : le reste ne passe pas par lui et se suit directement.`,
+        },
+        {
+          id: 'o8', type: 'address', points: 10,
+          prompt: 'Sur quelle adresse revient le reste de la part affilié lors de ce dépôt dans le mixeur (rendu) ?',
+          answer: [h2],
+          hint: 'La transaction de dépôt au mixeur a deux sorties : l\'une est attribuée au mixeur, l\'autre est une adresse neuve du même type que l\'adresse dépensée.',
+          explanation: `${A(w, h2)} reçoit le rendu de la transaction de dépôt chez ${neb.entity.name} : même type d'adresse que ${A(w, h1).slice(0, 14)}…, montant non arrondi, et c'est elle qui alimente ensuite le dépôt sur l'exchange. Repérer ce rendu permet de « contourner » le mixeur : la majorité de la part affilié n'y est jamais entrée.`,
+        },
+        {
+          id: 'o10', type: 'tx', points: 10,
+          prompt: 'Quelle transaction dépose la part affilié sur sa plateforme d\'encaissement (hash à joindre à la réquisition) ?',
+          answer: [xTx.id],
+          hint: 'Suivez la dépense du rendu : la sortie principale va vers une adresse de dépôt, balayée ensuite vers le portefeuille chaud d\'un exchange.',
+          explanation: `${xTx.hash.slice(0, 16)}… envoie ${amt(xValue, 'BTC')} depuis ${A(w, h2).slice(0, 14)}… vers l'adresse de dépôt ${A(w, xDeposit)} de ${xName}, le ${fmtDate(xTx.time)} ; le rendu part sur ${A(w, h3).slice(0, 14)}…. Le hash, l'adresse de dépôt, la date et le montant sont les quatre éléments qui permettent à la plateforme de retrouver le compte crédité sans ambiguïté.`,
+        },
+        {
+          id: 'o4', type: 'entity', points: 12,
           prompt: 'Sur quelle plateforme l\'affilié ayant attaqué l\'entreprise plaignante a-t-il encaissé sa part ?',
           answer: [xKey],
           hint: 'Suivez la part affilié : un saut, un passage partiel par un mixeur, puis la grosse sortie.',
-          explanation: `La part affilié (${amt(plaint.affShare, 'BTC')}) passe par ${A(w, h1).slice(0, 14)}…, envoie ${amt(mixValue, 'BTC')} dans Sinbad, puis ${amt(xValue, 'BTC')} vers une adresse de dépôt ${xName}. Le passage par le mixeur ne concerne qu'une partie des fonds : le reste se suit directement.`,
+          explanation: `La part affilié (${amt(plaint.affShare, 'BTC')}) passe par ${A(w, h1).slice(0, 14)}…, envoie ${amt(mixValue, 'BTC')} dans ${neb.entity.name}, puis ${amt(xValue, 'BTC')} vers une adresse de dépôt ${xName}. Le passage par le mixeur ne concerne qu'une partie des fonds : le reste se suit directement.`,
         },
         {
-          id: 'o5', type: 'choice', points: 15,
+          id: 'o11', type: 'amount', points: 10, unit: 'BTC', tolerance: 0.01,
+          prompt: 'Quel montant (en BTC) les opérateurs ont-ils envoyé depuis leur adresse d\'agrégation vers une plateforme sanctionnée ?',
+          answer: gValue,
+          hint: 'Ouvrez la seule dépense de l\'adresse d\'agrégation : une sortie va vers une adresse de dépôt attribuée, l\'autre est le rendu.',
+          explanation: `Après la dernière rançon, ${A(w, operator)} envoie ${amt(gValue, 'BTC')} vers une adresse de dépôt Garantex, exchange visé par des sanctions internationales ; le reste (${amt(r8(w.unspentValue(opRest)), 'BTC')}) dort sur ${A(w, opRest)}. Garantex ne répondra pas : cette exposition se documente et se signale (partenaires, TRACFIN), et l'adresse de rendu des opérateurs se place sous surveillance en vue d'une saisie si les fonds réapparaissent chez un prestataire coopératif.`,
+        },
+        {
+          id: 'o5', type: 'choice', points: 10,
           prompt: 'Quelle suite donner en priorité ?',
           ...choice(r,
             'Requérir l\'exchange de l\'affilié et partager l\'adresse des opérateurs avec les partenaires',
@@ -207,6 +249,7 @@ export const btcRansomwareRaas: ScenarioTemplate = {
               'Clore le volet financier : le passage par un mixeur rend tout traçage impossible',
               'Demander à Sinbad l\'identité du client qui a mixé une partie de la part affilié',
             ]),
+          hint: 'Parmi les services rencontrés, lesquels répondent aux réquisitions et lesquels non ? Et à qui l\'adresse des opérateurs est-elle utile ?',
           explanation: `L'exchange de l'affilié (${xName}) est la seule porte d'identification réaliste : identité, IP, gel. ${procedureFor(X.entity)} L'adresse des opérateurs relie toutes les attaques : c'est un renseignement précieux pour les partenaires (Europol, CERT-FR, autres services saisis) et pour rapprocher les procédures. Garantex, sanctionnée, ne coopère pas : l'exposition doit être documentée et signalée. Un mixeur ne répond pas aux réquisitions, et le mixage partiel n'empêche pas de suivre le reste.`,
         },
       ],
@@ -215,17 +258,18 @@ export const btcRansomwareRaas: ScenarioTemplate = {
         addresses: [operator, ...victims.map((v) => v.ransomAddr), plaint.affAddr, h1, h2, h3, xDeposit, mixRes.deposit, opRest],
         debrief:
           `1. ${plaint.name} paie ${amt(plaint.paid, 'BTC')} (test compris) sur l'adresse unique ${A(w, plaint.ransomAddr)}.\n` +
-          `2. Quelques heures plus tard, une transaction de partage envoie ${100 - opPct} % à l'affilié et ${opPct} % à ${A(w, operator)}.\n` +
+          `2. ${Math.round((plaint.split.time - plaintFinal.time) / 60)} minutes après le solde, une transaction de partage envoie ${100 - opPct} % à l'affilié et ${opPct} % à ${A(w, operator)}.\n` +
           `3. Cette adresse reçoit la part opérateurs de ${m} rançons :\n${recapVictims}\n   Total : ${amt(totalPaid, 'BTC')}.\n` +
-          `4. L'affilié ayant attaqué ${plaint.name} fait un saut, mixe ${amt(mixValue, 'BTC')} chez Nebula, puis dépose ${amt(xValue, 'BTC')} chez ${xName}.\n` +
-          `5. Les opérateurs envoient ${amt(gValue, 'BTC')} vers Garantex (exchange sanctionné) et conservent le reste.\n\n` +
-          `Leçon : dans un RaaS, la transaction de partage est la signature du modèle économique. Le rapport constant entre les deux sorties révèle la clé de partage, et l'adresse qui reçoit la « petite » part à chaque attaque désigne l'équipe centrale. Elle permet de relier des victimes qui n'ont jamais porté plainte ensemble et de mesurer l'ampleur de l'activité. Côté identification, on cible la sortie de l'affilié vers un exchange coopératif.`,
+          `4. L'affilié ayant attaqué ${plaint.name} fait un saut, mixe ${amt(mixValue, 'BTC')} chez ${neb.entity.name} (rendu sur ${A(w, h2)}), puis dépose ${amt(xValue, 'BTC')} chez ${xName} (${xTx.hash.slice(0, 12)}…).\n` +
+          `5. Les opérateurs envoient ${amt(gValue, 'BTC')} vers Garantex (exchange sanctionné) et conservent le reste sur ${A(w, opRest)}.\n\n` +
+          `Leçon : dans un RaaS, la transaction de partage est la signature du modèle économique. Le rapport constant entre les deux sorties révèle la clé de partage, et l'adresse qui reçoit la « petite » part à chaque attaque désigne l'équipe centrale. Elle permet de relier des victimes qui n'ont jamais porté plainte ensemble et de mesurer l'ampleur de l'activité. Côté identification, on cible la sortie de l'affilié vers un exchange coopératif, en suivant le rendu plutôt que la fraction mixée.`,
       },
       hints: [
         'L\'adresse de rançon figure dans l\'extrait du portail de négociation.',
         'La transaction qui dépense l\'adresse de rançon n\'a que deux sorties : calculez leur rapport.',
         'Dépliez les entrées de l\'adresse qui reçoit la plus petite part : chaque entrée est une autre victime.',
         'Pour l\'affilié, suivez la grosse sortie à chaque saut ; le mixeur ne reçoit qu\'une partie.',
+        'Les opérateurs ne dépensent leur adresse d\'agrégation qu\'une fois : une sortie vers un service, un rendu.',
       ],
     }
   },

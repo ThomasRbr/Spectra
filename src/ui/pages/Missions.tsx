@@ -9,6 +9,7 @@ import { useUi } from '../../store/ui'
 import { bestByTemplate, useProfile } from '../../store/profile'
 import { ChainBadge, DifficultyBadge, Icon, Modal, ProgressBar } from '../common'
 import { LESSONS, TRACKS } from '../../academy'
+import { missionPrereqs } from '../../academy/prereqs'
 
 export function launchCase(templateId: string, seed: number, mode: Mode = 'standard', coverage: Coverage = 'full', live = false) {
   const g = useGame.getState()
@@ -164,8 +165,20 @@ function LaunchModalInner({ s, onClose, seed: fixedSeed }: { s: ScenarioTemplate
   const [timing, setTiming] = useState<'past' | 'live'>('past')
   const [seedText, setSeedText] = useState('')
   if (!s) return null
-  const lessons = (s.lessons ?? []).map((id) => LESSONS.find((l) => l.id === id)).filter(Boolean)
+  const byId = (id: string) => LESSONS.find((l) => l.id === id)
+  const prereqIds = missionPrereqs(s.id)
+  const before = prereqIds.map(byId).filter((l) => !!l)
+  const further = (s.lessons ?? []).filter((id) => !prereqIds.includes(id)).map(byId).filter((l) => !!l)
   const lessonsDone = useProfile.getState().lessons
+  const unread = before.filter((l) => !lessonsDone[l.id]?.read).length
+  const lessonChip = (l: NonNullable<ReturnType<typeof byId>>) => (
+    <button key={l.id} className="chip border border-ink-600 bg-ink-800 !py-1 text-ink-100 hover:border-accent" onClick={() => {
+      onClose()
+      useUi.getState().openLesson(l.id)
+    }}>
+      <Icon name={lessonsDone[l.id]?.read ? 'CircleCheck' : 'GraduationCap'} size={12} className={lessonsDone[l.id]?.read ? 'text-emerald-400' : 'text-accent'} /> {l.title}
+    </button>
+  )
   return (
     <Modal open={!!s} onClose={onClose} title={s.title} icon="Crosshair" width="max-w-2xl">
       <div className="flex flex-wrap gap-1.5">
@@ -178,19 +191,25 @@ function LaunchModalInner({ s, onClose, seed: fixedSeed }: { s: ScenarioTemplate
       <div className="mt-3 flex flex-wrap gap-1">
         {s.skills.map((k) => <span key={k} className="chip border border-ink-600 bg-ink-800 text-ink-100">{SKILLS[k].label}</span>)}
       </div>
-      {lessons.length > 0 && (
-        <div className="mt-4 rounded-xl border border-ink-700/60 bg-ink-850/50 p-3">
-          <div className="label mb-2">Leçons recommandées</div>
-          <div className="flex flex-wrap gap-1.5">
-            {lessons.map((l) => (
-              <button key={l!.id} className="chip border border-ink-600 bg-ink-800 !py-1 text-ink-100 hover:border-accent" onClick={() => {
-                onClose()
-                useUi.getState().openLesson(l!.id)
-              }}>
-                <Icon name={lessonsDone[l!.id]?.read ? 'CircleCheck' : 'GraduationCap'} size={12} className={lessonsDone[l!.id]?.read ? 'text-emerald-400' : 'text-accent'} /> {l!.title}
-              </button>
-            ))}
-          </div>
+      {(before.length > 0 || further.length > 0) && (
+        <div className="mt-4 space-y-3 rounded-xl border border-ink-700/60 bg-ink-850/50 p-3">
+          {before.length > 0 && (
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <span className="label">À lire avant</span>
+                {unread > 0
+                  ? <span className="text-[11px] text-yellow-200">{unread === 1 ? '1 leçon pas encore lue' : `${unread} leçons pas encore lues`}</span>
+                  : <span className="text-[11px] text-emerald-300">prérequis lus</span>}
+              </div>
+              <div className="flex flex-wrap gap-1.5">{before.map(lessonChip)}</div>
+            </div>
+          )}
+          {further.length > 0 && (
+            <div>
+              <div className="label mb-2">Pour aller plus loin</div>
+              <div className="flex flex-wrap gap-1.5">{further.map(lessonChip)}</div>
+            </div>
+          )}
         </div>
       )}
       <div className="mt-4 grid gap-3 md:grid-cols-2">

@@ -27,7 +27,7 @@ export const btcMoneroAtomic: ScenarioTemplate = {
   difficulty: 4,
   chains: ['btc', 'xmr'],
   skills: ['privacy', 'crosschain', 'exchange_id', 'requisition', 'osint'],
-  estMinutes: 40,
+  estMinutes: 85,
   lessons: ['monero', 'echangeurs-instantanes', 'lightning', 'analyse-comportementale', 'chain-hopping', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -210,7 +210,7 @@ export const btcMoneroAtomic: ScenarioTemplate = {
           explanation: `Le ${fmtDate(tE1)}, ${btc(Aval)} partent sur une adresse de dépôt ChangeNOW, balayée vers son portefeuille chaud. Aucun paiement BTC compatible ne suit : la commande a été payée en XMR. ${xmr(xmrA)} arrivent ${Math.round((tXa - tE1) / 60)} min plus tard dans le portefeuille dont la clé de vue a été saisie, ce qui relie cette entrée au suspect. ${procedureFor(cnE)}`,
         },
         {
-          id: 'o2', type: 'choice', points: 15,
+          id: 'o2', type: 'choice', points: 12,
           prompt: 'Une autre partie des fonds part vers une sortie de type script (P2WSH), dépensée moins de deux heures plus tard vers une adresse unique. De quoi s\'agit-il le plus probablement ?',
           ...choice(r,
             'Un swap atomique : verrou 2-de-2 côté Bitcoin, réclamé par la contrepartie qui livre des XMR',
@@ -223,6 +223,27 @@ export const btcMoneroAtomic: ScenarioTemplate = {
           explanation: `${lockTx.hash.slice(0, 12)}… verrouille ${btc(Bval)} dans un script P2WSH ; ${Math.round((redeemTx.time - lockTx.time) / 60)} min plus tard, la totalité est réclamée vers une seule adresse, qui regroupe ensuite ces fonds avec d'autres et les dépose chez ${mk.entity.name} : c'est la contrepartie, pas le suspect. Un canal refermé en moins de deux heures avec tout le solde chez le pair n'a pas de sens ; en revanche, ${xmr(xmrB)} arrivent dans le portefeuille du suspect ${Math.round((tXb - redeemTx.time) / 60)} min après la réclamation. C'est la signature d'un swap atomique BTC → XMR : pas de service à requérir, une contrepartie pseudonyme. Suivre ces bitcoins jusqu'à ${mk.entity.name} serait une fausse piste.`,
         },
         {
+          id: 'o9', type: 'tx', points: 8,
+          prompt: 'Quelle transaction dépense la sortie script (P2WSH) créée avec les fonds de la rançon ?',
+          answer: [redeemTx.id],
+          hint: 'Ouvrez la transaction qui crée la sortie script, puis suivez la dépense de cette sortie (et non celle du rendu).',
+          explanation: `${redeemTx.hash.slice(0, 16)}… dépense le verrou ${Math.round((redeemTx.time - lockTx.time) / 60)} min après sa création et verse ${btc(r8(Bval - redeemFee))} à une adresse unique (${A(w, makerAddr)}), sans rendu vers le suspect. Une seule entrée (le verrou), une seule sortie : c'est la réclamation (« redeem ») par la partie qui a révélé le secret du swap, c'est-à-dire la contrepartie, après avoir livré ses XMR.`,
+        },
+        {
+          id: 'o10', type: 'number', points: 8, tolerance: 2, unit: 'minutes',
+          prompt: 'Combien de minutes séparent cette dépense de la seconde réception XMR enregistrée par la clé de vue ?',
+          answer: Math.round((tXb - redeemTx.time) / 60),
+          hint: 'Comparez l\'horodatage de la dépense de la sortie script avec la seconde ligne du portefeuille en lecture seule (pièce « cles.txt »).',
+          explanation: `Dépense du verrou le ${fmtDate(redeemTx.time)}, réception de ${xmr(xmrB)} le ${fmtDate(tXb)} : ${Math.round((tXb - redeemTx.time) / 60)} minutes, le temps de quelques confirmations Monero. Dans un swap atomique, la contrepartie envoie les XMR, puis réclame les BTC avec le secret ; les deux opérations se répondent à quelques dizaines de minutes près. Ce rapprochement temporel, joint au montant (${btc(Bval)} ≈ ${xmr(xmrB)} au cours, moins la marge), établit la seconde entrée dans le portefeuille du suspect.`,
+        },
+        {
+          id: 'o11', type: 'entity', points: 8,
+          prompt: 'Vers quelle plateforme les bitcoins issus de cette sortie script finissent-ils par être déposés ?',
+          answer: [mk.entity.id],
+          hint: 'Suivez l\'adresse qui a reçu les fonds du verrou : elle est dépensée avec une autre adresse vers une adresse de dépôt, balayée vers un portefeuille chaud attribué.',
+          explanation: `${A(w, makerAddr)} est dépensée avec une autre adresse (${A(w, makerOther).slice(0, 14)}…) vers une adresse de dépôt ${mk.entity.name} le ${fmtDate(makerTx.time)}. Ces bitcoins appartiennent désormais à la contrepartie du swap, qui a payé en XMR : les requérir chez ${mk.entity.name} identifierait un teneur de marché, pas le suspect. C'est une piste à documenter (et à écarter) dans le rapport, pour montrer pourquoi la traçabilité « naïve » des BTC mène à un tiers.`,
+        },
+        {
           id: 'o3', type: 'amount', points: 10, unit: 'BTC', tolerance: 0.005,
           prompt: 'Combien de BTC au total ont été convertis en Monero (toutes voies confondues) ?',
           answer: entered,
@@ -230,7 +251,14 @@ export const btcMoneroAtomic: ScenarioTemplate = {
           explanation: `${btc(Aval)} via ChangeNOW et ${btc(Bval)} via le swap atomique, soit ${btc(entered)} (≈ ${Math.round(usd('BTC', entered)).toLocaleString('fr-FR')} $). Le reliquat (${btc(r8(w.unspentValue(R3)))}) est resté sur ${A(w, R3)}.`,
         },
         {
-          id: 'o4', type: 'address', points: 20,
+          id: 'o8', type: 'address', points: 8,
+          prompt: 'Sur quelle adresse est resté le reliquat BTC de la rançon qui n\'a pas été converti en Monero ?',
+          answer: [R3],
+          hint: 'Chaque dépense vers Monero a laissé un rendu au suspect ; suivez le rendu de la seconde.',
+          explanation: `${A(w, R3)} reçoit le rendu de la transaction de verrouillage (${btc(r8(w.unspentValue(R3)))}) et n'est plus dépensée. Ces bitcoins n'ont jamais quitté Bitcoin : leur clé se trouve vraisemblablement sur les supports du suspect, ce qui en fait une cible de saisie directe, indépendante de toute coopération d'un prestataire.`,
+        },
+        {
+          id: 'o4', type: 'address', points: 14,
           prompt: 'Quelle adresse BTC est le candidat de sortie le plus probable ?',
           answer: [X1],
           hint: `Corrélateur sans filtre d'émetteur : chaîne Bitcoin, début à 0 h le jour indiqué dans la note, fenêtre 24 h, montant ≈ ${quotedTxt} BTC, tolérance d'environ 3 %. Puis comparez l'empreinte de la dépense suivante de chaque candidat avec celle des transactions du suspect avant Monero.`,
@@ -240,16 +268,31 @@ export const btcMoneroAtomic: ScenarioTemplate = {
           id: 'o5', type: 'entity', points: 10,
           prompt: 'Quelle plateforme a versé ces bitcoins de sortie, et doit donc être requise ?',
           answer: ['huobex'],
+          hint: 'Ouvrez la transaction qui crédite votre candidat de sortie : de quel portefeuille chaud attribué part-elle ?',
           explanation: `Le paiement vers ${A(w, X1)} part du portefeuille chaud de ${hx.entity.name} (« plateforme habituelle ») : le suspect y a vraisemblablement déposé des XMR et retiré des BTC. La réquisition vise le compte qui a ordonné ce retrait (hash de la transaction, adresse de destination) : identité, IP, historique des dépôts XMR. ${procedureFor(hx.entity)} Attention : ${hx.entity.name} pratique un KYC allégé et répond irrégulièrement ; prévoir des actes complémentaires.`,
         },
         {
-          id: 'o6', type: 'amount', points: 10, unit: 'BTC', tolerance: 0.005,
+          id: 'o6', type: 'amount', points: 8, unit: 'BTC', tolerance: 0.005,
           prompt: 'Quel montant (en BTC) est ressorti de Monero sur ce candidat ?',
           answer: E,
+          hint: 'Lisez la sortie de la transaction de retrait vers votre candidat, au satoshi près (la note ne donne qu\'un arrondi).',
           explanation: `${btc(E)}, soit ${Math.round((E / entered) * 100)} % de ce qui était entré. Le reste a pu être conservé en XMR (« on laisse dormir ») : le solde du portefeuille en lecture seule n'est qu'un maximum, faute de voir les dépenses.`,
         },
         {
-          id: 'o7', type: 'choice', points: 25,
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Quelles mesures conservatoires envisager sur les avoirs du suspect ?',
+          ...choice(r,
+            'Saisir les bitcoins dont les clés sont sur les supports (reliquat, rendu de la sortie) selon le cadre procédural applicable, et demander un gel à la plateforme de sortie',
+            [
+              'Demander à ChangeNOW de geler le reliquat resté sur l\'adresse du suspect',
+              'Demander au réseau Monero de bloquer les XMR du portefeuille identifié par la clé de vue',
+              'Requérir la contrepartie du swap atomique pour qu\'elle restitue les bitcoins réclamés',
+            ]),
+          hint: 'Qui contrôle réellement chacun des avoirs identifiés : le suspect, un prestataire, une contrepartie, ou personne ?',
+          explanation: `Le reliquat (${A(w, R3).slice(0, 14)}…) et le rendu de la sortie (${A(w, X2).slice(0, 14)}…) sont des adresses du suspect : on les saisit en exploitant les clés présentes sur les supports, selon le cadre procédural applicable. Chez ${hx.entity.name}, plateforme de sortie, on demande le gel du compte et la préservation des données. ChangeNOW ne détient pas l'adresse du suspect ; Monero n'a pas d'opérateur capable de bloquer des fonds (seule la clé de dépense, si le mot de passe du portefeuille est obtenu, permettrait d'appréhender les XMR) ; la contrepartie du swap a acquis les BTC en échange de ses XMR.`,
+        },
+        {
+          id: 'o7', type: 'choice', points: 14,
           prompt: 'Que peut-on honnêtement conclure de cette analyse ?',
           ...choice(r,
             'Entrées établies ; sortie rattachée par un faisceau (date, montant, empreinte), à corroborer par réquisition',
@@ -258,6 +301,7 @@ export const btcMoneroAtomic: ScenarioTemplate = {
               'Aucune conclusion possible : Monero interdit tout rapprochement entre l\'entrée et la sortie',
               'Preuve certaine : une empreinte de portefeuille identique désigne un seul et même utilisateur',
             ]),
+          hint: 'Distinguez ce qui est constaté (flux on-chain, réceptions visibles avec la clé de vue) de ce qui est déduit (date, montant, empreinte).',
           explanation: `Les deux entrées sont solidement établies : flux on-chain depuis l'adresse de la rançon, et réceptions XMR correspondantes visibles avec la clé de vue saisie. La sortie, elle, repose sur un faisceau : date annoncée dans la note, montant compatible, empreinte du logiciel. Chacun de ces indices est faible isolément (une empreinte est partagée par de nombreux utilisateurs) ; ensemble, ils désignent un candidat probable, à confirmer par la réponse de la plateforme de sortie (compte, IP, dépôts XMR) et par l'exploitation des supports (fichier de portefeuille déchiffré, qui révélerait les dépenses). La clé de vue ne montre pas les sorties d'un portefeuille Monero.`,
         },
       ],
@@ -267,7 +311,7 @@ export const btcMoneroAtomic: ScenarioTemplate = {
         debrief:
           `1. « ${victimName} » paie ${btc(P)} sur ${A(w, R)} le ${fmtDate(tPay)}.\n` +
           `2. Entrée n° 1 : ${btc(Aval)} déposés chez ChangeNOW (commande BTC → XMR) ; ${xmr(xmrA)} arrivent dans le portefeuille Monero du suspect.\n` +
-          `3. Entrée n° 2 : ${btc(Bval)} verrouillés dans un script 2-de-2 puis réclamés par la contrepartie d'un swap atomique ; ${xmr(xmrB)} arrivent dans le même portefeuille. Les bitcoins réclamés appartiennent désormais à la contrepartie, qui les dépose chez ${mk.entity.name} : fausse piste.\n` +
+          `3. Entrée n° 2 : ${btc(Bval)} verrouillés dans un script 2-de-2 puis réclamés par la contrepartie d'un swap atomique ; ${xmr(xmrB)} arrivent dans le même portefeuille. Les bitcoins réclamés appartiennent désormais à la contrepartie, qui les dépose chez ${mk.entity.name} : fausse piste. La réclamation (${redeemTx.hash.slice(0, 12)}…) précède de ${Math.round((tXb - redeemTx.time) / 60)} min la réception XMR. Le reliquat non converti (${btc(r8(w.unspentValue(R3)))}) reste sur ${A(w, R3)}.\n` +
           `4. Le ${fmtDate(tExit)}, conformément à la note, ${hx.entity.name} verse ${btc(E)} sur ${A(w, X1)}, dépensée ensuite par le logiciel habituel du suspect (achat CardHub, rendu sur ${A(w, X2)}).\n\n` +
           `À retenir : face à Monero, on rapproche les bords. Côté entrée, la clé de vue saisie transforme une hypothèse en constat (les XMR sont bien arrivés chez le suspect). Côté sortie, on combine une fenêtre large (ici, une journée entière), une tolérance adaptée à l'arrondi de la source, et des indices de comportement (empreinte, type d'adresse, dépense suivante). Un swap atomique ressemble à un canal Lightning : la détection automatique est un point de départ, pas une conclusion. Enfin, la force de chaque rapprochement doit être exposée telle quelle dans la procédure.`,
       },

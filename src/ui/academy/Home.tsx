@@ -226,6 +226,11 @@ export function PathView({ id }: { id: string }) {
             <h1 className="text-[28px] font-extrabold text-white">{path.title}</h1>
             <div className="text-[13px]" style={{ color: path.color }}>{path.subtitle}</div>
             <p className="mt-2 max-w-2xl text-[13.5px] leading-relaxed text-ink-200">{path.description}</p>
+            {path.requires && (
+              <p className="mt-2 flex max-w-2xl gap-1.5 text-[12.5px] leading-relaxed text-yellow-100/90">
+                <Icon name="Info" size={14} className="mt-0.5 shrink-0 text-yellow-300" /> {path.requires}
+              </p>
+            )}
           </div>
         </div>
         <div className="mt-5 flex items-center gap-3">

@@ -35,7 +35,7 @@ export const btcStupsTelegram: ScenarioTemplate = {
   difficulty: 2,
   chains: ['btc', 'tron'],
   skills: ['utxo', 'cioh', 'tron', 'tokens', 'exchange_id', 'requisition'],
-  estMinutes: 30,
+  estMinutes: 45,
   lessons: ['stupefiants-crypto', 'dab-cash-p2p', 'tron-usdt', 'portefeuilles-hd', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -173,6 +173,9 @@ export const btcStupsTelegram: ScenarioTemplate = {
     const tNow = Math.max(tEnd, ...otcTxs.map((x) => x.time), ...(lastTicket ? [lastTicket.tx.time] : [])) + Math.round(r.float(2, 6) * DAY)
     const daysSinceLast = lastTicket ? Math.round((tNow - lastTicket.tx.time) / DAY) : 0
     const ucT = ucTx!
+    // Solde USDT laissé sur le collecteur après le second règlement OTC (gelable par l'émetteur)
+    const ktLeft = r2(w.balanceOf(KT, 'USDT'))
+    const nTicketsBig = tickets.filter((x) => x.cashEur >= 900).length
 
     return {
       world: w,
@@ -215,35 +218,62 @@ export const btcStupsTelegram: ScenarioTemplate = {
       seeds: [],
       objectives: [
         {
-          id: 'o1', type: 'address', points: 15,
+          id: 'o1', type: 'address', points: 10,
           prompt: 'Sur quelle adresse le réseau regroupe-t-il les paiements Bitcoin des clients ?',
           answer: [K],
           hint: 'Partez du paiement de l\'achat sous pseudonyme et suivez la sortie de l\'adresse de la semaine.',
           explanation: `Chaque semaine, l'adresse BTC de la semaine écoulée est vidée vers ${A(w, K)}. Les ${nW} adresses hebdomadaires dérivent toutes de la clé publique étendue trouvée chez le livreur (m/84'/0'/0'/0/0 à ${nW - 1}) : un seul portefeuille derrière les rotations. Le collecteur, lui, est une adresse distincte, réutilisée à chaque regroupement.`,
         },
         {
-          id: 'o2', type: 'number', points: 15, tolerance: 2, unit: 'paiements',
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Que permet la clé publique étendue trouvée dans le téléphone du livreur ?',
+          ...choice(r,
+            'Dériver et surveiller toutes les adresses de réception BTC du portefeuille, y compris les prochaines, sans pouvoir dépenser les fonds',
+            [
+              'Transférer les bitcoins du réseau vers une adresse de saisie du service',
+              'Identifier les adresses USDT du canal, la même clé servant sur Tron',
+              'Rien de plus que l\'adresse de la semaine en cours, chaque adresse ayant une clé indépendante',
+            ]),
+          hint: 'Une clé publique étendue (xpub/zpub) contient-elle une clé privée ? Sur quelle chaîne et quel chemin de dérivation porte-t-elle ?',
+          explanation: `La zpub permet de recalculer toutes les adresses publiques du compte (m/84'/0'/0'/0/i), passées et futures : les adresses des semaines non conservées sur le canal réapparaissent, et celles des semaines à venir peuvent être surveillées dès maintenant. Elle ne contient aucune clé privée : impossible de dépenser ou de saisir les fonds avec elle. Elle ne vaut que pour ce portefeuille Bitcoin ; les adresses Tron du canal se retrouvent par leur collecteur commun.`,
+        },
+        {
+          id: 'o2', type: 'number', points: 9, tolerance: 2, unit: 'paiements',
           prompt: 'Combien de paiements de clients (BTC et USDT, achat sous pseudonyme compris) les adresses hebdomadaires ont-elles reçus sur la période ?',
           answer: nPays,
           hint: 'Côté BTC, l\'outil « Dérivation HD » liste toutes les adresses hebdomadaires. Côté Tron, l\'onglet « Dépôt » d\'une adresse hebdomadaire connue liste les autres adresses qui reversent tout au même collecteur. Additionnez les transactions entrantes de chacune.',
           explanation: `${nPays} paiements : ${nBtc} en BTC sur ${nW} adresses (dont ${latePaid ? `${latePaid} versé${latePaid > 1 ? 's' : ''} en retard sur l'adresse d'une semaine déjà regroupée, et ` : ''}l'achat sous pseudonyme) et ${nPays - nBtc} en USDT sur ${nW} adresses Tron. Chaque paiement correspond vraisemblablement à une transaction de stupéfiants : ce chiffrage nourrit la qualification et le volume du trafic.`,
         },
         {
-          id: 'o3', type: 'amount', points: 15, unit: 'USD', tolerance: 0.03,
+          id: 'o3', type: 'amount', points: 9, unit: 'USD', tolerance: 0.03,
           prompt: 'Quel chiffre d\'affaires total (en dollars) ces paiements représentent-ils ?',
           answer: turnover,
           hint: 'Le « Total reçu » de chaque adresse hebdomadaire est affiché en dollars dans l\'inspecteur.',
           explanation: `≈ ${fmtUsdInt(turnover)} (≈ ${Math.round(turnover / EUR_USD).toLocaleString('fr-FR')} €) : ${fmtUsdInt(btcUsd)} en BTC et ${fmtUsdInt(turnover - btcUsd)} en USDT, pour un panier moyen de ${Math.round(turnover / nPays / EUR_USD)} €. Les montants reçus par les collecteurs sont légèrement inférieurs (frais de réseau, paiements retardataires non regroupés).`,
         },
         {
-          id: 'o4', type: 'entity', points: 15,
+          id: 'o4', type: 'entity', points: 10,
           prompt: 'Quel exploitant faut-il requérir pour identifier la personne qui convertit en espèces les bitcoins regroupés ?',
           answer: ['cryptoguichet'],
           hint: 'Suivez les sorties du collecteur Bitcoin : petites sommes, adresses à usage unique, toutes attribuées au même service.',
           explanation: `Le collecteur envoie ${tickets.length} tickets de vente au distributeur (${cashTotal.toLocaleString('fr-FR')} € d'espèces au total), chacun sous 1 000 € : le seuil au-delà duquel l'exploitant exige une pièce d'identité. Ce fractionnement est un indicateur de blanchiment. Les données du ticket (téléphone vérifié par SMS, appareil, heure, image) permettent d'identifier le porteur. ${procedureFor(dab.entity)}`,
         },
         {
-          id: 'o5', type: 'choice', points: 15,
+          id: 'o9', type: 'number', points: 9, tolerance: 0, unit: 'tickets',
+          prompt: 'Combien de tickets de vente au distributeur le collecteur Bitcoin a-t-il émis ?',
+          answer: tickets.length,
+          hint: 'Dépliez les sorties du collecteur Bitcoin : chaque envoi vers une adresse de ticket de l\'exploitant (hors rendu) est une vente contre espèces.',
+          explanation: `${tickets.length} tickets, du ${fmtDate(tickets[0].tx.time, false)} au ${fmtDate(lastTicket.tx.time, false)}, pour ${cashTotal.toLocaleString('fr-FR')} € remis en espèces${nTicketsBig ? `, dont ${nTicketsBig} juste sous le plafond de 1 000 €` : ''}. Chaque ticket a sa propre adresse de réception et revient en rendu sur le collecteur : le réseau fractionne volontairement pour rester sous le seuil d'identité de l'exploitant. La réquisition doit lister chaque ticket (hash, horodatage, adresse de ticket).`,
+        },
+        {
+          id: 'o10', type: 'tx', points: 9,
+          prompt: 'Quelle transaction correspond au retrait d\'espèces observé lors de la surveillance ?',
+          answer: [lastTicket.tx.id],
+          hint: 'Le procès-verbal de surveillance date précisément la scène : cherchez le ticket de vente émis par le collecteur à ce moment-là.',
+          explanation: `La transaction ${lastTicket.tx.hash.slice(0, 16)}… (${fmtDate(lastTicket.tx.time)}) envoie le prix d'un ticket de ${lastTicket.cashEur.toLocaleString('fr-FR')} € du collecteur vers ${A(w, lastTicket.deposit).slice(0, 14)}…, adresse de ticket CryptoGuichet. Le rapprochement entre l'observation physique et la transaction est un élément fort : la réquisition de l'exploitant sur ce ticket précis (téléphone vérifié, images de l'appareil) doit permettre d'identifier le « chef » observé, et de démontrer qu'il dispose des clés du collecteur.`,
+        },
+        {
+          id: 'o5', type: 'choice', points: 8,
           prompt: 'Le dernier retrait d\'espèces date de quelques jours. Quelle démarche s\'impose ?',
           ...choice(r,
             'Requérir sans délai l\'exploitant : tickets, téléphone et images de l\'appareil, conservées peu de temps',
@@ -252,17 +282,32 @@ export const btcStupsTelegram: ScenarioTemplate = {
               'Se fonder sur les seules données on-chain, l\'adresse de ticket suffisant à identifier le client',
               'Demander au buraliste de remettre les images, l\'exploitant ne conservant aucune donnée',
             ]),
+          hint: 'Quelles données l\'exploitant détient-il sur un ticket, et combien de temps les conserve-t-il ? Regardez sa fiche conformité.',
           explanation: `La vidéosurveillance des distributeurs n'est conservée que quelques semaines (environ 30 jours selon la fiche de l'exploitant) : le dernier ticket date de ${daysSinceLast} jour${daysSinceLast > 1 ? 's' : ''}, les plus anciens approchent de la limite. Réquisition immédiate pour tous les tickets identifiés (adresses de ticket, horodatages), avec demande expresse de préservation des images. L'adresse de ticket est propre à l'exploitant : on-chain, elle ne dit rien du client. Le commerçant hôte peut détenir ses propres images, en complément.`,
         },
         {
-          id: 'o6', type: 'entity', points: 10,
+          id: 'o8', type: 'address', points: 9,
+          prompt: 'Sur quelle adresse Tron le réseau regroupe-t-il les paiements en USDT ?',
+          answer: [KT],
+          hint: 'Partez d\'une adresse USDT publiée sur le canal et suivez sa sortie en fin de semaine.',
+          explanation: `Chaque adresse USDT hebdomadaire reverse en une fois, en fin de semaine, tout ce qu'elle a reçu à ${A(w, KT)}. Contrairement au Bitcoin, aucune clé étendue ne relie les adresses Tron entre elles : c'est le collecteur commun qui les rassemble. L'onglet « Dépôt » de l'inspecteur fait ressortir ce schéma (adresses à solde nul, reversement intégral vers une même destination), y compris pour les semaines dont l'adresse n'a pas été conservée sur le canal.`,
+        },
+        {
+          id: 'o6', type: 'entity', points: 8,
           prompt: 'Vers quel prestataire les USDT regroupés sont-ils envoyés ?',
           answer: ['satsdesk'],
           hint: 'Identifiez d\'abord le portefeuille qui reçoit les reversements des adresses USDT hebdomadaires, puis suivez ses sorties.',
           explanation: `Les adresses USDT hebdomadaires reversent tout à ${A(w, KT)} (l'heuristique « dépôt / collecteur » de l'inspecteur le fait ressortir), qui envoie ${amt(otcTotal, 'USDT')} en deux fois à SatsDesk OTC, courtier de gré à gré qui règle en espèces. ${procedureFor(satsdesk)} En parallèle, l'émetteur de l'USDT peut être sollicité pour geler le solde résiduel du collecteur.`,
         },
         {
-          id: 'o7', type: 'choice', points: 15,
+          id: 'o11', type: 'amount', points: 9, unit: 'USDT', tolerance: 0.01,
+          prompt: 'Quel montant total d\'USDT le collecteur Tron a-t-il réglé au courtier de gré à gré ?',
+          answer: otcTotal,
+          hint: 'Additionnez les sorties d\'USDT du collecteur Tron vers le portefeuille de règlement du courtier.',
+          explanation: `${otcTxs.map((x) => amt(x.transfers[0].value, 'USDT')).join(' + ')} = ${amt(otcTotal, 'USDT')}, réglés en deux fois (${otcTxs.map((x) => fmtDate(x.time, false)).join(' et ')}). En contrepartie, le courtier remet des espèces hors chaîne. Il ne reste que ${amt(ktLeft, 'USDT')} sur le collecteur, un reliquat que l'émetteur peut geler mais qui ne justifie pas à lui seul l'urgence. ${procedureFor(satsdesk)}`,
+        },
+        {
+          id: 'o7', type: 'choice', points: 8,
           prompt: 'À quelles conditions l\'achat réalisé sous pseudonyme est-il exploitable en procédure ?',
           ...choice(r,
             'Agent habilité, acquisition autorisée par le magistrat, aucune incitation, actes retranscrits en procédure',
@@ -271,6 +316,7 @@ export const btcStupsTelegram: ScenarioTemplate = {
               'L\'achat reste valable s\'il pousse le vendeur à proposer davantage que ce qu\'il vend d\'habitude',
               'Le paiement doit partir du compte personnel de l\'enquêteur pour rester crédible auprès du vendeur',
             ]),
+          hint: 'Relisez le procès-verbal d\'enquête sous pseudonyme : qui agit, sur quelle autorisation, et dans quelles limites ?',
           explanation: `L'enquête sous pseudonyme (article 230-46 du CPP) est réservée à des agents affectés dans un service spécialisé et spécialement habilités. L'acquisition d'un produit illicite suppose l'autorisation préalable du procureur de la République ou du juge d'instruction, et les actes ne doivent pas inciter à commettre l'infraction, à peine de nullité. Le paiement part des moyens du service et chaque étape est retranscrite au procès-verbal : c'est ce qui permet d'exploiter le hash de transaction comme point de départ.`,
         },
       ],
@@ -282,7 +328,8 @@ export const btcStupsTelegram: ScenarioTemplate = {
           `2. L'enquêteur sous pseudonyme paie ${amt(ucValue, 'BTC')} sur l'adresse de la semaine ${ucWeek + 1} (${fmtDate(ucT.time)}).\n` +
           `3. En fin de semaine, les adresses de la semaine sont vidées : BTC vers ${A(w, K)}, USDT vers ${A(w, KT)}.\n` +
           `4. Le collecteur BTC est converti en espèces au distributeur CryptoGuichet du ${shop}, par ${tickets.length} tickets sous le seuil d'identité (${cashTotal.toLocaleString('fr-FR')} €).\n` +
-          `5. Le collecteur USDT règle ${amt(otcTotal, 'USDT')} à SatsDesk OTC, contre espèces.\n\n` +
+          `   Le dernier ticket (${lastTicket.tx.hash.slice(0, 14)}…, ${fmtDate(lastTicket.tx.time)}) correspond au retrait observé en surveillance.\n` +
+          `5. Le collecteur USDT règle ${amt(otcTotal, 'USDT')} à SatsDesk OTC, contre espèces ; il n'y reste que ${amt(ktLeft, 'USDT')}.\n\n` +
           `À retenir : la rotation des adresses ne protège pas un réseau qui regroupe ensuite ses fonds ; un paiement sous pseudonyme suffit à entrer dans le circuit, et une clé publique étendue saisie chez un livreur relie toutes les adresses BTC. Côté sortie, les DAB crypto et le gré à gré sont les points d'identification : réquisition immédiate de l'exploitant, car les images ne sont conservées que quelques semaines.`,
       },
       hints: [

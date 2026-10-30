@@ -134,6 +134,8 @@ export interface LearningPath {
   icon: string
   color: string
   levels: [Level, Level]
+  /** Prérequis annoncés en tête de parcours (connaissances supposées acquises). */
+  requires?: string
   steps: PathStep[]
   certificate: string
 }
@@ -261,6 +263,7 @@ export const CURRICULUM: CurriculumEntry[] = [
   { id: 'exposition-risque', title: 'Exposition, taint et score de risque', level: 2, track: 'methodo' },
   { id: 'dex-defi', title: 'DEX, AMM et DeFi : suivre les swaps', level: 2, track: 'comptes' },
   { id: 'xrp-memos', title: 'XRP, Stellar, EOS : memos et destination tags', level: 2, track: 'comptes' },
+  { id: 'solana', title: 'Solana et ses spécificités', level: 2, track: 'comptes' },
   { id: 'typologies', title: 'Typologies d\'escroqueries aux crypto-actifs', level: 2, track: 'typologies' },
   { id: 'osint', title: 'OSINT : relier une adresse à une personne', level: 2, track: 'enquete' },
   { id: 'requisitions', title: 'Réquisitions aux prestataires', level: 2, track: 'enquete' },
@@ -298,7 +301,6 @@ export const CURRICULUM: CurriculumEntry[] = [
   { id: 'monero', title: 'Monero et cryptos à confidentialité renforcée', level: 4, track: 'confidentialite' },
   { id: 'lightning', title: 'Le Lightning Network', level: 4, track: 'bitcoin' },
   { id: 'layer2-rollups', title: 'Layer 2 et rollups', level: 4, track: 'comptes' },
-  { id: 'solana', title: 'Solana et ses spécificités', level: 4, track: 'comptes' },
   { id: 'smart-contracts-lecture', title: 'Lire un smart contract : logs, input data, événements', level: 4, track: 'comptes' },
   { id: 'defi-exploits', title: 'Hacks DeFi : flash loans, oracles, MEV', level: 4, track: 'typologies' },
   { id: 'affaire-bitfinex', title: 'Affaire décryptée : le piratage de Bitfinex et son blanchiment', level: 4, track: 'affaires' },

@@ -63,7 +63,7 @@ export const tronKidnappingRansom: ScenarioTemplate = {
   difficulty: 3,
   chains: ['tron', 'btc'],
   skills: ['tron', 'tokens', 'gel', 'requisition', 'crosschain', 'typologies'],
-  estMinutes: 30,
+  estMinutes: 65,
   lessons: ['tron-usdt', 'gel-saisie', 'stablecoins', 'requisitions', 'suivre-flux'],
   generate(seed) {
     const w = new World(seed)
@@ -228,6 +228,9 @@ export const tronKidnappingRansom: ScenarioTemplate = {
     const nameB = exB.entity.name
     const nameBtc = exBtc.entity.name
     const demandText = `${amt(ransomUsdt, 'USDT')} et ${amt(ransomBtc, 'BTC')}`
+    // Premier dépôt sur un exchange après le paiement principal (minutes)
+    const firstDepT = Math.min(s2Dep.tx.time, s3Dep.tx.time, s4Dep.tx.time)
+    const firstDepMin = Math.round((firstDepT - tMain) / 60)
 
     return {
       world: w,
@@ -280,35 +283,55 @@ export const tronKidnappingRansom: ScenarioTemplate = {
       seeds: [VT, FB],
       objectives: [
         {
-          id: 'o1', type: 'address', points: 10,
+          id: 'o1', type: 'address', points: 8,
           prompt: 'Quelle adresse Tron a collecté la rançon avant son fractionnement ?',
           answer: [C],
           hint: 'Ouvrez le paiement principal mentionné dans le PV et comparez son destinataire, caractère par caractère, avec l\'adresse donnée sur Telegram.',
-          explanation: `${A(w, C)} reçoit le test des ravisseurs (${amt(gangTest, 'USDT')}), renvoie 1 USDT de preuve à la famille, puis reçoit ${amt(famTest, 'USDT')} de test et ${amt(ransomUsdt, 'USDT')}. ${splitMin} minutes après le paiement principal, elle a déjà réparti ${amt(total, 'USDT')} sur quatre adresses. Attention au sosie ${A(w, poison)}, qui partage les 5 premiers et 5 derniers caractères : c'est un robot d'address poisoning qui a envoyé de la poussière au payeur, sans lien avec les ravisseurs.`,
+          explanation: `${A(w, C)} reçoit le test des ravisseurs (${amt(gangTest, 'USDT')}), renvoie 1 USDT de preuve à la famille, puis reçoit ${amt(famTest, 'USDT')} de test et ${amt(ransomUsdt, 'USDT')}. ${splitMin} minutes après le paiement principal, elle a déjà réparti ${amt(total, 'USDT')} sur quatre adresses. Attention : une autre adresse au début et à la fin identiques apparaît dans l'historique du payeur ; seule celle-ci a reçu les paiements.`,
         },
         {
-          id: 'o2', type: 'address', points: 15,
+          id: 'o12', type: 'choice', points: 8,
+          prompt: 'Juste après le paiement principal, le portefeuille de la famille reçoit un micro-transfert d\'une adresse presque identique à la collecte. Comment l\'interpréter ?',
+          ...choice(r,
+            'Un robot d\'address poisoning sans lien avec les ravisseurs : l\'écarter et alerter la famille de ne jamais copier une adresse depuis l\'historique',
+            [
+              'Une seconde adresse des ravisseurs, à faire geler au même titre que la collecte',
+              'La preuve de contrôle demandée par le négociateur, renvoyée depuis une autre adresse',
+              'Un remboursement partiel de la rançon, à déduire du préjudice',
+            ]),
+          hint: 'Comparez les deux adresses caractère par caractère, puis regardez qui a financé l\'émetteur du micro-transfert et à qui d\'autre il en envoie.',
+          explanation: `${A(w, poison)} partage les 5 premiers et 5 derniers caractères de la collecte ${A(w, C)}, mais n'a aucun lien de financement avec les ravisseurs (pas de TRX reçu de ${A(w, P)}) et n'apparaît pas dans les messages. Le micro-transfert de ${amt(poisonTx.transfers[0].value, 'USDT')}, quelques minutes après un gros paiement, est la signature d'un robot d'address poisoning qui espère être recopié par erreur lors d'un prochain envoi. À documenter et à écarter, sans le confondre avec la preuve de contrôle (1 USDT envoyé par la collecte elle-même avant le paiement).`,
+        },
+        {
+          id: 'o2', type: 'address', points: 10,
           prompt: `À H+${hNow}, quelle adresse détient encore des USDT issus de la rançon ?`,
           answer: [S1],
           hint: 'Ouvrez chacune des quatre adresses alimentées par la collecte et regardez leur solde actuel, actif par actif (USDT ≠ TRX). Plus rapide : tracez les USDT reçus par l\'adresse de collecte (touche R) et lisez « Fonds encore détenus ».',
           explanation: `Des quatre adresses servies par la collecte, ${A(w, S1)} n'a fait aucun mouvement : elle détient toujours ${amt(frozen, 'USDT')}. ${A(w, S3)} et ${A(w, S4)} sont vides (fonds déposés chez ${nameA} et ${nameB}). ${A(w, S2)} détient encore ${amt(trxKept, 'TRX')}, mais ce sont des TRX issus d'un swap SunSwap : l'émetteur de l'USDT n'a aucune prise sur eux.`,
         },
         {
-          id: 'o3', type: 'amount', points: 15, unit: 'USDT', tolerance: 0.01,
+          id: 'o3', type: 'amount', points: 10, unit: 'USDT', tolerance: 0.01,
           prompt: 'Quel montant d\'USDT faut-il demander à geler sur cette adresse ?',
           answer: frozen,
           hint: 'Le gel porte sur le solde présent au moment de la demande, pas sur le montant de la rançon.',
           explanation: `${amt(frozen, 'USDT')}, soit ${Math.round((frozen / ransomUsdt) * 100)} % de la part USDT de la rançon. C'est le solde exact de ${A(w, S1)} : la demande doit citer l'adresse complète et ce montant. Le reste n'est plus sur une adresse auto-hébergée (exchanges) ou n'est plus en USDT (TRX).`,
         },
         {
-          id: 'o4', type: 'entity', points: 10,
+          id: 'o4', type: 'entity', points: 8,
           prompt: 'À qui adresser en urgence la demande de gel de ces USDT ?',
           answer: ['tether'],
           hint: 'Qui, techniquement, peut bloquer un jeton TRC-20 sur une adresse que personne d\'autre ne contrôle ?',
           explanation: `Tether, émetteur de l'USDT (contrat ${A(w, usdtContract)}), peut inscrire l'adresse sur sa liste noire : les USDT y deviennent intransférables. ${procedureFor(tether)} Le gel n'est qu'une mesure conservatoire : la saisie pénale suit (ordonnance du JLD ou du juge d'instruction), puis la réémission des USDT vers un portefeuille de l'État. Ni SunSwap (protocole automatisé) ni ${nameA} ou ${nameB} n'ont de pouvoir sur une adresse auto-hébergée.`,
         },
         {
-          id: 'o5', type: 'addresses', points: 15,
+          id: 'o11', type: 'number', points: 8, tolerance: 2, unit: 'minutes',
+          prompt: 'Combien de minutes après le paiement principal le premier dépôt sur un exchange intervient-il ?',
+          answer: firstDepMin,
+          hint: 'Parmi les branches Tron, repérez le premier transfert vers une adresse étiquetée « Adresse de dépôt » et comparez son horodatage à celui du paiement principal.',
+          explanation: `Paiement principal le ${fmtDate(tMain)}, premier dépôt sur une adresse d'exchange le ${fmtDate(firstDepT)} : ${firstDepMin} minutes. Ce délai mesure la fenêtre dont disposaient les enquêteurs pour un gel par l'émetteur avant que les fonds ne rejoignent un compte d'exchange. Il justifie, dans les prochaines affaires, de préparer la demande de gel avant même le paiement surveillé.`,
+        },
+        {
+          id: 'o5', type: 'addresses', points: 12,
           prompt: 'Sélectionnez toutes les adresses de dépôt d\'exchange (Tron et Bitcoin) qui ont reçu une partie de la rançon.',
           answer: [D_a, D_b, depBtc],
           hint: 'Suivez chaque branche jusqu\'à une adresse étiquetée « Adresse de dépôt ». Certaines branches convergent vers la même adresse.',
@@ -320,14 +343,35 @@ export const tronKidnappingRansom: ScenarioTemplate = {
             `Sur Tron, l'adresse de dépôt est propre à un client : deux branches qui y aboutissent désignent le même compte. ${procedureFor(exA.entity)}`,
         },
         {
-          id: 'o6', type: 'address', points: 15,
+          id: 'o6', type: 'address', points: 10,
           prompt: 'Une partie des bitcoins est revenue sur Tron. Quelle adresse Tron a reçu le produit de cette conversion ?',
           answer: [R],
           hint: `La première sortie de la peel chain part chez ChangeNOW. Corrélation : émetteur ChangeNOW, chaîne Tron, à partir de l'heure du dépôt, fenêtre d'environ 1 h, quelques % de tolérance sur ≈ ${Math.round(usd('BTC', cnValue)).toLocaleString('fr-FR')} $.`,
           explanation: `${A(w, B0)} envoie ${amt(cnValue, 'BTC')} (≈ ${Math.round(usd('BTC', cnValue)).toLocaleString('fr-FR')} $) à une adresse de dépôt ChangeNOW ; ${Math.round((peel1.payoutTx.time - peel1.depositTx.time) / 60)} minutes plus tard, ChangeNOW verse ${amt(peel1.payoutValue, 'USDT')} à ${A(w, R)}. Deux éléments confirment la corrélation : cette adresse a reçu ses TRX de frais du même financeur que la collecte (${A(w, P)}), et elle dépose ensuite les USDT sur la même adresse ${nameA} que la branche ${A(w, S3)}. Les deux volets de la rançon aboutissent donc au même compte.`,
         },
         {
-          id: 'o7', type: 'choice', points: 20,
+          id: 'o10', type: 'address', points: 8,
+          prompt: 'Dans la peel chain Bitcoin, une sortie part vers une adresse sans étiquette, ni exchange ni échangeur. Laquelle ?',
+          answer: [U],
+          hint: 'Suivez le rendu de la première étape (après ChangeNOW) : la transaction suivante a deux sorties, dont une petite vers une adresse inconnue.',
+          explanation: `La deuxième étape de la peel chain envoie ${amt(uValue, 'BTC')} vers ${A(w, U)}, le reste filant vers ${A(w, B2)} puis ${nameBtc}. Cette adresse non attribuée peut correspondre à un complice, un prestataire (logistique, location de véhicule) ou un portefeuille personnel : elle est à surveiller (alerte sur mouvement) et à rapprocher des autres éléments de l'enquête, sans conclure à ce stade sur son titulaire.`,
+        },
+        {
+          id: 'o8', type: 'address', points: 9,
+          prompt: 'Quelle adresse a financé en TRX (frais de réseau) la collecte et les adresses de fractionnement ?',
+          answer: [P],
+          hint: 'Ouvrez les premiers flux entrants de l\'adresse de collecte ou d\'une adresse de fractionnement : de petits montants de TRX, tous venus de la même adresse, quelques jours avant l\'enlèvement.',
+          explanation: `${A(w, P)} envoie entre 100 et 300 TRX à la collecte, aux quatre adresses de fractionnement, au saut ${A(w, S4b)} et à ${A(w, R)} dans les jours qui précèdent l'enlèvement, puis ${amt(gangTest, 'USDT')} de test à la collecte. Sur Tron, chaque adresse a besoin de TRX pour payer ses frais : le financeur commun de « gas » relie toutes ces adresses à un même opérateur et date la préparation.`,
+        },
+        {
+          id: 'o9', type: 'entity', points: 9,
+          prompt: 'Quelle plateforme a alimenté cette adresse de préparation ?',
+          answer: [kB],
+          hint: 'Regardez les deux premiers flux entrants de l\'adresse de préparation (TRX puis USDT).',
+          explanation: `Le ${fmtDate(wTrx.time)}, ${A(w, P)} reçoit ${amt(wTrx.transfers[0].value, 'TRX')} puis ${amt(gangTest, 'USDT')} du portefeuille chaud ${nameB} : ce sont des retraits depuis un compte client, effectués avant les faits, souvent avec moins de précautions que la sortie. La réquisition à ${nameB} doit donc viser, en plus de l'adresse de dépôt, ces deux retraits (titulaire, IP, appareil). ${procedureFor(exB.entity)}`,
+        },
+        {
+          id: 'o7', type: 'choice', points: 10,
           prompt: 'Dans quel ordre engager les actes ?',
           ...choice(r,
             'Gel Tether sur l\'adresse qui détient les USDT, puis gel des comptes chez les exchanges, puis réquisitions d\'identification',
@@ -362,6 +406,7 @@ export const tronKidnappingRansom: ScenarioTemplate = {
         'Partez du paiement principal (PV) : la collecte se vide en quelques minutes. Ouvrez chacune de ses sorties et lisez le solde restant, actif par actif.',
         'Un USDT converti en TRX sur SunSwap échappe au gel de l\'émetteur ; un USDT déposé sur un exchange relève du gel du compte, pas de Tether.',
         'Côté Bitcoin, la première sortie de la peel chain va chez ChangeNOW : corrélez sur Tron (USDT) à partir de l\'heure et de la valeur du dépôt, puis vérifiez qui finance les frais de l\'adresse trouvée.',
+        'Remontez aussi en amont : les petits envois de TRX reçus par les adresses des ravisseurs ont tous la même origine, elle-même alimentée par un exchange.',
       ],
     }
   },

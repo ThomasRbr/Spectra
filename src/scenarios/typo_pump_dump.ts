@@ -34,7 +34,7 @@ export const pumpDump: ScenarioTemplate = {
   difficulty: 3,
   chains: ['bsc'],
   skills: ['evm', 'dex', 'defi', 'typologies', 'exchange_id', 'osint'],
-  estMinutes: 35,
+  estMinutes: 60,
   lessons: ['manipulation-marche', 'rug-pulls', 'dex-defi', 'comptes-evm', 'exchanges'],
   generate(seed) {
     const w = new World(seed)
@@ -100,8 +100,10 @@ export const pumpDump: ScenarioTemplate = {
       w.fundAccount(p, bnb(v + r.float(0.05, 1)), 'BNB', t - Math.round(r.float(2, 48) * HOUR))
       otherPromos.push(w.transfer({ time: t, from: p, to: callerAddr, value: v, asset: 'BNB' }))
     }
-    const callerOut = w.addr('bsc')
-    w.transfer({ time: tL + Math.round(r.float(12, 20) * DAY), from: callerAddr, to: callerOut, value: bnb(w.balanceOf(callerAddr, 'BNB') * 0.9), asset: 'BNB' })
+    // L'administrateur du canal encaisse ses recettes sur un exchange (adresse de dépôt à son nom)
+    const callerKey = r.pick(['binance', 'okx', 'kraken'] as const)
+    const callerKit = ex(callerKey)
+    const callerCash = callerKit.receive(callerAddr, bnb(w.balanceOf(callerAddr, 'BNB') * 0.9), tL + Math.round(r.float(12, 20) * DAY), { asset: 'BNB', sweepDelayH: r.float(0.5, 4) })
 
     // 3. Financement groupé des portefeuilles d'initiés
     const insiders = Array.from({ length: K }, () => w.addr('bsc', { entity: groupE }))
@@ -192,6 +194,9 @@ export const pumpDump: ScenarioTemplate = {
     const launchBlock = bundle[0].block
     const victimLoss = bnb(vBuy1V + vBuy2V)
     const destName = dest.entity.name
+    const callToDump = Math.round((dumpTxs[0].time - tC) / 60)
+    const deposited = roundAsset('USDT', d1.tx.transfers[0].value + d2.tx.transfers[0].value)
+    const promoCount = otherPromos.length + 1
 
     return {
       world: w,
@@ -199,7 +204,7 @@ export const pumpDump: ScenarioTemplate = {
       briefing:
         `${victimP.name}, demeurant à ${city}, dépose plainte : ${g('il', 'elle')} a acheté le jeton « ${tok.name} » (${T}) après un « call » publié sur le canal Telegram « ${channel} », qui annonçait « le prochain x100 ». En moins d'une heure, le cours s'est effondré de plus de 80 %.\n\n` +
         `Le jeton a été créé sur MoonPad, une plateforme de lancement où le prix suit une courbe automatique avant l'introduction sur PancakeSwap. Le jeton lui-même n'apparaît pas sur le graphe : seuls les BNB sont représentés. Un achat se lit comme un envoi de BNB vers la courbe ou le pool, une vente comme un versement de BNB du pool vers le vendeur.\n\n` +
-        `Objectifs : établir si un groupe d'initiés a acheté dès le lancement et revendu en bloc après le call, remonter à la source de leur financement, mesurer leur gain, prouver le lien avec le canal d'appels et suivre l'encaissement.`,
+        `Objectifs : établir si un groupe d'initiés a acheté dès le lancement et revendu en bloc après le call, remonter à la source de leur financement, mesurer leur gain, prouver le lien avec le canal d'appels, suivre l'encaissement des initiés comme celui du canal, et préparer les mesures conservatoires.`,
       evidence: [
         {
           id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: tD + 2 * DAY, author: victimP.name,
@@ -248,39 +253,60 @@ export const pumpDump: ScenarioTemplate = {
       seeds: [victim],
       objectives: [
         {
-          id: 'o1', type: 'address', points: 15,
+          id: 'o1', type: 'address', points: 10,
           prompt: 'Quelle adresse a financé les portefeuilles des initiés ?',
           answer: [source],
           hint: 'Partez du créateur affiché sur la page MoonPad : remontez son premier financement, puis regardez qui d\'autre cette adresse a financé juste avant le lancement.',
           explanation: `${A(w, source)}, alimentée par ${fund.entity.name}, envoie des BNB à ${K} portefeuilles neufs en quelques minutes, ${Math.round((tL - tF) / 60)} minutes environ avant la création du jeton. C'est la source commune des achats groupés. ${procedureFor(fund.entity)}`,
         },
         {
-          id: 'o2', type: 'addresses', points: 20,
+          id: 'o2', type: 'addresses', points: 12,
           prompt: 'Quels portefeuilles composent le groupe d\'initiés ?',
           answer: insiders,
           hint: 'Ce sont les portefeuilles financés par la source commune : tous achètent sur la courbe dans le même bloc, juste après la création.',
           explanation: `Les ${K} portefeuilles (dont le créateur ${A(w, creator)}) achètent pour ${amt(bnb(buySum), 'BNB')} dans le bloc ${launchBlock.toLocaleString('fr-FR')}, trois secondes après la création. Les deux autres acheteurs très précoces sont des robots indépendants : financés par des exchanges des semaines plus tôt, ils revendent bien avant le call et ne renvoient rien au groupe.`,
         },
         {
-          id: 'o3', type: 'amount', points: 15, unit: 'BNB', tolerance: 0.03,
-          prompt: 'Quel gain net (en BNB) les initiés ont-ils réalisé ?',
-          answer: profit,
-          hint: 'Comparez ce que la source a versé aux initiés avec ce que les initiés ont reversé, après leurs ventes, à leur adresse de regroupement.',
-          explanation: `Les initiés reçoivent ${amt(fundedTotal, 'BNB')} de la source, achètent pour ${amt(bnb(buySum), 'BNB')}, revendent pour ${amt(bnb(sells.reduce((s, v) => s + v, 0)), 'BNB')}, puis reversent ${amt(hubIn, 'BNB')} à ${A(w, hub)}. Gain net : ${amt(profit, 'BNB')} (≈ ${usd0(usd('BNB', profit))}), sans compter les ${amt(callFee, 'BNB')} payés au canal.`,
-        },
-        {
-          id: 'o4', type: 'entity', points: 10,
+          id: 'o4', type: 'entity', points: 8,
           prompt: 'Sur quel DEX les initiés ont-ils revendu leurs jetons ?',
           answer: ['pancakeswap'],
           hint: 'Les ventes interviennent après la migration de la liquidité : elles versent des BNB depuis le pool où achètent les abonnés du canal.',
           explanation: `Après la migration du ${fmtDate(tG)}, la liquidité est sur le pool PancakeSwap ${A(w, pool)}. Les ${K} ventes s'enchaînent à partir du ${fmtDate(tD)}, quelques dizaines de minutes après le call, et retirent ${amt(bnb(sells.reduce((s, v) => s + v, 0)), 'BNB')} du pool. PancakeSwap n'est que le lieu d'exécution : un protocole sans compte ni KYC.`,
         },
         {
-          id: 'o5', type: 'entity', points: 15,
+          id: 'o9', type: 'number', points: 10, tolerance: 2, unit: 'minutes',
+          prompt: 'Combien de minutes séparent la publication du call de la première revente des initiés ?',
+          answer: callToDump,
+          hint: 'L\'heure du call figure sur le message Telegram ; la première revente est la plus ancienne des transactions où le pool PancakeSwap verse des BNB à l\'un des portefeuilles du groupe.',
+          explanation: `Call publié le ${fmtDate(tC)} ; première revente des initiés le ${fmtDate(dumpTxs[0].time)}, soit environ ${callToDump} minutes plus tard, et les ${K} ventes s'enchaînent en quelques minutes. Ce délai court est typique : le call déclenche l'afflux d'acheteurs, les initiés vendent au sommet dans la foulée. Rapprochée du paiement du canal la veille, cette chronologie est l'un des éléments les plus parlants du dossier.`,
+        },
+        {
+          id: 'o8', type: 'address', points: 10,
+          prompt: 'Sur quelle adresse les initiés regroupent-ils le produit de leurs ventes ?',
+          answer: [hub],
+          hint: 'Après la revente, suivez la sortie de BNB de plusieurs portefeuilles du groupe : ils se vident tous vers la même adresse.',
+          explanation: `Entre une et trois heures après le dump, les ${K} portefeuilles envoient tout leur solde à ${A(w, hub)} (${amt(hubIn, 'BNB')} au total). Ce regroupement confirme l'unité de contrôle : des acheteurs indépendants n'auraient aucune raison de reverser leurs gains au même endroit. C'est de cette adresse que partent la conversion en USDT et les dépôts.`,
+        },
+        {
+          id: 'o3', type: 'amount', points: 10, unit: 'BNB', tolerance: 0.03,
+          prompt: 'Quel gain net (en BNB) les initiés ont-ils réalisé ?',
+          answer: profit,
+          hint: 'Comparez ce que la source a versé aux initiés avec ce que les initiés ont reversé, après leurs ventes, à leur adresse de regroupement.',
+          explanation: `Les initiés reçoivent ${amt(fundedTotal, 'BNB')} de la source, achètent pour ${amt(bnb(buySum), 'BNB')}, revendent pour ${amt(bnb(sells.reduce((s, v) => s + v, 0)), 'BNB')}, puis reversent ${amt(hubIn, 'BNB')} à ${A(w, hub)}. Gain net : ${amt(profit, 'BNB')} (≈ ${usd0(usd('BNB', profit))}), sans compter les ${amt(callFee, 'BNB')} payés au canal.`,
+        },
+        {
+          id: 'o5', type: 'entity', points: 10,
           prompt: 'Sur quel exchange les gains ont-ils été encaissés ?',
           answer: [destKey],
           hint: 'Suivez l\'adresse de regroupement : conversion en USDT, puis dépôts.',
           explanation: `L'adresse de regroupement échange ${amt(swapIn, 'BNB')} contre ${amt(sw.amountOut, 'USDT')} sur PancakeSwap, puis dépose en deux fois sur ${A(w, dep)}, adresse de dépôt de ${destName}. ${procedureFor(dest.entity)}`,
+        },
+        {
+          id: 'o10', type: 'amount', points: 10, unit: 'USDT', tolerance: 0.01,
+          prompt: 'Quel montant total d\'USDT a été déposé sur l\'exchange d\'encaissement ?',
+          answer: deposited,
+          hint: 'Après le swap BNB → USDT, l\'adresse de regroupement dépose en deux fois sur la même adresse de dépôt : additionnez les deux.',
+          explanation: `${amt(d1.tx.transfers[0].value, 'USDT')} le ${fmtDate(d1.tx.time)} puis ${amt(d2.tx.transfers[0].value, 'USDT')} le ${fmtDate(d2.tx.time)}, soit ${amt(deposited, 'USDT')} sur ${A(w, dep)}. C'est le montant à mentionner dans la demande de gel adressée à ${destName}, avec les deux hash de dépôt ; le reste des BNB (${amt(bnb(hubIn - swapIn), 'BNB')}) est resté sur l'adresse de regroupement.`,
         },
         {
           id: 'o6', type: 'tx', points: 10,
@@ -290,7 +316,27 @@ export const pumpDump: ScenarioTemplate = {
           explanation: `Le ${fmtDate(callPay.time)}, la source commune verse ${amt(callFee, 'BNB')} à l'adresse de paiement du canal, la veille du call. Les autres paiements reçus par cette adresse viennent d'annonceurs sans lien avec ${T}. Le call n'était donc pas une recommandation spontanée mais une promotion payée par ceux qui allaient revendre.`,
         },
         {
-          id: 'o7', type: 'choice', points: 15,
+          id: 'o11', type: 'entity', points: 10,
+          prompt: 'Sur quelle plateforme l\'administrateur du canal encaisse-t-il les paiements de ses annonceurs ?',
+          answer: [callerKey],
+          hint: 'Suivez la sortie de l\'adresse de paiement du canal citée dans la note OSINT, quelques jours après les faits.',
+          explanation: `Le ${fmtDate(callerCash.tx.time)}, l'adresse de paiement du canal envoie ${amt(callerCash.tx.transfers[0].value, 'BNB')}, soit l'essentiel des ${promoCount} paiements reçus, à ${A(w, callerCash.deposit)}, adresse de dépôt ${callerKit.entity.name}. Le compte client permettra d'identifier @${callerHandle}, dont la responsabilité (promotion payée non signalée comme telle, connaissance ou non du projet de revente) reste à apprécier. ${procedureFor(callerKit.entity)}`,
+        },
+        {
+          id: 'o12', type: 'choice', points: 10,
+          prompt: 'Quelle mesure conservatoire est la plus urgente pour préserver le produit de la manipulation ?',
+          hint: 'Où se trouvent les fonds au moment où vous agissez, et qui peut les bloquer ?',
+          ...choice(r,
+            `Requérir ${destName} pour bloquer le compte crédité, en citant l'adresse de dépôt et les hash des deux dépôts`,
+            [
+              'Demander à PancakeSwap de geler le pool et d\'annuler les ventes des initiés',
+              'Demander à MoonPad de retirer le jeton, ce qui restituera automatiquement les BNB aux acheteurs',
+              'Demander à l\'émetteur de l\'USDT de geler l\'adresse de dépôt de l\'exchange',
+            ]),
+          explanation: `Les USDT sont désormais sous la garde de ${destName} : seule la plateforme peut bloquer le compte client avant un retrait. PancakeSwap et la courbe MoonPad sont des contrats sans opérateur capable d'annuler une transaction ; retirer un jeton de l'interface ne rembourse personne. Geler l'adresse de dépôt chez l'émetteur toucherait l'exchange et ses autres clients, sans viser le titulaire du compte : la bonne cible est le compte, via la plateforme.`,
+        },
+        {
+          id: 'o7', type: 'choice', points: 10,
           prompt: 'Quels éléments établissent la coordination entre les initiés ?',
           ...choice(r,
             'Financement commun juste avant le lancement, achats dans un même bloc, revente groupée après le call, gains regroupés',
@@ -303,22 +349,24 @@ export const pumpDump: ScenarioTemplate = {
         },
       ],
       truth: {
-        path: [vFund.id, vBuy1.id, vBuy2.id, fundTx.id, callPay.id, ...fundTxs.map((t) => t.id), createTx.id, ...bundle.map((t) => t.id), migTx.id, ...dumpTxs.map((t) => t.id), ...hubTxs.map((t) => t.id), sw.tx.id, d1.tx.id, ...(d1.sweep ? [d1.sweep.id] : []), d2.tx.id, ...(d2.sweep ? [d2.sweep.id] : [])],
-        addresses: [pool, source, ...insiders, callerAddr, hub, dep, curve],
+        path: [vFund.id, vBuy1.id, vBuy2.id, fundTx.id, callPay.id, ...fundTxs.map((t) => t.id), createTx.id, ...bundle.map((t) => t.id), migTx.id, ...dumpTxs.map((t) => t.id), ...hubTxs.map((t) => t.id), sw.tx.id, d1.tx.id, ...(d1.sweep ? [d1.sweep.id] : []), d2.tx.id, ...(d2.sweep ? [d2.sweep.id] : []), callerCash.tx.id],
+        addresses: [pool, source, ...insiders, callerAddr, hub, dep, curve, callerCash.deposit],
         debrief:
           `1. ${fund.entity.name} alimente la source ${A(w, source)} (${amt(srcTotal, 'BNB')}). La veille du lancement, elle paie ${amt(callFee, 'BNB')} au canal « ${channel} ».\n` +
           `2. Une à trois heures avant le lancement, elle finance ${K} portefeuilles neufs (${amt(fundedTotal, 'BNB')}).\n` +
           `3. Le ${fmtDate(tL)}, l'un d'eux crée ${T} sur MoonPad ; trois secondes plus tard, les ${K} portefeuilles achètent ensemble sur la courbe (${amt(bnb(buySum), 'BNB')}), au prix le plus bas. ${bots.length} robots indépendants achètent aussi tôt.\n` +
           `4. Des acheteurs organiques font progresser la courbe jusqu'à la migration vers PancakeSwap (${amt(migV, 'BNB')}).\n` +
           `5. Le call est publié le ${fmtDate(tC)} ; ${nPub + 1} acheteurs, dont ${victimP.name} (${amt(victimLoss, 'BNB')}), se ruent sur le pool. À partir du ${fmtDate(tD)}, les initiés revendent tout en quelques minutes.\n` +
-          `6. Les gains sont regroupés sur ${A(w, hub)} (${amt(hubIn, 'BNB')}, gain net ${amt(profit, 'BNB')}), convertis en ${amt(sw.amountOut, 'USDT')} et déposés sur ${destName}.\n\n` +
-          `À retenir : dans un pump and dump, la blockchain conserve la chronologie complète. Le financement commun révèle le groupe, le bloc de lancement révèle l'avantage pris, la fenêtre de vente révèle la concertation, et le paiement du canal relie la promotion aux vendeurs. Deux réquisitions s'imposent : ${fund.entity.name} pour l'origine des fonds de la source, ${destName} pour le compte qui a encaissé.`,
+          `6. Les gains sont regroupés sur ${A(w, hub)} (${amt(hubIn, 'BNB')}, gain net ${amt(profit, 'BNB')}), convertis en ${amt(sw.amountOut, 'USDT')} et déposés sur ${destName}.\n` +
+          `7. Quelques jours plus tard, l'administrateur du canal transfère ses recettes publicitaires (${amt(callerCash.tx.transfers[0].value, 'BNB')}) vers son compte ${callerKit.entity.name}.\n\n` +
+          `À retenir : dans un pump and dump, la blockchain conserve la chronologie complète. Le financement commun révèle le groupe, le bloc de lancement révèle l'avantage pris, la fenêtre de vente révèle la concertation, et le paiement du canal relie la promotion aux vendeurs. Trois réquisitions s'imposent : ${fund.entity.name} pour l'origine des fonds de la source, ${destName} pour le compte qui a encaissé (avec demande de gel), ${callerKit.entity.name} pour identifier l'administrateur du canal.`,
       },
       hints: [
         'Depuis l\'achat de la victime, ouvrez le pool : sa première transaction est la migration depuis la courbe MoonPad, dont l\'historique montre les tout premiers achats.',
         'Les achats du bloc de lancement viennent de portefeuilles neufs : remontez le financement de chacun.',
         'Le gain net se calcule entre deux adresses : ce que la source a versé aux initiés et ce que les initiés ont reversé ensuite.',
-        'L\'adresse de paiement du canal figure dans la note OSINT : cherchez parmi ses entrées celle qui vient de la source.',
+        'L\'adresse de paiement du canal figure dans la note OSINT : cherchez parmi ses entrées celle qui vient de la source, puis regardez où elle envoie ses recettes.',
+        'Pour la chronologie, rapprochez l\'heure du message Telegram des transactions de vente des initiés sur le pool.',
       ],
     }
   },
