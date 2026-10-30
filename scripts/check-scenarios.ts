@@ -29,6 +29,15 @@ for (const s of fromFile ?? SCENARIOS) {
         if ((o.type === 'amount' || o.type === 'number') && !Number.isFinite(o.answer)) problems.push(`${o.id}: réponse non numérique`)
         if (o.type === 'choice' && (o.answer < 0 || o.answer >= o.options.length)) problems.push(`${o.id}: index de choix invalide`)
       }
+      // Étapes des missions guidées : chaque référence doit exister
+      if (s.guided && !inst.guide?.length) problems.push('mission guidée sans étapes de guide')
+      for (const [i, st] of (inst.guide ?? []).entries()) {
+        const c = st.check
+        if ((c.kind === 'onGraph' || c.kind === 'flagged') && !w.addresses.has(c.address)) problems.push(`guide ${i + 1} : adresse inconnue`)
+        if (c.kind === 'txRevealed' && !w.txs.has(c.tx)) problems.push(`guide ${i + 1} : transaction inconnue`)
+        if (c.kind === 'selected' && !w.addresses.has(c.id) && !w.txs.has(c.id)) problems.push(`guide ${i + 1} : sélection inconnue`)
+        if ((c.kind === 'answered' || c.kind === 'correct') && !inst.objectives.some((o) => o.id === c.objective)) problems.push(`guide ${i + 1} : objectif inconnu`)
+      }
       // Valeurs négatives ou NaN
       for (const tx of w.txs.values()) {
         for (const io of [...tx.inputs, ...tx.outputs]) if (!(io.value > 0) || !Number.isFinite(io.value)) problems.push(`valeur invalide dans ${tx.id}: ${io.value}`)

@@ -19,7 +19,7 @@ export function launchCase(templateId: string, seed: number, mode: Mode = 'stand
     if (!confirm(`Une enquête est en cours (« ${title} »). L'abandonner pour ouvrir ce nouveau dossier ?`)) return
   }
   g.start(templateId, seed, { mode, coverage, live })
-  useUi.getState().set({ page: 'workspace', briefingOpen: true, timeRange: null, leftTab: 'evidence' })
+  useUi.getState().set({ page: 'workspace', briefingOpen: true, timeRange: null, leftTab: useGame.getState().template?.guided ? 'objectives' : 'evidence' })
 }
 
 export function dailyChallenge(): { template: ScenarioTemplate; seed: number } | null {
@@ -129,6 +129,7 @@ export function MissionCard({ s, best, onOpen }: { s: ScenarioTemplate; best?: n
         </div>
         <div className="mt-auto flex items-center gap-2 pt-4">
           <DifficultyBadge d={s.difficulty} />
+          {s.guided && <span className="chip bg-accent/15 text-accent"><Icon name="Compass" size={11} /> Guidée</span>}
           <span className="ml-auto flex items-center gap-1 text-[11.5px] text-ink-400"><Icon name="Clock" size={12} /> {s.estMinutes} min</span>
         </div>
       </div>
@@ -171,6 +172,7 @@ function LaunchModalInner({ s, onClose, seed: fixedSeed }: { s: ScenarioTemplate
         <DifficultyBadge d={s.difficulty} />
         {s.chains.map((c) => <ChainBadge key={c} chain={c} />)}
         <span className="chip bg-ink-800 text-ink-200"><Icon name="Clock" size={11} /> ~{s.estMinutes} min</span>
+        {s.guided && <span className="chip bg-accent/15 text-accent"><Icon name="Compass" size={11} /> Mission guidée · indices gratuits</span>}
       </div>
       <p className="mt-3 text-[13.5px] leading-relaxed text-ink-200">{s.description}</p>
       <div className="mt-3 flex flex-wrap gap-1">

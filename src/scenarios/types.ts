@@ -73,6 +73,36 @@ export type Objective = ObjectiveBase &
     | { type: 'choice'; options: string[]; answer: number }
   )
 
+/**
+ * Condition de validation automatique d'une étape de mission guidée.
+ * - onGraph : l'adresse est sur le graphe
+ * - txRevealed : la transaction est affichée sur le graphe
+ * - selected : l'adresse ou la transaction a été sélectionnée au moins une fois
+ * - flagged : l'adresse est marquée (avec le marquage indiqué, sinon n'importe lequel)
+ * - answered : l'objectif a reçu une réponse
+ * - correct : l'objectif a reçu la bonne réponse (vérifiée en direct)
+ * - tool : l'outil a été ouvert au moins une fois
+ * - manual : l'apprenant clique « J'ai compris »
+ */
+export type GuideCheck =
+  | { kind: 'onGraph'; address: string }
+  | { kind: 'txRevealed'; tx: string }
+  | { kind: 'selected'; id: string }
+  | { kind: 'flagged'; address: string; flag?: 'suspect' | 'victim' | 'interest' | 'service' | 'dead-end' }
+  | { kind: 'answered'; objective: string }
+  | { kind: 'correct'; objective: string }
+  | { kind: 'tool'; tool: 'search' | 'correlator' | 'report' | 'requisition' | 'timeline' }
+  | { kind: 'manual' }
+
+export interface GuideStep {
+  title: string
+  /** Consigne (markdown léger). */
+  text: string
+  check: GuideCheck
+  /** Aide affichée sur demande si l'apprenant bloque. */
+  tip?: string
+}
+
 export interface ScenarioInstance {
   world: World
   title: string
@@ -90,14 +120,18 @@ export interface ScenarioInstance {
     /** Récit complet de ce qui s'est passé, affiché au débrief. */
     debrief: string
   }
-  /** Indices progressifs (chaque indice coûte des points). */
+  /** Indices progressifs (chaque indice coûte des points, sauf en mission guidée). */
   hints: string[]
+  /** Étapes pas à pas des missions guidées, validées automatiquement. */
+  guide?: GuideStep[]
 }
 
 export interface ScenarioTemplate {
   id: string
   /** Affaire réservée aux examens de certification (absente de la liste des missions). */
   certOnly?: boolean
+  /** Mission guidée pas à pas (tutoriel) : indices gratuits, guide affiché. */
+  guided?: boolean
   title: string
   tagline: string
   description: string
