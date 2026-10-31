@@ -27,6 +27,7 @@ import solana from '@web3icons/core/svgs/networks/background/solana.svg.js'
 import ton from '@web3icons/core/svgs/networks/background/ton.svg.js'
 import arbitrum from '@web3icons/core/svgs/networks/background/arbitrum-one.svg.js'
 import base from '@web3icons/core/svgs/networks/background/base.svg.js'
+import cardano from '@web3icons/core/svgs/networks/background/cardano.svg.js'
 import type { ChainId } from '../engine/chains'
 
 const uri = (svg: string) => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
@@ -66,6 +67,7 @@ export const CHAIN_LOGOS: Record<ChainId, string> = {
   ton: uri(ton),
   arb: uri(arbitrum),
   base: uri(base),
+  ada: uri(cardano),
 }
 
 /** Logo de l'entité du catalogue, si elle en a un. */

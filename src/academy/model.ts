@@ -15,7 +15,7 @@ export const LEVELS: Record<Level, { label: string; short: string; color: string
   5: { label: 'Expert', short: 'N5', color: '#a78bfa', description: 'Analyse comportementale, démixage, acteurs étatiques, expertise judiciaire.' },
 }
 
-export type Track = 'bases' | 'bitcoin' | 'comptes' | 'stablecoins' | 'interchaines' | 'confidentialite' | 'typologies' | 'enquete' | 'methodo' | 'affaires'
+export type Track = 'bases' | 'bitcoin' | 'comptes' | 'stablecoins' | 'interchaines' | 'confidentialite' | 'typologies' | 'enquete' | 'methodo' | 'affaires' | 'contrats'
 
 export const TRACKS: Record<Track, { label: string; icon: string; color: string }> = {
   bases: { label: 'Fondamentaux', icon: 'Blocks', color: '#94a3b8' },
@@ -28,6 +28,7 @@ export const TRACKS: Record<Track, { label: string; icon: string; color: string 
   enquete: { label: 'Procédure & enquête', icon: 'Scale', color: '#22d3ee' },
   methodo: { label: 'Méthodologie d\'analyse', icon: 'Microscope', color: '#38bdf8' },
   affaires: { label: 'Affaires décryptées', icon: 'Newspaper', color: '#eab308' },
+  contrats: { label: 'Smart contracts & DeFi', icon: 'FileCode2', color: '#c084fc' },
 }
 
 // ── Blocs de contenu ───────────────────────────────────────────────────────
@@ -182,6 +183,18 @@ export type DrillId =
   | 'ponzi-flow' // reconnaître un schéma de Ponzi dans les flux
   | 'l2-withdrawal' // dépôt / retrait via un bridge canonique de L2 (délais, preuve)
   | 'wash-trade' // reconnaître un wash trading entre portefeuilles liés
+  | 'selector-decode' // retrouver la fonction appelée à partir du sélecteur et des données d'entrée
+  | 'leg-kind' // valeur, transaction interne, événement de jeton, mint ou burn
+  | 'event-read' // lire un événement Transfer brut (topics, data, décimales)
+  | 'forwarder-spot' // reconnaître un contrat de dépôt (forwarder) et son reversement
+  | 'aggregator-route' // reconstituer le chemin d'un swap agrégé et le bénéficiaire final
+  | 'receipt-token' // jetons enveloppés et jetons de reçu : ce qu'ils représentent
+  | 'collateral-link' // rattacher un emprunt à une garantie déposée
+  | 'lp-trace' // suivre des parts de pool jusqu'au retrait
+  | 'witness-type' // type de dépense d'après le témoin (P2WPKH, multisig, Taproot)
+  | 'vsize-fee' // poids, taille virtuelle et taux de frais (remise SegWit)
+  | 'ordinal-carrier' // sortie qui porte une inscription ou des runes (ce n'est pas un rendu)
+  | 'stake-cluster' // regrouper des adresses Cardano par clé de staking
 
 export interface DrillItem {
   prompt: string
@@ -262,6 +275,7 @@ export const CURRICULUM: CurriculumEntry[] = [
   { id: 'attribution-sources', title: 'Attribution : d\'où viennent les étiquettes ?', level: 2, track: 'methodo' },
   { id: 'exposition-risque', title: 'Exposition, taint et score de risque', level: 2, track: 'methodo' },
   { id: 'dex-defi', title: 'DEX, AMM et DeFi : suivre les swaps', level: 2, track: 'comptes' },
+  { id: 'transactions-internes', title: 'Transactions internes et journaux d\'événements', level: 2, track: 'contrats' },
   { id: 'xrp-memos', title: 'XRP, Stellar, EOS : memos et destination tags', level: 2, track: 'comptes' },
   { id: 'solana', title: 'Solana et ses spécificités', level: 2, track: 'comptes' },
   { id: 'typologies', title: 'Typologies d\'escroqueries aux crypto-actifs', level: 2, track: 'typologies' },
@@ -285,6 +299,12 @@ export const CURRICULUM: CurriculumEntry[] = [
   { id: 'cadre-reglementaire', title: 'Le cadre réglementaire : MiCA, TFR, GAFI, sanctions', level: 3, track: 'enquete' },
   { id: 'gel-saisie', title: 'Gel et saisie des crypto-actifs', level: 3, track: 'enquete' },
   { id: 'tracage-outille', title: 'Traçage assisté : utiliser et contester un outil d\'analyse', level: 3, track: 'methodo' },
+  { id: 'bitcoin-moderne', title: 'SegWit, Taproot et témoins : lire une transaction Bitcoin moderne', level: 3, track: 'bitcoin' },
+  { id: 'cardano-eutxo', title: 'Cardano et le modèle eUTXO : clés de staking et datums', level: 3, track: 'bitcoin' },
+  { id: 'calldata-selecteurs', title: 'Décoder un appel de contrat : sélecteurs, ABI et données d\'entrée', level: 3, track: 'contrats' },
+  { id: 'contrats-depot-create2', title: 'Contrats de dépôt et CREATE2 : quand l\'adresse de dépôt est un contrat', level: 3, track: 'contrats' },
+  { id: 'agregateurs-routeurs', title: 'Agrégateurs et routeurs : un appel, plusieurs swaps', level: 3, track: 'contrats' },
+  { id: 'jetons-enveloppes', title: 'Jetons enveloppés et jetons de reçu : WETH, WBTC, aTokens, parts LP', level: 3, track: 'contrats' },
   { id: 'rapport', title: 'Rédiger un rapport d\'analyse blockchain', level: 3, track: 'enquete' },
   { id: 'echangeurs-instantanes', title: 'Échangeurs instantanés : fonctionnement, traces et réquisition', level: 3, track: 'interchaines' },
   { id: 'gel-stablecoins', title: 'Émetteurs de stablecoins : listes noires, gel et coopération', level: 3, track: 'stablecoins' },
@@ -303,15 +323,20 @@ export const CURRICULUM: CurriculumEntry[] = [
   { id: 'layer2-rollups', title: 'Layer 2 et rollups', level: 4, track: 'comptes' },
   { id: 'smart-contracts-lecture', title: 'Lire un smart contract : logs, input data, événements', level: 4, track: 'comptes' },
   { id: 'defi-exploits', title: 'Hacks DeFi : flash loans, oracles, MEV', level: 4, track: 'typologies' },
+  { id: 'pret-garantie', title: 'Prêts DeFi : garantie, emprunt et rupture apparente du traçage', level: 4, track: 'contrats' },
+  { id: 'pools-liquidite', title: 'Pools de liquidité : déposer, céder ses parts, retirer ailleurs', level: 4, track: 'contrats' },
+  { id: 'ordinals-runes', title: 'Ordinals, inscriptions, BRC-20 et Runes', level: 4, track: 'bitcoin' },
   { id: 'affaire-bitfinex', title: 'Affaire décryptée : le piratage de Bitfinex et son blanchiment', level: 4, track: 'affaires' },
   { id: 'affaire-chipmixer', title: 'Affaire décryptée : le démantèlement de ChipMixer', level: 4, track: 'affaires' },
   { id: 'affaire-garantex', title: 'Affaire décryptée : Garantex, sanctions et démantèlement', level: 4, track: 'affaires' },
+  { id: 'affaire-ronin', title: 'Affaire décryptée : le piratage du bridge Ronin', level: 4, track: 'affaires' },
   { id: 'cooperation-internationale', title: 'Coopération internationale et entraide', level: 4, track: 'enquete' },
   // Niveau 5 — Expert
   { id: 'analyse-comportementale', title: 'Empreintes de portefeuilles et analyse comportementale', level: 5, track: 'methodo' },
   { id: 'demixage-avance', title: 'Démixage : méthodes statistiques et limites', level: 5, track: 'confidentialite' },
   { id: 'acteurs-etatiques', title: 'Acteurs étatiques et groupes APT', level: 5, track: 'typologies' },
   { id: 'blanchiment-pro', title: 'Blanchiment professionnel : OTC, mules, cash-out', level: 5, track: 'typologies' },
+  { id: 'blanchiment-defi', title: 'Blanchiment par la DeFi : méthodes combinées et limites du traçage', level: 5, track: 'contrats' },
   { id: 'expertise-judiciaire', title: 'L\'expertise judiciaire : fiabilité et contradictoire', level: 5, track: 'enquete' },
   { id: 'affaire-bybit', title: 'Affaire décryptée : le piratage de Bybit et le blanchiment à grande échelle', level: 5, track: 'affaires' },
   { id: 'saisie-avancee', title: 'Perquisition et saisie avancées', level: 5, track: 'enquete' },

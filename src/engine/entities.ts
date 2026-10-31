@@ -189,6 +189,42 @@ export const ENTITY_CATALOG: Record<string, Template> = {
   },
   // Fictif : protocole victime d'un piratage dans les scénarios.
   lendora: { name: 'Lendora', category: 'defi', risk: 'low', description: 'Protocole de prêt décentralisé (fictif).' },
+  aave: {
+    name: 'Aave', category: 'defi', risk: 'low',
+    description: 'Protocole de prêt décentralisé : on dépose un actif en garantie (on reçoit en échange des aTokens, jetons de reçu qui portent les intérêts), puis on emprunte un autre actif dans la limite d\'un ratio de garantie. Aucun opérateur ne peut geler une position : le protocole n\'a ni compte ni KYC.',
+  },
+  oneinch: {
+    name: '1inch', category: 'dex', risk: 'low',
+    description: 'Agrégateur de DEX : un seul appel à son routeur découpe et enchaîne les swaps sur plusieurs pools pour obtenir le meilleur prix. Dans la transaction, le routeur reçoit l\'actif de départ et les pools se passent les jetons intermédiaires.',
+  },
+  weth: {
+    name: 'Wrapped Ether', category: 'defi', risk: 'low',
+    description: 'Contrat WETH : enveloppe l\'ETH natif en jeton ERC-20 (1 WETH = 1 ETH), par la fonction deposit(), et le restitue par withdraw(). Sans opérateur ni gel possible.',
+  },
+  circle: {
+    name: 'Circle', category: 'token_issuer', risk: 'low',
+    description: 'Émetteur du stablecoin USDC. Peut bloquer une adresse (blacklist) sur demande des autorités ou décision de justice.',
+    compliance: { contact: 'Service des demandes des forces de l\'ordre de Circle', cooperation: 'voluntary', responseDays: [2, 10], canFreeze: true, kyc: 'aucun', notes: 'Le gel d\'USDC est possible mais suppose en général une base juridique solide (décision de justice ou demande d\'autorité américaine).' },
+  },
+  makerdao: {
+    name: 'Sky (ex-MakerDAO)', category: 'defi', risk: 'low',
+    description: 'Protocole émetteur du DAI, stablecoin décentralisé adossé à des garanties déposées dans des contrats : aucun émetteur centralisé ne peut geler une adresse.',
+  },
+  minswap: {
+    name: 'Minswap', category: 'dex', risk: 'low',
+    description: 'DEX AMM sur Cardano. Modèle eUTXO : l\'utilisateur dépose ses fonds sur l\'adresse de script du DEX avec un datum (ordre, adresse de retour) ; un « batcher » exécute ensuite l\'ordre et renvoie les jetons à l\'adresse indiquée dans le datum.',
+  },
+  // Fictif : place de marché d'inscriptions ordinales.
+  ordinalia: {
+    name: 'Ordinalia', category: 'nft_marketplace', risk: 'low', country: 'Singapour',
+    description: 'Place de marché (fictive) d\'inscriptions ordinales et de runes sur Bitcoin : le vendeur signe une transaction partielle (PSBT) qui cède son inscription ; l\'acheteur la complète avec ses propres entrées. La vente tient en une transaction où apparaissent le vendeur, l\'acheteur et la commission de la place de marché.',
+    compliance: { contact: 'Service conformité d\'Ordinalia', cooperation: 'voluntary', responseDays: [10, 40], canFreeze: false, kyc: 'aucun', notes: 'Pas de garde des fonds : données limitées aux comptes (adresse e-mail facultative, IP, portefeuilles connectés) et aux annonces.' },
+  },
+  // Fictif : bridge victime d'une compromission de ses validateurs.
+  nexusbridge: {
+    name: 'Nexus Bridge', category: 'bridge', risk: 'medium',
+    description: 'Bridge (fictif) entre Ethereum et un réseau de jeu, sécurisé par 9 validateurs dont 5 signatures suffisent à autoriser un retrait. Modèle utilisé pour étudier les piratages de bridges par vol de clés de validateurs.',
+  },
 
   // ── Illicite ─────────────────────────────────────────────────────────────
   hydra: { name: 'Hydra Market', category: 'darknet', risk: 'severe', description: 'Marché du darknet russophone (stupéfiants, faux documents, blanchiment), saisi en avril 2022 par les autorités allemandes. Portefeuilles de séquestre centralisés.' },

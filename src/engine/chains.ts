@@ -1,8 +1,9 @@
-export type ChainId = 'btc' | 'ltc' | 'eth' | 'bsc' | 'tron' | 'xrp' | 'sol' | 'xmr' | 'ton' | 'arb' | 'base'
+export type ChainId = 'btc' | 'ltc' | 'eth' | 'bsc' | 'tron' | 'xrp' | 'sol' | 'xmr' | 'ton' | 'arb' | 'base' | 'ada'
 export type ChainModel = 'utxo' | 'account' | 'opaque'
 export type AssetId =
   | 'BTC' | 'LTC' | 'ETH' | 'BNB' | 'TRX' | 'XRP' | 'SOL' | 'XMR' | 'TON'
   | 'USDT' | 'USDC' | 'DAI' | 'WBTC'
+  | 'WETH' | 'aWETH' | 'aUSDC' | 'LP' | 'ADA'
 
 export interface ChainMeta {
   id: ChainId
@@ -22,7 +23,7 @@ export interface ChainMeta {
 export const CHAINS: Record<ChainId, ChainMeta> = {
   btc: { id: 'btc', name: 'Bitcoin', short: 'BTC', native: 'BTC', model: 'utxo', color: '#f7931a', blockTime: 600, baseHeight: 840000, explorer: 'mempool', tokens: [] },
   ltc: { id: 'ltc', name: 'Litecoin', short: 'LTC', native: 'LTC', model: 'utxo', color: '#a6b3c6', blockTime: 150, baseHeight: 2650000, explorer: 'blockchair', tokens: [] },
-  eth: { id: 'eth', name: 'Ethereum', short: 'ETH', native: 'ETH', model: 'account', color: '#8c9eff', blockTime: 12, baseHeight: 19500000, explorer: 'etherscan', tokens: ['USDT', 'USDC', 'DAI', 'WBTC'], tokenStandard: 'ERC-20' },
+  eth: { id: 'eth', name: 'Ethereum', short: 'ETH', native: 'ETH', model: 'account', color: '#8c9eff', blockTime: 12, baseHeight: 19500000, explorer: 'etherscan', tokens: ['USDT', 'USDC', 'DAI', 'WBTC', 'WETH', 'aWETH', 'aUSDC', 'LP'], tokenStandard: 'ERC-20' },
   bsc: { id: 'bsc', name: 'BNB Smart Chain', short: 'BSC', native: 'BNB', model: 'account', color: '#f3ba2f', blockTime: 3, baseHeight: 37000000, explorer: 'bscscan', tokens: ['USDT', 'USDC'], tokenStandard: 'BEP-20' },
   tron: { id: 'tron', name: 'Tron', short: 'TRX', native: 'TRX', model: 'account', color: '#ff3b3b', blockTime: 3, baseHeight: 60000000, explorer: 'tronscan', tokens: ['USDT', 'USDC'], tokenStandard: 'TRC-20' },
   xrp: { id: 'xrp', name: 'XRP Ledger', short: 'XRP', native: 'XRP', model: 'account', color: '#23c4f8', blockTime: 4, baseHeight: 87000000, explorer: 'xrpscan', tokens: [] },
@@ -31,8 +32,10 @@ export const CHAINS: Record<ChainId, ChainMeta> = {
   // TON : hauteur = numéro de bloc de la masterchain ; jetons au standard Jetton (TEP-74).
   ton: { id: 'ton', name: 'TON', short: 'TON', native: 'TON', model: 'account', color: '#0098ea', blockTime: 5, baseHeight: 36000000, explorer: 'tonviewer', tokens: ['USDT'], tokenStandard: 'Jetton' },
   // Rollups optimistes d'Ethereum : mêmes adresses 0x, gas payé en ETH.
-  arb: { id: 'arb', name: 'Arbitrum One', short: 'ARB', native: 'ETH', model: 'account', color: '#28a0f0', blockTime: 0.25, baseHeight: 170000000, explorer: 'arbiscan', tokens: ['USDT', 'USDC'], tokenStandard: 'ERC-20' },
-  base: { id: 'base', name: 'Base', short: 'BASE', native: 'ETH', model: 'account', color: '#0052ff', blockTime: 2, baseHeight: 9000000, explorer: 'basescan', tokens: ['USDC', 'USDT'], tokenStandard: 'ERC-20' },
+  arb: { id: 'arb', name: 'Arbitrum One', short: 'ARB', native: 'ETH', model: 'account', color: '#28a0f0', blockTime: 0.25, baseHeight: 170000000, explorer: 'arbiscan', tokens: ['USDT', 'USDC', 'WETH'], tokenStandard: 'ERC-20' },
+  base: { id: 'base', name: 'Base', short: 'BASE', native: 'ETH', model: 'account', color: '#0052ff', blockTime: 2, baseHeight: 9000000, explorer: 'basescan', tokens: ['USDC', 'USDT', 'WETH'], tokenStandard: 'ERC-20' },
+  // Cardano : modèle eUTXO (sorties porteuses de données), adresses de base liées à une clé de staking.
+  ada: { id: 'ada', name: 'Cardano', short: 'ADA', native: 'ADA', model: 'utxo', color: '#3468d1', blockTime: 20, baseHeight: 10200000, explorer: 'cardanoscan', tokens: [], tokenStandard: 'Native token' },
 }
 
 /** Chaînes compatibles EVM : une même clé privée donne la même adresse 0x sur chacune. */
@@ -69,6 +72,13 @@ export const ASSETS: Record<AssetId, AssetMeta> = {
   USDC: { id: 'USDC', name: 'USD Coin', usd: 1, color: '#2775ca', decimals: 2, stable: true },
   DAI: { id: 'DAI', name: 'Dai', usd: 1, color: '#f5ac37', decimals: 2, stable: true },
   WBTC: { id: 'WBTC', name: 'Wrapped BTC', usd: 67250, color: '#e0883a', decimals: 8 },
+  WETH: { id: 'WETH', name: 'Wrapped Ether', usd: 3185, color: '#a3b1ff', decimals: 6 },
+  // Jetons de reçu d'un protocole de prêt : valent l'actif déposé (intérêts négligés).
+  aWETH: { id: 'aWETH', name: 'Aave WETH (jeton de dépôt)', usd: 3185, color: '#b6509e', decimals: 6 },
+  aUSDC: { id: 'aUSDC', name: 'Aave USDC (jeton de dépôt)', usd: 1, color: '#b6509e', decimals: 2 },
+  // Part de pool de liquidité : valeur figée pour garder les exercices déterministes.
+  LP: { id: 'LP', name: 'Part de pool de liquidité (LP)', usd: 120, color: '#ff007a', decimals: 6 },
+  ADA: { id: 'ADA', name: 'Cardano', usd: 0.45, color: '#3468d1', decimals: 6 },
 }
 
 export function usd(asset: AssetId, value: number): number {

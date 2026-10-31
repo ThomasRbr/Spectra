@@ -282,6 +282,22 @@ function TraceResultView({ w, res, onShow }: { w: World; res: TraceResult; onSho
         </div>
       )}
 
+      {res.collateral.length > 0 && (
+        <div className="rounded-xl border border-fuchsia-400/30 bg-fuchsia-400/[0.05] p-3">
+          <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-fuchsia-100"><Icon name="Landmark" size={13} /> Emprunts garantis par des fonds marqués (lien indirect)</div>
+          <div className="mt-1 text-[11.5px] leading-relaxed text-ink-300">Ces fonds sortent du pool de prêt, pas des fonds de la victime : ils sont rattachés à proportion de la garantie marquée. Garantie et emprunt coexistent, d'où un total qui peut dépasser la source. À présenter comme un lien économique, distinct d'un flux.</div>
+          <div className="mt-1.5 space-y-0.5">
+            {res.collateral.map((c) => (
+              <button key={c.txId} className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[11.5px] text-ink-100 hover:bg-ink-800" onClick={() => useGame.getState().select({ kind: 'tx', id: c.txId })}>
+                <Icon name="ArrowRightLeft" size={11} className="text-fuchsia-300" />
+                <span className="flex-1 truncate font-mono text-[11px]">{w.tx(c.txId).hash.slice(0, 18)}…</span>
+                <span className="font-mono text-fuchsia-100">{fmtUsd(c.usd)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {res.truncated && <div className="text-[11px] text-amber-300"><Icon name="TriangleAlert" size={11} className="mr-1 inline" /> Calcul interrompu : le flux est trop étendu. Réduisez la profondeur ou relevez le seuil.</div>}
 
       <div className="flex flex-wrap gap-2">

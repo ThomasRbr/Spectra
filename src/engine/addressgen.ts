@@ -15,6 +15,7 @@ export type AddrKind =
   | 'eoa' | 'contract' // EVM / Tron / Solana
   | 'account' // XRP
   | 'stealth' // Monero
+  | 'ada_base' | 'ada_enterprise' | 'ada_script' // Cardano
 
 export const KIND_LABEL: Record<AddrKind, string> = {
   p2pkh: 'Legacy (P2PKH)',
@@ -27,6 +28,9 @@ export const KIND_LABEL: Record<AddrKind, string> = {
   contract: 'Smart contract',
   account: 'Compte XRPL',
   stealth: 'Adresse furtive',
+  ada_base: 'Adresse de base Cardano (paiement + staking)',
+  ada_enterprise: 'Adresse « enterprise » Cardano (sans staking)',
+  ada_script: 'Adresse de script Cardano (contrat Plutus)',
 }
 
 function chars(rng: Rng, alphabet: string, n: number): string {
@@ -55,6 +59,8 @@ export function defaultKind(rng: Rng, chain: ChainId): AddrKind {
       return 'stealth'
     case 'ton':
       return 'ton_wallet'
+    case 'ada':
+      return 'ada_base'
     default:
       return 'eoa'
   }
@@ -91,12 +97,41 @@ export function genAddress(rng: Rng, chain: ChainId, kind: AddrKind): string {
       return chars(rng, B58, rng.int(43, 44))
     case 'xmr':
       return '4' + chars(rng, B58, 94)
+    case 'ada':
+      if (kind === 'ada_enterprise') return 'addr1v' + chars(rng, BECH, 52)
+      if (kind === 'ada_script') return 'addr1w' + chars(rng, BECH, 52)
+      return cardanoBase(rng, cardanoStakeTail(rng))
   }
+}
+
+/**
+ * Partie « staking » d'une adresse de base Cardano. Encodée après la partie
+ * paiement, elle se retrouve à l'identique en fin d'adresse (avant les
+ * 6 caractères de somme de contrôle) sur toutes les adresses du portefeuille.
+ */
+export function cardanoStakeTail(rng: Rng): string {
+  return chars(rng, BECH, 39)
+}
+
+/** Adresse de base Cardano (ddr1q…) : partie paiement propre + partie staking partagée. */
+export function cardanoBase(rng: Rng, stakeTail: string): string {
+  return 'addr1q' + chars(rng, BECH, 52) + stakeTail + chars(rng, BECH, 6)
+}
+
+/** Adresse de récompense (clé de staking) correspondant à une partie staking. */
+export function cardanoStakeAddress(stakeTail: string): string {
+  let h = 2166136261
+  let s = ''
+  for (let i = 0; i < 53; i++) {
+    h = Math.imul(h ^ stakeTail.charCodeAt(i % stakeTail.length) ^ i, 16777619) >>> 0
+    s += BECH[h % 32]
+  }
+  return 'stake1u' + s
 }
 
 /** Adresse « sosie » : mêmes premiers et derniers caractères (address poisoning). */
 export function lookalike(rng: Rng, chain: ChainId, addr: string, pre = 5, suf = 4): string {
-  const kind: AddrKind = chain === 'btc' || chain === 'ltc' ? 'p2wpkh' : chain === 'xrp' ? 'account' : chain === 'ton' ? 'ton_wallet' : 'eoa'
+  const kind: AddrKind = chain === 'btc' || chain === 'ltc' ? 'p2wpkh' : chain === 'xrp' ? 'account' : chain === 'ton' ? 'ton_wallet' : chain === 'ada' ? 'ada_base' : 'eoa'
   const base = genAddress(rng, chain, kind)
   const prefixLen = chain === 'eth' || chain === 'bsc' || chain === 'arb' || chain === 'base' ? pre + 2 : chain === 'ton' ? pre + 2 : pre
   let mid = base.slice(prefixLen, base.length - suf)

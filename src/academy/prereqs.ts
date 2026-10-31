@@ -63,6 +63,17 @@ export const MISSION_PREREQS: Record<string, string[]> = {
   'monero-atomic': ['monero', 'echangeurs-instantanes', 'lightning'],
   'coinjoin-remix': ['coinjoin', 'demixage-avance'],
   'exchange-hack': ['bridges', 'coinjoin', 'acteurs-etatiques'],
+  // Smart contracts et DeFi
+  'depot-contrat': ['contrats-depot-create2'],
+  'splitter-internes': ['transactions-internes', 'calldata-selecteurs'],
+  'approve-drain': ['calldata-selecteurs', 'drainers-approvals', 'agregateurs-routeurs'],
+  'lending-garantie': ['pret-garantie'],
+  'lp-blanchiment': ['pools-liquidite'],
+  // Bitcoin moderne et autres UTXO
+  'multisig-taproot': ['bitcoin-moderne'],
+  'cardano-staking': ['cardano-eutxo'],
+  'ordinals-vol': ['ordinals-runes'],
+  'bridge-validateurs': ['affaire-ronin', 'privacy-pools', 'blanchiment-defi'],
 }
 
 /** Niveau d'Académie minimal selon la difficulté : une affaire difficile ne tombe pas trop tôt. */
@@ -96,6 +107,18 @@ export const DRILL_ANCHORS: Record<DrillId, { lesson: string; target: number }> 
   'ln-channel': { lesson: 'lightning', target: 4 },
   'l2-withdrawal': { lesson: 'layer2-rollups', target: 4 },
   'wallet-fingerprint': { lesson: 'analyse-comportementale', target: 5 },
+  'leg-kind': { lesson: 'transactions-internes', target: 5 },
+  'event-read': { lesson: 'transactions-internes', target: 4 },
+  'selector-decode': { lesson: 'calldata-selecteurs', target: 5 },
+  'forwarder-spot': { lesson: 'contrats-depot-create2', target: 4 },
+  'aggregator-route': { lesson: 'agregateurs-routeurs', target: 4 },
+  'receipt-token': { lesson: 'jetons-enveloppes', target: 5 },
+  'witness-type': { lesson: 'bitcoin-moderne', target: 5 },
+  'vsize-fee': { lesson: 'bitcoin-moderne', target: 4 },
+  'stake-cluster': { lesson: 'cardano-eutxo', target: 4 },
+  'collateral-link': { lesson: 'pret-garantie', target: 4 },
+  'lp-trace': { lesson: 'pools-liquidite', target: 4 },
+  'ordinal-carrier': { lesson: 'ordinals-runes', target: 4 },
 }
 
 /** Prérequis d'une mission (vide si inconnue). */

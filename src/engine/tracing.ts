@@ -53,6 +53,11 @@ export interface TraceOptions {
   stopAtServices?: boolean
   /** Situation à cette date (horodatage), au lieu de tout l'historique. */
   until?: number
+  /**
+   * Prêts DeFi : un emprunt garanti par des fonds marqués est marqué à
+   * proportion de la garantie marquée (lien économique, pas un flux direct).
+   */
+  followCollateral?: boolean
 }
 
 type Amounts = Partial<Record<AssetId, number>>
@@ -91,11 +96,16 @@ export interface TraceResult {
   /** Transactions du flux marqué, à révéler dans le graphe. */
   path: string[]
   truncated: boolean
+  /** Emprunts rattachés à une garantie marquée (lien indirect, à exposer comme tel). */
+  collateral: { txId: string; borrower: string; usd: number }[]
 }
 
 // Catégories qui ne constituent pas un « service » : on continue à suivre.
 const PASS = new Set<EntityCategory>(['individual', 'suspect', 'victim'])
-const POOL_TYPES = new Set(['router', 'pool'])
+// Contrats de conversion : les fonds y entrent et en ressortent sous un autre
+// actif dans la même transaction (DEX, agrégateur, WETH, protocole de prêt).
+const POOL_TYPES = new Set(['router', 'pool', 'aggregator', 'wrapper', 'lending'])
+const RECEIPTS: AssetId[] = ['aWETH', 'aUSDC']
 const MAX_TAINTED_TX = 6000
 
 const sortedCache = new WeakMap<World, { epoch: number; list: Tx[]; rank: Map<string, number> }>()
@@ -176,8 +186,10 @@ export function traceFunds(w: World, source: TraceSource, opts: TraceOptions): T
   const minUsd = opts.minUsd ?? 10
   const stopAtServices = opts.stopAtServices ?? true
   const until = opts.until ?? Infinity
+  const followCollateral = opts.followCollateral ?? true
+  const collateral: TraceResult['collateral'] = []
 
-  const isPool = (id: string) => POOL_TYPES.has(w.get(id).contract?.type ?? '')
+  const isPool = (id: string) => POOL_TYPES.has(w.get(id).contract?.type ?? '') || w.get(id).tags.includes('null')
   const attrCache = new Map<string, Entity | undefined>()
   // Un pool ou un routeur de DEX n'est pas une destination : les fonds y
   // transitent (swap) ou y restent en liquidité, puis peuvent en être retirés.
@@ -350,6 +362,7 @@ export function traceFunds(w: World, source: TraceSource, opts: TraceOptions): T
           const amt = t.value * Math.min(1, pb.frac)
           outUsd += usd(t.asset, amt)
           arrive(tx, t.to, t.asset, amt, pb.hop + 1)
+          if (t.value - amt > 0) ledgers.get(lkey(t.to, t.asset))?.credit(t.value - amt, false)
         }
       }
       if (method !== 'poison') lost.feesUsd += Math.max(0, pb.usd - outUsd)
@@ -390,6 +403,33 @@ export function traceFunds(w: World, source: TraceSource, opts: TraceOptions): T
     // Modèle à comptes. Un swap se reconnaît à des fonds qui entrent dans un
     // pool/routeur de DEX et en ressortent dans la même transaction : la part
     // marquée de l'entrée est convertie, à valeur égale, dans l'actif de sortie.
+    // Emprunt garanti par des aTokens marqués : l'actif emprunté hérite de la part marquée de la garantie.
+    if (followCollateral && tx.signer && tx.tags.includes('lending-borrow')) {
+      let tUsd = 0
+      let totUsd = 0
+      let hop = 0
+      for (const a of RECEIPTS) {
+        const l = ledgers.get(lkey(tx.signer, a))
+        if (l) {
+          tUsd += usd(a, l.tainted)
+          totUsd += usd(a, l.balance)
+          hop = Math.max(hop, l.hop)
+        } else totUsd += usd(a, balanceBefore(tx.signer, a, tx))
+      }
+      if (tUsd > 0) {
+        taintedTx++
+        const frac = method === 'poison' ? 1 : Math.min(1, tUsd / Math.max(totUsd, 1e-9))
+        let got = 0
+        for (const t of tx.transfers) {
+          const amt = t.value * frac
+          got += usd(t.asset, amt)
+          arrive(tx, t.to, t.asset, amt, hop + 1)
+          if (t.value - amt > 0) ledgers.get(lkey(t.to, t.asset))?.credit(t.value - amt, false)
+        }
+        collateral.push({ txId: tx.id, borrower: tx.signer, usd: got })
+        continue
+      }
+    }
     const swapOuts = tx.transfers.filter((t) => isPool(t.from) && !isPool(t.to) && !isSourceCredit(tx, t))
     const swapTx = swapOuts.length > 0 && tx.transfers.some((t) => isPool(t.to) && !isPool(t.from))
     let swapInUsd = 0
@@ -429,6 +469,8 @@ export function traceFunds(w: World, source: TraceSource, opts: TraceOptions): T
           const amt = t.value * frac
           gotUsd += usd(t.asset, amt)
           arrive(tx, t.to, t.asset, amt, swapHop + 1)
+          // La part propre de la sortie rejoint aussi le solde du destinataire
+          if (t.value - amt > 0) ledgers.get(lkey(t.to, t.asset))?.credit(t.value - amt, false)
         }
         if (method !== 'poison') lost.feesUsd += Math.max(0, swapTaintUsd - gotUsd)
       } else {
@@ -465,7 +507,7 @@ export function traceFunds(w: World, source: TraceSource, opts: TraceOptions): T
   return {
     source, method, sourceUsd, sourceAmounts, byAddress, byTx,
     endpoints: [...endpoints.values()].sort((a, b) => b.usd - a.usd),
-    stillHeld, heldUsd, lost, path: [...path], truncated,
+    stillHeld, heldUsd, lost, path: [...path], truncated, collateral,
   }
 }
 

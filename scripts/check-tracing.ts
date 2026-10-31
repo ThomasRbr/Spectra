@@ -53,7 +53,9 @@ for (const s of SCENARIOS) {
       for (const v of [r.sourceUsd, ends, r.heldUsd, ...Object.values(r.lost)]) if (!Number.isFinite(v) || v < -1e-6) problems.push(`${m}: valeur invalide ${v}`)
       if (m !== 'poison' && r.sourceUsd > 0) {
         const sum = ends + r.heldUsd + r.lost.belowThresholdUsd + r.lost.feesUsd + r.lost.depthUsd + r.lost.inTransitUsd
-        const gap = Math.abs(sum - r.sourceUsd) / r.sourceUsd
+        // Les emprunts rattachés à une garantie marquée s'ajoutent à la source (lien indirect)
+        const expected = r.sourceUsd + r.collateral.reduce((a, c) => a + c.usd, 0)
+        const gap = Math.abs(sum - expected) / expected
         if (gap > 0.01) problems.push(`${m}: conservation ${(gap * 100).toFixed(2)} % (source ${r.sourceUsd.toFixed(0)} $, retrouvé ${sum.toFixed(0)} $)`)
       }
     }

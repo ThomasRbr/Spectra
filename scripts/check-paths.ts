@@ -36,14 +36,14 @@ for (const p of PATHS) {
   })
 }
 for (const s of ALL_SCENARIOS) {
-  if (s.certOnly) continue
+  if ((s.certOnly || s.generated)) continue
   const pre = MISSION_PREREQS[s.id]
   if (!pre?.length) problems.push(`mission ${s.id} : aucun prérequis déclaré`)
   for (const id of pre ?? []) if (!lessonIds.has(id)) problems.push(`mission ${s.id} : prérequis inconnu ${id}`)
 }
 for (const id of Object.keys(MISSION_PREREQS)) if (!missionIds.has(id)) problems.push(`prérequis pour une mission inconnue ${id}`)
 const cursus = PATHS.find((p) => p.id === 'cursus')!
-for (const s of ALL_SCENARIOS) if (!s.certOnly && !cursus.steps.some((st) => st.kind === 'mission' && st.id === s.id)) problems.push(`cursus : mission ${s.id} absente`)
+for (const s of ALL_SCENARIOS) if (!(s.certOnly || s.generated) && !cursus.steps.some((st) => st.kind === 'mission' && st.id === s.id)) problems.push(`cursus : mission ${s.id} absente`)
 for (const d of DRILLS) if (!cursus.steps.some((st) => st.kind === 'drill' && st.id === d.id)) problems.push(`cursus : exercice ${d.id} absent`)
 
 for (const e of EXAMS) {
@@ -53,9 +53,9 @@ for (const e of EXAMS) {
   if (pool < e.questions) problems.push(`examen ${e.id} : banque trop petite (${pool} < ${e.questions})`)
 }
 for (const l of LESSONS) for (const m of l.practice ?? []) if (!missionIds.has(m)) problems.push(`leçon ${l.id} : mission inconnue ${m}`)
-const unused = ALL_SCENARIOS.filter((s) => !s.certOnly && !PATHS.some((p) => p.steps.some((st) => st.kind === 'mission' && st.id === s.id))).map((s) => s.id)
+const unused = ALL_SCENARIOS.filter((s) => !(s.certOnly || s.generated) && !PATHS.some((p) => p.steps.some((st) => st.kind === 'mission' && st.id === s.id))).map((s) => s.id)
 const notInPath = CURRICULUM.filter((c) => !PATHS.some((p) => p.steps.some((st) => st.kind === 'lesson' && st.id === c.id))).map((c) => c.id)
-console.log(`Parcours : ${PATHS.length} · examens : ${EXAMS.length} · missions jouables : ${ALL_SCENARIOS.filter((s) => !s.certOnly).length} · leçons : ${LESSONS.length} · exercices : ${DRILLS.length}`)
+console.log(`Parcours : ${PATHS.length} · examens : ${EXAMS.length} · missions jouables : ${ALL_SCENARIOS.filter((s) => !(s.certOnly || s.generated)).length} · leçons : ${LESSONS.length} · exercices : ${DRILLS.length}`)
 if (unused.length) console.log(`Missions absentes des parcours : ${unused.join(', ')}`)
 if (notInPath.length) console.log(`Leçons absentes des parcours : ${notInPath.join(', ')}`)
 for (const p of problems) console.log(' - ' + p)

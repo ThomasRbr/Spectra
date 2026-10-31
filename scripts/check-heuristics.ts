@@ -19,7 +19,8 @@ for (const s of SCENARIOS) {
     const truth = new Set(inst.truth.path)
 
     for (const tx of w.txs.values()) {
-      if (tx.model !== 'utxo') continue
+      // Cardano n'a pas de champs version / nLockTime / nSequence : pas d'empreinte à ce sens
+      if (tx.model !== 'utxo' || tx.chain === 'ada') continue
       const fp = txFingerprint(w, tx)
       if (!fp || !Number.isFinite(fp.feeRate)) c.invalid++
       if (detectCoinjoin(tx).is || tx.outputs.length < 2 || !tx.inputs.length) continue

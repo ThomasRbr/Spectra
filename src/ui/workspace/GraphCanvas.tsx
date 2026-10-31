@@ -109,6 +109,9 @@ const STYLE: cytoscape.Stylesheet[] = [
   { selector: 'node.watched', style: { 'outline-color': '#fb7185', 'outline-width': 2, 'outline-offset': 4, 'outline-style': 'dashed' } as never },
   { selector: 'edge.truth', style: { 'line-color': '#fbbf24', 'target-arrow-color': '#fbbf24', opacity: 1, 'line-style': 'solid', 'z-index': 10, width: 'data(wt)' } as never },
   { selector: 'node.truthnode', style: { 'underlay-color': '#fbbf24', 'underlay-opacity': 0.5, 'underlay-padding': 8 } as never },
+  // Débrief : étapes du flux réel que l'enquêteur n'avait pas trouvées
+  { selector: 'edge.truthmissed', style: { 'line-color': '#f97316', 'target-arrow-color': '#f97316', opacity: 1, 'line-style': 'dashed', 'line-dash-pattern': [6, 4], 'z-index': 10, width: 'data(wt)' } as never },
+  { selector: 'node.truthmissed', style: { 'outline-color': '#f97316', 'outline-width': 2.5, 'outline-offset': 5, 'outline-style': 'dashed', 'underlay-color': '#f97316', 'underlay-opacity': 0.35, 'underlay-padding': 8 } as never },
   { selector: '.dim', style: { opacity: 0.12 } },
 ]
 
@@ -133,6 +136,7 @@ export function GraphCanvas() {
   const revealed = useGame((s) => s.revealed)
   const flags = useGame((s) => s.flags)
   const showTruth = useGame((s) => s.showTruth)
+  const explored = useGame((s) => s.explored)
   const trace = useGame((s) => s.trace)
   const pathHl = useGame((s) => s.pathHighlight)
   const watch = useGame((s) => s.watch)
@@ -260,7 +264,9 @@ export function GraphCanvas() {
           const cur = el.position()
           if (Math.abs(cur.x - p.x) > 0.5 || Math.abs(cur.y - p.y) > 0.5) el.position({ ...p })
         }
-        cy.getElementById(key).toggleClass('truthnode', truthAddr.has(id))
+        const missedNode = !!explored && truthAddr.has(id) && !explored.addrs[id]
+        cy.getElementById(key).toggleClass('truthnode', truthAddr.has(id) && !missedNode)
+        cy.getElementById(key).toggleClass('truthmissed', missedNode)
         cy.getElementById(key).toggleClass('tracednode', tracedAddr(id))
         cy.getElementById(key).toggleClass('watched', watch.includes(id))
       }
@@ -290,7 +296,10 @@ export function GraphCanvas() {
         const el = cy.getElementById(e.id)
         if (el.empty()) cy.add({ group: 'edges', data })
         else el.data(data)
-        cy.getElementById(e.id).toggleClass('truth', e.txIds.some((t) => truthTx.has(t)))
+        const onTruth = e.txIds.some((t) => truthTx.has(t))
+        const missedEdge = onTruth && !!explored && !e.txIds.some((t) => truthTx.has(t) && explored.txs[t])
+        cy.getElementById(e.id).toggleClass('truth', onTruth && !missedEdge)
+        cy.getElementById(e.id).toggleClass('truthmissed', missedEdge)
         cy.getElementById(e.id).toggleClass('traced', e.txIds.some((t) => tracedTx.has(t)))
       }
       for (const x of xlinks) {
@@ -330,7 +339,7 @@ export function GraphCanvas() {
         cy.center(cy.nodes())
       })
     }
-  }, [w, inst, addrPos, txPos, edges, xlinks, flags, showTruth, trace, pathHl, watch])
+  }, [w, inst, addrPos, txPos, edges, xlinks, flags, showTruth, explored, trace, pathHl, watch])
 
   // Animation après réorganisation
   useEffect(() => {

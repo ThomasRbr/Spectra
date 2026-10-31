@@ -1,11 +1,14 @@
 import { Rng } from './rng'
 import { CHAINS, type AssetId, type ChainId, isEvm, usd } from './chains'
-import { type AddrKind, defaultKind, genAddress, genTxHash } from './addressgen'
+import { type AddrKind, cardanoBase, cardanoStakeAddress, defaultKind, genAddress, genTxHash } from './addressgen'
 import { ENTITY_CATALOG, type Entity, type EntityCategory, type RiskLevel, CATEGORY } from './entities'
 
 export interface ContractInfo {
   name: string
   type: 'router' | 'pool' | 'bridge' | 'mixer' | 'token' | 'exploit' | 'escrow' | 'multisig' | 'vault' | 'lending'
+    | 'aggregator' | 'wrapper' | 'forwarder' | 'factory' | 'splitter' | 'nft'
+  /** Code source publié et vérifié sur l'explorateur (les fonctions et événements sont alors décodés). */
+  verified?: boolean
 }
 
 export interface Address {
@@ -22,6 +25,10 @@ export interface Address {
   wallet: string
   /** Adresse dérivée d'un portefeuille HD (vérité terrain : ne s'affiche qu'après dérivation par l'enquêteur). */
   hd?: { wallet: string; path: string }
+  /** Cardano : clé de staking de l'adresse de base (partagée par toutes les adresses d'un même portefeuille). */
+  stake?: string
+  /** Script multisignature m-sur-n (P2WSH, P2SH) : n clés publiques, m signatures requises. */
+  multisig?: { m: number; n: number }
 }
 
 /** Portefeuille HD (BIP 32/44/49/84/86) ou seed EVM, enregistré dans le monde (voir `hd.ts`). */
@@ -51,6 +58,49 @@ export interface TxIO {
   n: number
   /** Pour une entrée : sortie dépensée. Absent = historique hors périmètre. */
   prev?: { tx: string; n: number }
+  /** Cardano (eUTXO) : donnée attachée à une sortie d'adresse de script (datum), en clair. */
+  datum?: string
+}
+
+/** Argument d'un appel de contrat, avant encodage ABI. */
+export type CallArg =
+  | { addr: string }
+  | { amt: number; asset: AssetId }
+  | { uint: number | string }
+  | { bool: boolean }
+  | { bytes: string }
+  | { list: CallArg[] }
+
+/** Appel de fonction d'un smart contract (données d'entrée de la transaction). */
+export interface EvmCall {
+  /** Adresse (id) du contrat appelé. */
+  to: string
+  /** Signature canonique, ex. `approve(address,uint256)`. */
+  sig: string
+  args: CallArg[]
+  /** Noms des paramètres, dans l'ordre (affichage du décodage). */
+  names?: string[]
+}
+
+/** Inscription ordinale, vente d'inscription ou opération Runes portée par une transaction Bitcoin. */
+export interface OrdInfo {
+  kind: 'commit' | 'reveal' | 'transfer' | 'sale' | 'rune-etch' | 'rune-mint' | 'rune-transfer'
+  /** Identifiant de l'inscription (`<hash du reveal>i0`) ou de la rune. */
+  id?: string
+  /** Numéro d'inscription (ordre de création). */
+  number?: number
+  contentType?: string
+  /** Contenu lisible (texte, JSON BRC-20) ou description de l'image. */
+  content?: string
+  size?: number
+  /** Sortie qui porte l'inscription (premier sat de cette sortie). */
+  carrier?: number
+  /** Rune : nom espacé (ex. `DOG•GO•TO•THE•MOON`) et montant transféré. */
+  rune?: string
+  runeAmount?: number
+  /** Vente : prix payé au vendeur et commission de la place de marché. */
+  price?: number
+  marketplace?: string
 }
 
 export interface Transfer {
@@ -95,6 +145,19 @@ export interface Tx {
   tags: string[]
   bridge?: BridgeInfo
   fp?: TxFingerprint
+  /** Fonction appelée (modèle à comptes). Absent : déduite des transferts (voir `evm.ts`). */
+  call?: EvmCall
+  /** Transaction échouée : frais payés, aucun transfert exécuté. */
+  status?: 'reverted'
+  /** Raison d'échec renvoyée par le contrat. */
+  revertReason?: string
+  /** Contrats déployés par cette transaction (ids). */
+  creates?: string[]
+  /** Bitcoin : données publiées dans une sortie OP_RETURN (non dépensable, 0 BTC). */
+  opReturn?: { hex: string; text?: string; protocol?: 'runes' | 'text' | 'omni' }
+  ord?: OrdInfo
+  /** Entrées multisignatures : rang (1 à n) des clés dont la signature figure dans le témoin, par numéro d'entrée. */
+  multisigSigners?: Record<number, number[]>
 }
 
 interface Utxo {
@@ -116,6 +179,8 @@ export interface AddrOpts {
   addr?: string
   /** Portefeuille logiciel (par défaut : celui de l'entité, sinon l'adresse elle-même). */
   wallet?: string
+  stake?: string
+  multisig?: { m: number; n: number }
 }
 
 /** Familles de logiciels de portefeuille, reconnaissables aux champs techniques de leurs transactions. */
@@ -176,6 +241,10 @@ export interface MultiOpts {
   memo?: string
   fee?: number
   chain?: ChainId
+  call?: EvmCall
+  /** Transaction qui échoue : les jambes ne sont pas exécutées (frais payés). */
+  reverted?: string
+  creates?: string[]
 }
 
 const EPOCH = 1704067200 // 2024-01-01T00:00:00Z
@@ -206,6 +275,8 @@ export class World {
   private bal = new Map<string, number>()
   private used = new Set<string>()
   private customCount = 0
+  /** Cardano : portefeuille → clé de staking et partie staking de ses adresses de base. */
+  private adaStake = new Map<string, { stake: string; tail: string }>()
 
   constructor(seed: number, t0?: number) {
     this.seed = seed
@@ -257,12 +328,36 @@ export class World {
   addr(chain: ChainId, opts: AddrOpts = {}): string {
     let kind = opts.kind ?? defaultKind(this.rng, chain)
     if (opts.contract && CHAINS[chain].model === 'account') kind = 'contract'
-    let s = opts.addr ?? genAddress(this.rng, chain, kind)
-    while (this.used.has(`${chain}:${s}`)) s = genAddress(this.rng, chain, kind)
+    // Cardano : une nouvelle adresse de base d'un portefeuille connu garde sa clé de staking
+    const adaSib = chain === 'ada' && kind === 'ada_base' && !opts.addr && opts.wallet ? this.adaStake.get(opts.wallet) : undefined
+    const gen = () => (adaSib ? cardanoBase(this.rng, adaSib.tail) : genAddress(this.rng, chain, kind))
+    let s = opts.addr ?? gen()
+    while (this.used.has(`${chain}:${s}`)) s = gen()
     const id = `${chain}:${s}`
     this.used.add(id)
     const entityId = typeof opts.entity === 'string' ? opts.entity : opts.entity?.id
-    this.addresses.set(id, { id, chain, addr: s, kind, entityId, label: opts.label, contract: opts.contract, tags: opts.tags ?? [], wallet: opts.wallet ?? entityId ?? id })
+    const wallet = opts.wallet ?? entityId ?? id
+    let stake = opts.stake
+    if (chain === 'ada' && kind === 'ada_base') {
+      const tail = s.slice(-45, -6)
+      stake ??= adaSib?.stake ?? cardanoStakeAddress(tail)
+      if (!this.adaStake.has(wallet)) this.adaStake.set(wallet, { stake, tail })
+    }
+    this.addresses.set(id, { id, chain, addr: s, kind, entityId, label: opts.label, contract: opts.contract, tags: opts.tags ?? [], wallet, stake, multisig: opts.multisig })
+    return id
+  }
+
+  /**
+   * Adresse à valeur imposée (contrat de jeton connu, adresse nulle…),
+   * enregistrée sans tirage aléatoire : idempotent, utilisable après la génération.
+   */
+  fixedAddr(chain: ChainId, addr: string, opts: Omit<AddrOpts, 'addr'> = {}): string {
+    const id = `${chain}:${addr}`
+    if (this.addresses.has(id)) return id
+    this.used.add(id)
+    const entityId = typeof opts.entity === 'string' ? opts.entity : opts.entity?.id
+    const kind = opts.kind ?? (opts.contract ? 'contract' : 'eoa')
+    this.addresses.set(id, { id, chain, addr, kind, entityId, label: opts.label, contract: opts.contract, tags: opts.tags ?? [], wallet: opts.wallet ?? entityId ?? id })
     return id
   }
 
@@ -315,7 +410,7 @@ export class World {
 
   isLiquid(id: string): boolean {
     const a = this.get(id)
-    return !!a.contract || a.tags.includes('liquid')
+    return !!a.contract || a.tags.includes('liquid') || a.tags.includes('null')
   }
 
   // ── Temps ────────────────────────────────────────────────────────────────
@@ -365,6 +460,8 @@ export class World {
 
   estimateFee(chain: ChainId, nIn: number, nOut: number): number {
     const vbytes = 11 + nIn * 68 + nOut * 31
+    // Cardano : frais linéaires (constante + coût par octet), en ADA.
+    if (chain === 'ada') return Math.round((0.155381 + 0.000043946 * (180 + nIn * 40 + nOut * 70)) * 1e6) / 1e6
     const rate = chain === 'btc' ? this.rng.int(4, 38) : this.rng.int(1, 6)
     const unit = chain === 'btc' ? 1e-8 : 1e-8 * 10
     return Math.round(vbytes * rate) * unit
@@ -441,7 +538,7 @@ export class World {
       id, hash, chain, time: o.time, block: this.blockOf(chain, o.time), model: 'utxo',
       inputs, outputs, transfers: [], fee, feeAsset: CHAINS[chain].native, method: o.method, tags: o.tags ?? [],
     }
-    tx.fp = fingerprintOf(prof, tx.block)
+    if (hasFingerprint(chain)) tx.fp = fingerprintOf(prof, tx.block)
     this.register(tx)
     return tx
   }
@@ -505,7 +602,7 @@ export class World {
       inputs, outputs, transfers: [], fee: inTotal - outTotal, feeAsset: CHAINS[chain].native,
       method: o.method, tags: o.tags ?? [],
     }
-    tx.fp = fingerprintOf(o.tags?.includes('coinjoin') ? WALLET_PROFILES[5] : this.walletProfile(o.spend[0].address), tx.block)
+    if (hasFingerprint(chain)) tx.fp = fingerprintOf(o.tags?.includes('coinjoin') ? WALLET_PROFILES[5] : this.walletProfile(o.spend[0].address), tx.block)
     this.register(tx)
     return tx
   }
@@ -557,8 +654,10 @@ export class World {
 
   multi(o: MultiOpts & { autoFund?: boolean }): Tx {
     const chain = o.chain ?? this.get(o.signer).chain
+    // Transaction échouée : aucun transfert exécuté, seuls les frais sont payés.
+    const legs = o.reverted !== undefined ? [] : o.legs
     // Solde suffisant ? Sinon on crédite depuis l'extérieur (historique visible).
-    for (const leg of o.legs) {
+    for (const leg of legs) {
       if (this.isLiquid(leg.from)) continue
       const have = this.balanceOf(leg.from, leg.asset)
       if (have < leg.value - 1e-9) {
@@ -568,17 +667,23 @@ export class World {
     }
     const hash = genTxHash(this.rng, chain)
     const id = `${chain}:${hash}`
-    const transfers: Transfer[] = o.legs.map((l, n) => ({ ...l, n }))
+    const transfers: Transfer[] = legs.map((l, n) => ({ ...l, n }))
     for (const t of transfers) {
       this.credit(t.from, t.asset, -t.value)
       this.credit(t.to, t.asset, t.value)
     }
     const native = CHAINS[chain].native
-    const fee = o.fee ?? defaultAccountFee(this.rng, chain, transfers.length)
+    const fee = o.fee ?? defaultAccountFee(this.rng, chain, Math.max(1, transfers.length || o.legs.length))
     const tx: Tx = {
       id, hash, chain, time: o.time, block: this.blockOf(chain, o.time), model: 'account',
       inputs: [], outputs: [], transfers, fee, feeAsset: native, signer: o.signer,
       method: o.method, memo: o.memo, tags: o.tags ?? [],
+    }
+    if (o.call) tx.call = o.call
+    if (o.creates?.length) tx.creates = o.creates
+    if (o.reverted !== undefined) {
+      tx.status = 'reverted'
+      tx.revertReason = o.reverted || undefined
     }
     this.register(tx)
     return tx
@@ -596,6 +701,7 @@ export class World {
       touched.add(t.to)
     })
     if (tx.signer) touched.add(tx.signer)
+    if (tx.call) touched.add(tx.call.to)
     for (const a of touched) {
       const l = this.byAddr.get(a) ?? []
       l.push(tx.id)
@@ -696,6 +802,11 @@ export class World {
     const e = this.get(id).entityId
     return e ? this.entities.get(e) : undefined
   }
+}
+
+/** Champs version / nLockTime / nSequence propres à Bitcoin et Litecoin (Cardano n'en a pas). */
+function hasFingerprint(chain: ChainId): boolean {
+  return chain === 'btc' || chain === 'ltc'
 }
 
 function fingerprintOf(p: WalletProfile, block: number): TxFingerprint {

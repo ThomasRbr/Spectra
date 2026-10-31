@@ -9,6 +9,8 @@ import type { World } from '../engine/world'
 import { scenarioById } from '../scenarios'
 import type { ScenarioInstance, ScenarioTemplate } from '../scenarios/types'
 import { type Answer, type CaseScore, scoreCase } from '../lib/scoring'
+import type { Explored } from '../lib/debrief'
+import { addNoise, type NoiseLevel } from '../engine/noise'
 import { type Pos, aKey, computeEdges, extraLinks, freeSpot, idOf, isAKey, layeredLayout, tKey } from '../lib/graph'
 import { DIFFICULTY } from '../scenarios/types'
 import { useProfile } from './profile'
@@ -120,6 +122,8 @@ interface GameState {
   seed: number
   mode: Mode
   coverage: Coverage
+  /** Densité de bruit ajoutée autour des services (graphes plus difficiles). */
+  noise: NoiseLevel
   startedAt: number
   finishedAt?: number
   addrPos: Record<string, Pos>
@@ -153,6 +157,8 @@ interface GameState {
   hdRevealed: Record<string, { receive: number; change: number }>
   minUsd: number
   showTruth: boolean
+  /** Ce que l'enquêteur avait exploré au moment de remettre le rapport (débrief visuel). */
+  explored: Explored | null
   score?: CaseScore
   xpGained?: number
   focus: { key: string; n: number } | null
@@ -161,7 +167,7 @@ interface GameState {
   history: GraphSnapshot[]
   xpNote?: string
 
-  start(templateId: string, seed: number, opts?: { mode?: Mode; coverage?: Coverage; live?: boolean; cert?: CertRun }): void
+  start(templateId: string, seed: number, opts?: { mode?: Mode; coverage?: Coverage; noise?: NoiseLevel; live?: boolean; cert?: CertRun }): void
   resume(saved: SavedCase): boolean
   quit(): void
   addAddress(id: string, near?: string, side?: 1 | -1): void
@@ -221,6 +227,7 @@ export interface SavedCase {
   seed: number
   mode: Mode
   coverage: Coverage
+  noise?: NoiseLevel
   startedAt: number
   addrPos: Record<string, Pos>
   txPos: Record<string, Pos>
@@ -307,6 +314,7 @@ export const useGame = create<GameState>()((set, get) => ({
   seed: 0,
   mode: 'standard',
   coverage: 'full',
+  noise: 'normal',
   startedAt: 0,
   addrPos: {},
   txPos: {},
@@ -333,6 +341,7 @@ export const useGame = create<GameState>()((set, get) => ({
   hdRevealed: {},
   minUsd: 0,
   showTruth: false,
+  explored: null,
   focus: null,
   layoutTick: 0,
   history: [],
@@ -344,16 +353,18 @@ export const useGame = create<GameState>()((set, get) => ({
     const inst = template.generate(seed)
     const coverage = opts.coverage ?? 'full'
     if (coverage === 'partial') applyCoverage(inst.world)
+    const noise = opts.noise ?? 'normal'
+    addNoise(inst, noise)
     const live = opts.live ? liveWindow(inst) : null
     if (live) inst.world.setHorizon(live.now)
     const addrPos: Record<string, Pos> = {}
     inst.seeds.forEach((s, i) => (addrPos[s] = { x: 0, y: i * 110 - ((inst.seeds.length - 1) * 110) / 2 }))
     set({
-      template, inst, seed, mode: opts.mode ?? 'standard', coverage, startedAt: Date.now(), finishedAt: undefined,
+      template, inst, seed, mode: opts.mode ?? 'standard', coverage, noise, startedAt: Date.now(), finishedAt: undefined,
       addrPos, txPos: {}, revealed: {}, selection: inst.seeds[0] ? { kind: 'address', id: inst.seeds[0] } : null,
       multi: [], flags: {}, notes: {}, answers: {}, hintsUsed: 0, objHints: [], score: undefined, xpGained: undefined,
       log: [{ t: Date.now(), text: `Ouverture du dossier « ${inst.title} » (graine ${seed})${live ? ` en temps réel, horloge au ${fmtClock(live.now)}` : ''}`, kind: 'system' }],
-      showTruth: false, focus: null, layoutTick: 0, minUsd: 0, links: [], history: [], xpNote: undefined, guideMarks: {},
+      showTruth: false, explored: null, focus: null, layoutTick: 0, minUsd: 0, links: [], history: [], xpNote: undefined, guideMarks: {},
       trace: null, pathHighlight: null, live, watch: [], alerts: [], views: [], viewId: 'v1', viewName: 'Graphe principal',
       cert: opts.cert ?? null, freezes: [], hdRevealed: {},
     })
@@ -364,6 +375,7 @@ export const useGame = create<GameState>()((set, get) => ({
     if (!template) return false
     const inst = template.generate(saved.seed)
     if (saved.coverage === 'partial') applyCoverage(inst.world)
+    addNoise(inst, saved.noise ?? 'normal')
     // Adresses HD dérivées par l'outil : recréées (dérivation déterministe) avant le filtrage
     const hdRevealed: Record<string, { receive: number; change: number }> = {}
     for (const [id, n] of Object.entries(saved.hdRevealed ?? {})) {
@@ -397,11 +409,11 @@ export const useGame = create<GameState>()((set, get) => ({
       ? { ...st, result: traceFunds(w, st.source, st.opts) }
       : null
     set({
-      template, inst, seed: saved.seed, mode: saved.mode, coverage: saved.coverage, startedAt, history: [], xpNote: undefined, guideMarks: saved.guideMarks ?? {},
+      template, inst, seed: saved.seed, mode: saved.mode, coverage: saved.coverage, noise: saved.noise ?? 'normal', startedAt, history: [], xpNote: undefined, guideMarks: saved.guideMarks ?? {},
       finishedAt: undefined, addrPos, txPos, revealed, flags, notes, answers,
       hintsUsed: saved.hintsUsed, objHints: saved.objHints, log: saved.log, selection: null, multi: [], score: undefined,
       links: (saved.links ?? []).filter((l) => inst.world.addresses.has(l.source) && inst.world.addresses.has(l.target)),
-      showTruth: false, focus: null, layoutTick: 0, trace, pathHighlight: null,
+      showTruth: false, explored: null, focus: null, layoutTick: 0, trace, pathHighlight: null,
       live, watch: (saved.watch ?? []).filter((a) => w.addresses.has(a)), alerts: (saved.alerts ?? []).filter((a) => w.txs.has(a.txId)),
       views: (saved.views ?? []).map((v) => cleanView(w, v)), viewId: saved.viewId ?? 'v1', viewName: saved.viewName ?? 'Graphe principal',
       cert: saved.cert ?? null, freezes: (saved.freezes ?? []).filter((f) => w.addresses.has(f.address)), hdRevealed,
@@ -657,6 +669,13 @@ export const useGame = create<GameState>()((set, get) => ({
     // Mission guidée : les indices sont gratuits
     const score = s.template.guided ? scoreCase(s.inst.objectives, s.answers, 0, []) : scoreCase(s.inst.objectives, s.answers, s.hintsUsed, s.objHints)
     const finishedAt = Date.now()
+    // Photographie de l'exploration (tous les graphes du dossier) pour le débrief visuel
+    const explored: Explored = { txs: {}, addrs: {} }
+    for (const v of [{ addrPos: s.addrPos, revealed: s.revealed }, ...s.views]) {
+      for (const id of Object.keys(v.revealed)) explored.txs[id] = true
+      for (const id of Object.keys(v.addrPos)) explored.addrs[id] = true
+    }
+    set({ explored })
     if (s.cert) {
       writeSave(null)
       set({ score, finishedAt, xpGained: 0, xpNote: undefined })
@@ -988,7 +1007,7 @@ const fmtClock = (t: number) => new Date(t * 1000).toLocaleString('fr-FR', { tim
 function currentSave(s: GameState): SavedCase | null {
   if (!s.inst || !s.template || s.score) return null
   return {
-    templateId: s.template.id, seed: s.seed, mode: s.mode, coverage: s.coverage, startedAt: s.startedAt,
+    templateId: s.template.id, seed: s.seed, mode: s.mode, coverage: s.coverage, noise: s.noise, startedAt: s.startedAt,
     addrPos: s.addrPos, txPos: s.txPos, revealed: s.revealed, flags: s.flags, notes: s.notes, answers: s.answers,
     hintsUsed: s.hintsUsed, objHints: s.objHints, log: s.log, links: s.links, guideMarks: s.guideMarks, elapsed: Date.now() - s.startedAt,
     trace: s.trace ? { source: s.trace.source, opts: s.trace.opts } : undefined,

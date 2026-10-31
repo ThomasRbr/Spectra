@@ -7,12 +7,14 @@ import { Dashboard } from './pages/Dashboard'
 import { Missions } from './pages/Missions'
 import { Glossary, Profile } from './pages/Academy'
 import { Toolbox } from './pages/Toolbox'
+import { Sandbox } from './pages/Sandbox'
 import { AcademyApp } from './academy/AcademyApp'
 import { Workspace } from './workspace/Workspace'
 
 const NAV: { id: Page; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Tableau de bord', icon: 'LayoutDashboard' },
   { id: 'missions', label: 'Missions', icon: 'Crosshair' },
+  { id: 'sandbox', label: 'Bac à sable', icon: 'FlaskConical' },
   { id: 'academy', label: 'Académie', icon: 'GraduationCap' },
   { id: 'toolbox', label: 'Terrain', icon: 'BriefcaseBusiness' },
   { id: 'glossary', label: 'Glossaire', icon: 'BookA' },
@@ -95,6 +97,7 @@ export function App() {
         <Boundary key={page}>
           {page === 'dashboard' && <Dashboard />}
           {page === 'missions' && <Missions />}
+          {page === 'sandbox' && <Sandbox />}
           {page === 'academy' && <AcademyApp />}
           {page === 'toolbox' && <Toolbox />}
           {page === 'glossary' && <Glossary />}

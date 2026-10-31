@@ -575,4 +575,60 @@ export const GLOSSARY: GlossaryEntry[] = [
     term: 'zk-SNARK',
     def: 'Preuve à divulgation nulle de connaissance, succincte : elle prouve qu\'une affirmation est vraie sans révéler l\'information sous-jacente. Utilisée par les pools de confidentialité et Zcash.',
   },
+  // Lot C — smart contracts (ajouts en fin de liste)
+  {
+    term: 'ABI',
+    def: 'Application Binary Interface : description des fonctions et événements d\'un contrat et de leur encodage. Les arguments d\'un appel sont encodés en mots de 32 octets ; les types dynamiques (tableaux, bytes) par un offset, puis leur longueur et leurs éléments.',
+  },
+  {
+    term: 'Agrégateur de DEX',
+    def: 'Service (1inch, 0x, ParaSwap…) qui compose une route sur plusieurs DEX et pools, avec sauts multiples ou découpage de l\'ordre, et l\'exécute en un seul appel. Son contrat ne garde pas les fonds : seules comptent l\'entrée initiale et la sortie finale vers le bénéficiaire.',
+  },
+  {
+    term: 'Contrat de dépôt (forwarder)',
+    def: 'Adresse de dépôt d\'exchange ou de dépositaire qui est un contrat : il reverse l\'ETH reçu dans la même transaction (transaction interne) et les jetons sur ordre d\'un portefeuille opérationnel (flushTokens). Il identifie le client, contrairement à la fabrique et au hot wallet.',
+  },
+  {
+    term: 'CREATE2',
+    def: 'Instruction EVM (EIP-1014) qui déploie un contrat à une adresse calculable d\'avance : keccak256(0xff ‖ fabrique ‖ sel ‖ keccak256(code d\'initialisation)), 20 derniers octets. L\'adresse peut recevoir des fonds avant que le contrat n\'existe.',
+  },
+  {
+    term: 'Données d\'entrée (input data, calldata)',
+    def: 'Champ d\'une transaction vers un contrat : sélecteur de 4 octets suivi des arguments encodés selon l\'ABI. Il dit ce que le signataire a demandé ; les événements et transactions internes disent ce qui a eu lieu.',
+  },
+  {
+    term: 'Sélecteur de fonction',
+    def: 'Quatre premiers octets du Keccak-256 de la signature canonique d\'une fonction (par exemple transfer(address,uint256) → 0xa9059cbb). Les bases de signatures publiques le rapprochent d\'un nom, avec un risque de collision.',
+  },
+  {
+    term: 'Topic',
+    def: 'Champ de 32 octets d\'un journal d\'événements. Le topic0 est le Keccak-256 de la signature de l\'événement (Transfer : 0xddf252ad…b3ef) ; les suivants portent les paramètres indexés, les autres paramètres étant dans le champ data.',
+  },
+  {
+    term: 'Transaction échouée (revert)',
+    def: 'Transaction incluse dans un bloc mais dont l\'exécution a été annulée : frais payés et nonce consommé, mais aucun transfert exécuté et aucun événement émis. À exclure d\'un flux, à mentionner dans l\'analyse.',
+  },
+  {
+    term: 'Transaction interne',
+    def: 'Mouvement d\'actif natif (ETH, BNB…) effectué par un contrat pendant l\'exécution d\'une transaction. Sans signature ni événement par défaut, il n\'apparaît que dans l\'onglet dédié de l\'explorateur et dans les traces, pas dans la liste « Transactions » du bénéficiaire.',
+  },
+  { term: 'Témoin (witness)', def: 'Partie d\'une transaction SegWit qui contient les signatures et scripts de déverrouillage, séparée du reste et comptée au quart dans le poids. Il révèle le type de dépense : clé et signature (P2WPKH), clés et signatures d\'un multisig (P2WSH), signature Schnorr ou script Taproot.' },
+  { term: 'Taille virtuelle (vbyte)', def: 'Poids de la transaction divisé par 4. Le poids compte 4 unités par octet hors témoin et 1 unité par octet de témoin : c\'est la remise SegWit. Les frais se mesurent en sat/vB.' },
+  { term: 'Taproot', def: 'Mise à jour de Bitcoin (2021, adresses bc1p…) : une sortie se dépense soit par une seule signature Schnorr (dépense par clé, indiscernable), soit en révélant un script d\'un arbre caché (dépense par script).' },
+  { term: 'Inscription ordinale', def: 'Contenu (texte, image, JSON) publié dans le témoin d\'une dépense Taproot et rattaché au premier satoshi d\'une sortie selon la théorie ordinale. Créée en deux transactions (commit puis reveal), elle suit son satoshi d\'une transaction à l\'autre.' },
+  { term: 'Postage', def: 'Petite valeur (souvent 10 000 ou 546 sats) de la sortie qui porte une inscription ou des runes. Ce n\'est pas un rendu : la confondre avec un rendu fausse l\'analyse.' },
+  { term: 'BRC-20', def: 'Convention de jetons fongibles sur Bitcoin fondée sur des inscriptions JSON (deploy, mint, transfer). Les soldes sont tenus par des indexeurs, pas par le protocole Bitcoin.' },
+  { term: 'Runes', def: 'Protocole de jetons fongibles sur Bitcoin (2024) : les soldes sont attachés aux UTXO et déplacés par un message OP_RETURN appelé runestone.' },
+  { term: 'OP_RETURN', def: 'Sortie non dépensable, de valeur nulle, qui publie quelques dizaines d\'octets de données dans une transaction Bitcoin (marqueurs de protocoles, runestones).' },
+  { term: 'PSBT', def: 'Transaction Bitcoin partiellement signée (BIP 174) : plusieurs parties y ajoutent leurs entrées et signatures. Les places de marché d\'inscriptions s\'en servent pour vendre sans tiers de confiance.' },
+  { term: 'Clé de staking (Cardano)', def: 'Partie d\'une adresse de base Cardano (addr1q…) qui désigne le compte de récompenses (stake1u…). Toutes les adresses d\'un même portefeuille la partagent : heuristique de regroupement forte, visible sans aucune transaction.' },
+  { term: 'eUTXO', def: 'Modèle UTXO étendu de Cardano : une sortie peut porter des jetons natifs et une donnée (datum) qu\'un script Plutus vérifie au moment de la dépense.' },
+  { term: 'Datum', def: 'Donnée attachée à une sortie d\'adresse de script sur Cardano (propriétaire, adresse de retour, conditions d\'un ordre). Elle révèle souvent à qui reviennent les fonds verrouillés.' },
+  { term: 'Adresse nulle', def: 'Adresse 0x000…000 dont personne ne détient la clé. Un transfert « depuis » elle signale une création de jetons (mint), « vers » elle une destruction (burn).' },
+  { term: 'WETH', def: 'Ether enveloppé en jeton ERC-20 (1 WETH = 1 ETH) par le contrat WETH : deposit() crée des WETH, withdraw() les détruit et rend l\'ETH. Aucun gel possible.' },
+  { term: 'Jeton de reçu (aToken)', def: 'Jeton remis en échange d\'un dépôt dans un protocole (aWETH, aUSDC chez Aave) : il représente la créance sur le protocole et peut être transféré. Le détenteur peut retirer le dépôt.' },
+  { term: 'Part de pool (jeton LP)', def: 'Jeton qui représente une quote-part d\'un pool de liquidité. Créé à l\'ajout de liquidité, détruit au retrait ; transférable, il permet de retirer les actifs depuis une autre adresse que celle qui les a déposés.' },
+  { term: 'Ratio de garantie (LTV)', def: 'Montant maximal empruntable rapporté à la valeur de la garantie déposée dans un protocole de prêt. Au-delà du seuil de liquidation, la garantie est vendue d\'office.' },
+  { term: 'Perte impermanente', def: 'Écart entre la valeur d\'une position de liquidité et celle des actifs simplement conservés, dû à la variation de prix entre les deux actifs du pool. Explique que les montants retirés diffèrent des montants déposés.' },
+  { term: 'Lien de garantie', def: 'Rattachement économique entre des fonds empruntés et des fonds marqués déposés en garantie. Ce n\'est pas un flux : les fonds empruntés sortent du pool. À présenter comme un lien indirect dans un rapport.' },
 ]

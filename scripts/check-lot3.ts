@@ -48,12 +48,13 @@ for (const s of SCENARIOS) {
     const mid = Math.round((Math.min(...times) + Math.max(...times)) / 2)
     w.setHorizon(mid)
     for (const a of inst.seeds) if (w.txsOf(a).some((t) => t.time > mid)) problems.push('temps réel : transaction future visible')
-    const srcTx = inst.truth.path.map((t) => w.txs.get(t)!).find((t) => t && t.time <= mid)
+    const srcTx = inst.truth.path.map((t) => w.txs.get(t)!).find((t) => t && t.time <= mid && (t.model === 'utxo' ? t.outputs.length > 0 : t.transfers.length > 0))
     if (srcTx) {
       const to = srcTx.model === 'utxo' ? srcTx.outputs[0].address : srcTx.transfers[0].to
       const r = traceFunds(w, { txId: srcTx.id, address: to, asset: srcTx.model === 'utxo' ? undefined : srcTx.transfers[0].asset, from: srcTx.model === 'utxo' ? undefined : srcTx.transfers[0].from }, { method: 'haircut' })
       const sum = r.endpoints.reduce((a, e) => a + e.usd, 0) + r.heldUsd + r.lost.belowThresholdUsd + r.lost.feesUsd + r.lost.depthUsd + r.lost.inTransitUsd
-      if (r.sourceUsd > 0 && Math.abs(sum - r.sourceUsd) / r.sourceUsd > 0.01) problems.push(`temps réel : conservation ${(((sum - r.sourceUsd) / r.sourceUsd) * 100).toFixed(1)} %`)
+      const expected = r.sourceUsd + r.collateral.reduce((a, x) => a + x.usd, 0)
+      if (r.sourceUsd > 0 && Math.abs(sum - expected) / expected > 0.01) problems.push(`temps réel : conservation ${(((sum - expected) / expected) * 100).toFixed(1)} %`)
       if (r.path.some((t) => w.tx(t).time > mid)) problems.push('temps réel : le traçage utilise une transaction future')
     }
     w.setHorizon(Infinity)

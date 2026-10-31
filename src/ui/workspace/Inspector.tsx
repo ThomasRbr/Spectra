@@ -17,6 +17,7 @@ import { instantSwapDeposit } from '../../engine/heuristics'
 import { FreezeButton, WatchButton } from './Live'
 import { CoinjoinDemixCard, openDemix } from './Demix'
 import { BalanceChart } from './Synthesis'
+import { AddressExtra, EvmDetails, LegChip, UtxoDetails } from './TxDetails'
 
 export function Inspector() {
   const selection = useGame((s) => s.selection)
@@ -125,6 +126,7 @@ function AddressInspector({ w, id }: { w: World; id: string }) {
           <WatchButton id={id} />
           <FreezeButton w={w} id={id} />
         </div>
+        <AddressExtra w={w} id={id} />
         {risk.reasons.length > 0 && (
           <div className="mt-2.5 space-y-0.5">
             {risk.reasons.slice(0, 3).map((r, i) => (
@@ -687,6 +689,7 @@ function TxInspector({ w, id }: { w: World; id: string }) {
                 })}
               </div>
             </div>
+            <UtxoDetails w={w} tx={tx} />
             <FingerprintCard w={w} tx={tx} />
             {change.length > 0 && (
               <div className="rounded-lg border border-ink-700/60 bg-ink-850/40 p-2 text-[10.5px] leading-relaxed text-ink-400">
@@ -706,6 +709,7 @@ function TxInspector({ w, id }: { w: World; id: string }) {
                     <span className="font-mono text-[12px] font-semibold" style={{ color: '#e2e8f0' }}>{fmtAsset(t.value, t.asset)}</span>
                     <span className="text-[10.5px] text-ink-400">{fmtUsd(usd(t.asset, t.value))}</span>
                     {t.asset !== native && <span className="chip bg-emerald-500/10 text-emerald-300">{CHAINS[tx.chain].tokenStandard}</span>}
+                    <LegChip w={w} tx={tx} t={t} />
                     <button title="Tracer ces fonds" className="ml-auto text-ink-400 hover:text-teal-300" onClick={() => openTracer({ address: t.to, txId: tx.id, asset: t.asset, from: t.from })}>
                       <Icon name="Route" size={12} />
                     </button>
@@ -714,11 +718,13 @@ function TxInspector({ w, id }: { w: World; id: string }) {
                 </div>
               ))}
             </div>
+            {tx.transfers.length === 0 && tx.status !== 'reverted' && <div className="rounded-lg border border-dashed border-ink-600 p-2 text-center text-[11.5px] text-ink-400">Aucun transfert : appel de contrat sans mouvement de fonds (autorisation, configuration…).</div>}
             {tx.signer && (
               <div className="mt-2 text-[11px] text-ink-400">
                 Signataire (paie les frais) : <span className="font-mono text-ink-200">{shortAddr(w.get(tx.signer).addr, 8)}</span>
               </div>
             )}
+            <EvmDetails w={w} tx={tx} />
           </div>
         )}
       </div>
