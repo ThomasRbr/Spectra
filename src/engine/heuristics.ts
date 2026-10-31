@@ -84,8 +84,8 @@ function sendersOf(w: World, id: string, limit = 80): string[] {
 export function depositAnalysis(w: World, id: string): DepositVerdict {
   const a = w.get(id)
   const none: DepositVerdict = { role: 'none', score: 0, reasons: [], sweeps: [], siblings: [] }
-  // XRP : les plateformes partagent une adresse et distinguent les clients par destination tag.
-  if (CHAINS[a.chain].model !== 'account' || a.contract || a.chain === 'xrp') return none
+  // XRP et TON : les plateformes partagent une adresse et distinguent les clients par destination tag ou commentaire.
+  if (CHAINS[a.chain].model !== 'account' || a.contract || a.chain === 'xrp' || a.chain === 'ton') return none
 
   // 1. L'adresse elle-même reverse-t-elle tout vers un collecteur ?
   const o = outflows(w, id)
