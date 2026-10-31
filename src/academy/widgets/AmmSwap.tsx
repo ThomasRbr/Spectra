@@ -77,7 +77,7 @@ export default function AmmSwap() {
       <Instr>Réglez la taille du swap et la profondeur du pool : le prix obtenu suit la courbe x·y = k. Activez le swap concurrent pour voir le rôle de la tolérance de slippage.</Instr>
       <div className="flex flex-wrap items-center gap-3">
         <Seg<Dir> value={dir} onChange={setDir} options={[{ id: 'sell', label: 'Vendre WETH → USDC' }, { id: 'buy', label: 'Acheter WETH ← USDC' }]} />
-        <div className="flex items-center gap-2 text-[12px] text-ink-300">
+        <div className="flex items-center gap-2 text-meta text-ink-300">
           Pool
           <Seg<Pool> value={pool} onChange={setPool} options={[{ id: 50, label: '50 WETH' }, { id: 1000, label: '1 000' }, { id: 20000, label: '20 000' }]} />
         </div>
@@ -87,18 +87,18 @@ export default function AmmSwap() {
       <div className="grid gap-3 sm:grid-cols-[300px_1fr]">
         <div className="rounded-xl border border-ink-700 bg-ink-950/60 p-1.5">
           <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Courbe à produit constant">
-            <line x1={30} y1={H - 22} x2={W - 6} y2={H - 22} stroke="#2c3a5c" />
-            <line x1={30} y1={8} x2={30} y2={H - 22} stroke="#2c3a5c" />
-            <text x={W - 8} y={H - 8} textAnchor="end" fill="#7a88a8" fontSize={9} fontFamily="Inter, system-ui, sans-serif">réserve WETH (x)</text>
-            <text x={34} y={14} fill="#7a88a8" fontSize={9} fontFamily="Inter, system-ui, sans-serif">réserve USDC (y)</text>
+            <line x1={30} y1={H - 22} x2={W - 6} y2={H - 22} stroke="#3d444f" />
+            <line x1={30} y1={8} x2={30} y2={H - 22} stroke="#3d444f" />
+            <text x={W - 8} y={H - 8} textAnchor="end" fill="#959da9" fontSize={9} fontFamily="Inter, system-ui, sans-serif">réserve WETH (x)</text>
+            <text x={34} y={14} fill="#959da9" fontSize={9} fontFamily="Inter, system-ui, sans-serif">réserve USDC (y)</text>
             <polyline points={pts} fill="none" stroke={C.violet} strokeWidth={2} />
             <line x1={px(clampX(xa))} y1={py(s.k / clampX(xa))} x2={px(clampX(xb))} y2={py(s.k / clampX(xb))} stroke={C.cyan} strokeWidth={1.5} strokeDasharray="4 3" />
-            <circle cx={px(clampX(xa))} cy={py(s.k / clampX(xa))} r={5} fill="#10172a" stroke="#a9b4cc" strokeWidth={2} />
+            <circle cx={px(clampX(xa))} cy={py(s.k / clampX(xa))} r={5} fill="#1b1f25" stroke="#b4bbc5" strokeWidth={2} />
             <circle cx={px(clampX(xb))} cy={py(s.k / clampX(xb))} r={6} fill={C.cyan} style={{ transition: 'all .25s' }} />
             <text x={px(clampX(xb)) + 8} y={py(s.k / clampX(xb)) - 6} fill={C.cyan} fontSize={9.5} fontFamily="Inter, system-ui, sans-serif">après</text>
           </svg>
         </div>
-        <div className="space-y-1.5 text-[12px]">
+        <div className="space-y-1.5 text-meta">
           {[
             ['Prix spot avant', `1 WETH = ${num(dir === 'sell' ? s.spot : 1 / s.spot, 2)} USDC`],
             ['Prix d\'exécution moyen', `1 WETH = ${num(dir === 'sell' ? s.exec : 1 / s.exec, 2)} USDC`],
@@ -117,13 +117,13 @@ export default function AmmSwap() {
               {(s.impact * 100).toFixed(2).replace('.', ',')} %
             </span>
           </div>
-          <div className="text-[10.5px] text-ink-400">+ frais du pool 0,3 % reversés aux fournisseurs de liquidité</div>
+          <div className="text-micro text-ink-400">+ frais du pool 0,3 % reversés aux fournisseurs de liquidité</div>
         </div>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
         <Toggle label="Un swap concurrent (3 % du pool, même sens) passe juste avant" hint="Front-running / sandwich MEV ou simple concurrence dans le bloc" checked={mev} onChange={setMev} color={C.orange} />
-        <div className="flex items-center gap-2 text-[12px] text-ink-300">
+        <div className="flex items-center gap-2 text-meta text-ink-300">
           Tolérance
           <Seg<number> value={tol} onChange={setTol} options={[0.5, 1, 3, 10].map((v) => ({ id: v, label: `${String(v).replace('.', ',')} %` }))} />
         </div>
@@ -131,14 +131,14 @@ export default function AmmSwap() {
 
       <div className="rounded-xl border border-ink-700 bg-ink-850/80 p-2.5">
         <div className="mb-1.5 flex items-center justify-between">
-          <span className="label !text-[9.5px]">Transaction vue dans l'explorateur</span>
+          <span className="label !text-micro">Transaction vue dans l'explorateur</span>
           <span className={`chip ${s.reverted ? 'bg-rose-500/15 text-rose-300' : 'bg-emerald-500/10 text-emerald-300'}`}>{s.reverted ? 'Échec (revert)' : 'Succès'}</span>
         </div>
-        <div className="mb-1.5 font-mono text-[10.5px] text-ink-400">tx {short(TX, 10)} · méthode swapExactTokensForTokens</div>
+        <div className="mb-1.5 font-mono text-micro text-ink-400">tx {short(TX, 10)} · méthode swapExactTokensForTokens</div>
         {s.reverted ? (
-          <div className="text-[11.5px] text-rose-300">Aucun transfert : le montant réel ({fmtOut(s.realOut)}) est inférieur au minimum garanti, la transaction est annulée (seuls les frais de gas sont perdus).</div>
+          <div className="text-meta text-rose-300">Aucun transfert : le montant réel ({fmtOut(s.realOut)}) est inférieur au minimum garanti, la transaction est annulée (seuls les frais de gas sont perdus).</div>
         ) : (
-          <div className="space-y-1 font-mono text-[11px]">
+          <div className="space-y-1 font-mono text-micro">
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="chip bg-ink-700 text-ink-200">Transfer</span>
               <span className="text-ink-300">{short(TRADER, 5)}</span>

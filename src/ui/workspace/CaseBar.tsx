@@ -60,7 +60,7 @@ export function CaseBar() {
       <Icon name="Layers" size={13} className="mr-1 text-ink-400" />
       <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
         {all.map((v) => (
-          <div key={v.id} className={`group flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-[11.5px] ${v.id === viewId ? 'bg-ink-700 text-white' : 'text-ink-300 hover:bg-ink-800 hover:text-white'}`}>
+          <div key={v.id} className={`group flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-meta ${v.id === viewId ? 'bg-ink-700 text-white' : 'text-ink-300 hover:bg-ink-800 hover:text-white'}`}>
             {editing === v.id ? (
               <input
                 autoFocus
@@ -89,7 +89,7 @@ export function CaseBar() {
         <button className="shrink-0 rounded-md px-1.5 py-0.5 text-ink-400 hover:bg-ink-800 hover:text-white" title="Dupliquer le graphe actif" onClick={() => g().newView(true)}><Icon name="Copy" size={12} /></button>
       </div>
       <div className="relative">
-        <button className="btn-ghost !px-2 !py-0.5 text-[11.5px]" onClick={() => setMenu((m) => !m)}><Icon name="FolderSync" size={13} /> Constatations</button>
+        <button className="btn-ghost !px-2 !py-0.5 text-meta" onClick={() => setMenu((m) => !m)}><Icon name="FolderSync" size={13} /> Constatations</button>
         {menu && (
           <div className="absolute right-0 z-30 mt-1 w-64 rounded-lg panel-solid p-1 shadow-panel" onMouseLeave={() => setMenu(false)}>
             <MenuItem icon="FileJson" label="Exporter le dossier (JSON)" sub="Marquages, notes, liens, graphes" onClick={() => { exportJson(); setMenu(false) }} />
@@ -112,8 +112,8 @@ function MenuItem({ icon, label, sub, onClick }: { icon: string; label: string; 
     <button className="flex w-full items-start gap-2 rounded px-2 py-1.5 text-left hover:bg-ink-700" onClick={onClick}>
       <Icon name={icon} size={14} className="mt-0.5 text-accent" />
       <span>
-        <span className="block text-[12px] text-ink-100">{label}</span>
-        <span className="block text-[10.5px] text-ink-400">{sub}</span>
+        <span className="block text-meta text-ink-100">{label}</span>
+        <span className="block text-micro text-ink-400">{sub}</span>
       </span>
     </button>
   )

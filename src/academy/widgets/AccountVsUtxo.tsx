@@ -19,15 +19,15 @@ function Coin({ sats, owner, state, tag }: { sats: number; owner: string; state:
   const col = owner === 'Bob' ? C.green : C.orange
   return (
     <div
-      className={`flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11.5px] transition-all duration-500 ${state === 'spent' ? 'opacity-35 line-through' : ''} ${state === 'new' ? 'animate-fadein' : ''}`}
+      className={`flex items-center gap-2 rounded-full border px-2.5 py-1 text-meta transition-all duration-500 ${state === 'spent' ? 'opacity-35 line-through' : ''} ${state === 'new' ? 'animate-fadein' : ''}`}
       style={{ borderColor: state === 'selected' ? C.cyan : `${col}55`, background: state === 'selected' ? `${C.cyan}18` : `${col}10` }}
     >
-      <span className="grid h-4 w-4 place-items-center rounded-full text-[9px] font-bold text-ink-950" style={{ background: col }}>
+      <span className="grid h-4 w-4 place-items-center rounded-full text-micro font-bold text-ink-950" style={{ background: col }}>
         ₿
       </span>
       <span className="font-mono text-white">{b(sats)}</span>
       <span className="text-ink-300">{owner}</span>
-      {tag && <span className="chip bg-ink-700 !py-0 text-[10px] text-ink-200">{tag}</span>}
+      {tag && <span className="chip bg-ink-700 !py-0 text-micro text-ink-200">{tag}</span>}
     </div>
   )
 }
@@ -62,7 +62,7 @@ export default function AccountVsUtxo() {
 
       <div className="flex items-center gap-1">
         {STEPS.map((s, i) => (
-          <button key={s} onClick={() => setStep(i)} className={`flex-1 rounded-md border px-1 py-1 text-[10.5px] transition ${i === step ? 'border-accent/70 bg-accent/10 text-white' : i < step ? 'border-ink-600 text-ink-200' : 'border-ink-700 text-ink-400'}`}>
+          <button key={s} onClick={() => setStep(i)} className={`flex-1 rounded-md border px-1 py-1 text-micro transition ${i === step ? 'border-accent/70 bg-accent/10 text-white' : i < step ? 'border-ink-600 text-ink-200' : 'border-ink-700 text-ink-400'}`}>
             {i + 1}. {s}
           </button>
         ))}
@@ -71,10 +71,10 @@ export default function AccountVsUtxo() {
       <div className="grid gap-3 sm:grid-cols-2">
         {/* UTXO */}
         <div className="rounded-xl border p-3" style={{ borderColor: `${CHAINS.btc.color}44`, background: `${CHAINS.btc.color}08` }}>
-          <div className="mb-2 flex items-center gap-2 text-[12.5px] font-semibold" style={{ color: CHAINS.btc.color }}>
+          <div className="mb-2 flex items-center gap-2 text-dense font-semibold" style={{ color: CHAINS.btc.color }}>
             <Icon name="Coins" size={14} /> UTXO — des pièces
           </div>
-          <div className="label mb-1 !text-[9.5px]">Pièces existantes</div>
+          <div className="label mb-1 !text-micro">Pièces existantes</div>
           <div className="flex flex-col items-start gap-1">
             {ALICE_COINS.map((v, i) => (
               <Coin key={i} sats={v} owner="Alice" state={done && u.sel.includes(i) ? 'spent' : built && u.sel.includes(i) ? 'selected' : 'idle'} tag={`adr. A${i + 1}`} />
@@ -83,17 +83,17 @@ export default function AccountVsUtxo() {
           </div>
           {built && (
             <>
-              <div className="label mb-1 mt-2.5 !text-[9.5px]">{done ? 'Nouvelles pièces créées' : 'Sorties prévues'}</div>
+              <div className="label mb-1 mt-2.5 !text-micro">{done ? 'Nouvelles pièces créées' : 'Sorties prévues'}</div>
               {u.ok ? (
                 <div className={`flex flex-col items-start gap-1 ${done ? '' : 'opacity-60'}`}>
                   <Coin sats={u.pay} owner="Bob" state="new" tag="adr. B2" />
                   {u.change > 0 && <Coin sats={u.change} owner="Alice" state="new" tag="rendu, adr. A4" />}
-                  <div className="pl-1 font-mono text-[10.5px]" style={{ color: C.amber }}>
+                  <div className="pl-1 font-mono text-micro" style={{ color: C.amber }}>
                     frais : {b(u.fee)} BTC (non attribués : entrées − sorties)
                   </div>
                 </div>
               ) : (
-                <div className="text-[11.5px] text-rose-300">Fonds insuffisants.</div>
+                <div className="text-meta text-rose-300">Fonds insuffisants.</div>
               )}
             </>
           )}
@@ -101,7 +101,7 @@ export default function AccountVsUtxo() {
 
         {/* Comptes */}
         <div className="rounded-xl border p-3" style={{ borderColor: `${CHAINS.eth.color}44`, background: `${CHAINS.eth.color}08` }}>
-          <div className="mb-2 flex items-center gap-2 text-[12.5px] font-semibold" style={{ color: CHAINS.eth.color }}>
+          <div className="mb-2 flex items-center gap-2 text-dense font-semibold" style={{ color: CHAINS.eth.color }}>
             <Icon name="BookUser" size={14} /> Comptes — des soldes
           </div>
           <div className="space-y-1.5">
@@ -111,18 +111,18 @@ export default function AccountVsUtxo() {
             ].map((r) => (
               <div key={r.who} className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-900/70 px-2.5 py-1.5">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[12px] text-white">{r.who}</div>
-                  <div className="font-mono text-[10.5px] text-ink-400">{r.addr}</div>
+                  <div className="text-meta text-white">{r.who}</div>
+                  <div className="font-mono text-micro text-ink-400">{r.addr}</div>
                 </div>
                 <div className="text-right">
-                  <div className={`font-mono text-[12.5px] transition-colors duration-500 ${done ? (r.who === 'Bob' ? 'text-emerald-300' : 'text-orange-300') : 'text-white'}`}>{e(done ? r.after : r.before)} ETH</div>
-                  {r.nonce !== undefined && <div className="font-mono text-[10px] text-ink-400">nonce {r.nonce}</div>}
+                  <div className={`font-mono text-dense transition-colors duration-500 ${done ? (r.who === 'Bob' ? 'text-emerald-300' : 'text-orange-300') : 'text-white'}`}>{e(done ? r.after : r.before)} ETH</div>
+                  {r.nonce !== undefined && <div className="font-mono text-micro text-ink-400">nonce {r.nonce}</div>}
                 </div>
               </div>
             ))}
           </div>
           {built && (
-            <div className="mt-2.5 rounded-lg border border-ink-700 bg-ink-950/60 p-2 font-mono text-[10.5px] leading-relaxed text-ink-200 animate-fadein">
+            <div className="mt-2.5 rounded-lg border border-ink-700 bg-ink-950/60 p-2 font-mono text-micro leading-relaxed text-ink-200 animate-fadein">
               <div>
                 from: <span className="text-white">0xA11c…e4F2</span> → to: <span className="text-white">0xB0b5…91aC</span>
               </div>
@@ -157,10 +157,10 @@ export default function AccountVsUtxo() {
           </>
         )}
         <div className="mt-2 flex gap-2">
-          <button className="btn-ghost !py-1 text-xs" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
+          <button className="btn-ghost !py-1 text-meta" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
             <Icon name="ArrowLeft" size={13} /> Précédent
           </button>
-          <button className="btn-primary !py-1 text-xs" onClick={() => setStep((s) => (s + 1) % STEPS.length)}>
+          <button className="btn-primary !py-1 text-meta" onClick={() => setStep((s) => (s + 1) % STEPS.length)}>
             {step === STEPS.length - 1 ? 'Recommencer' : 'Étape suivante'} <Icon name={step === STEPS.length - 1 ? 'RotateCcw' : 'ArrowRight'} size={13} />
           </button>
         </div>

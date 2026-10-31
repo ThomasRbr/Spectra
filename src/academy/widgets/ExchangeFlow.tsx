@@ -9,8 +9,8 @@ type NodeId = 'S' | 'Y' | 'Z' | 'D1' | 'D2' | 'D3' | 'H' | 'CW' | 'W'
 const R = new Rng(6060)
 const NODES: Record<NodeId, { x: number; y: number; label: string; sub: string; color: string; addr: string; exch?: boolean }> = {
   S: { x: 70, y: 50, label: 'Suspect', sub: 'portefeuille perso', color: C.rose, addr: genAddress(R, 'btc', 'p2wpkh') },
-  Y: { x: 70, y: 135, label: 'Client Y', sub: 'autre client', color: '#7a88a8', addr: genAddress(R, 'btc', 'p2wpkh') },
-  Z: { x: 70, y: 220, label: 'Client Z', sub: 'autre client', color: '#7a88a8', addr: genAddress(R, 'btc', 'p2wpkh') },
+  Y: { x: 70, y: 135, label: 'Client Y', sub: 'autre client', color: '#959da9', addr: genAddress(R, 'btc', 'p2wpkh') },
+  Z: { x: 70, y: 220, label: 'Client Z', sub: 'autre client', color: '#959da9', addr: genAddress(R, 'btc', 'p2wpkh') },
   D1: { x: 240, y: 50, label: 'Dépôt n° 1', sub: 'attribuée au suspect', color: C.amber, addr: genAddress(R, 'btc', 'p2wpkh'), exch: true },
   D2: { x: 240, y: 135, label: 'Dépôt n° 2', sub: 'client Y', color: C.amber, addr: genAddress(R, 'btc', 'p2wpkh'), exch: true },
   D3: { x: 240, y: 220, label: 'Dépôt n° 3', sub: 'client Z', color: C.amber, addr: genAddress(R, 'btc', 'p2wpkh'), exch: true },
@@ -60,7 +60,7 @@ export default function ExchangeFlow() {
 
       <div className="flex items-center gap-1">
         {STEPS.map((s, i) => (
-          <button key={s.title} onClick={() => setStep(i)} className={`flex-1 rounded-md border px-1 py-1 text-[10.5px] transition ${i === step ? 'border-accent/70 bg-accent/10 text-white' : i < step ? 'border-ink-600 text-ink-200' : 'border-ink-700 text-ink-400'}`}>
+          <button key={s.title} onClick={() => setStep(i)} className={`flex-1 rounded-md border px-1 py-1 text-micro transition ${i === step ? 'border-accent/70 bg-accent/10 text-white' : i < step ? 'border-ink-600 text-ink-200' : 'border-ink-700 text-ink-400'}`}>
             {i + 1}. {s.title}
           </button>
         ))}
@@ -70,7 +70,7 @@ export default function ExchangeFlow() {
         <svg viewBox="0 0 720 270" className="h-auto w-full" role="img" aria-label="Flux de dépôt dans un exchange">
           <defs>
             <marker id="ef-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a5a80" />
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#5d6572" />
             </marker>
           </defs>
           <path d="M 186 14 H 690 Q 702 14 702 26 V 158 Q 702 170 690 170 H 532 Q 520 170 520 182 V 244 Q 520 256 508 256 H 186 Q 172 256 172 244 V 26 Q 172 14 186 14 Z" fill="#22d3ee06" stroke="#22d3ee33" strokeDasharray="5 5" />
@@ -93,8 +93,8 @@ export default function ExchangeFlow() {
             const y2 = b.y - (dy / len) * off * 0.6
             return (
               <g key={i} style={{ opacity: vis ? 1 : 0.07, transition: 'opacity .5s' }}>
-                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={suspect ? C.rose : cur ? C.cyan : '#4a5a80'} strokeWidth={cur || suspect ? 2 : 1.4} strokeDasharray={cur ? '6 4' : undefined} className={cur ? 'animate-dash' : ''} markerEnd="url(#ef-arrow)" />
-                <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 5} textAnchor="middle" fill="#a9b4cc" fontSize={9.5} fontFamily="JetBrains Mono, ui-monospace, monospace">
+                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={suspect ? C.rose : cur ? C.cyan : '#5d6572'} strokeWidth={cur || suspect ? 2 : 1.4} strokeDasharray={cur ? '6 4' : undefined} className={cur ? 'animate-dash' : ''} markerEnd="url(#ef-arrow)" />
+                <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 5} textAnchor="middle" fill="#b4bbc5" fontSize={9.5} fontFamily="JetBrains Mono, ui-monospace, monospace">
                   {e.amount}
                 </text>
               </g>
@@ -107,14 +107,14 @@ export default function ExchangeFlow() {
             const stroke = verdict ? (verdict.ok ? C.green : C.rose) : n.color
             return (
               <g key={id} onClick={() => quiz && setPick(id)} style={{ cursor: quiz ? 'pointer' : 'default' }} role={quiz ? 'button' : undefined} aria-label={quiz ? `Choisir ${n.label}` : undefined}>
-                <rect x={n.x - 44} y={n.y - 22} width={88} height={44} rx={10} fill={sel ? `${stroke}30` : '#10172a'} stroke={stroke} strokeWidth={sel ? 2.4 : 1.4} style={{ transition: 'all .3s' }} />
+                <rect x={n.x - 44} y={n.y - 22} width={88} height={44} rx={10} fill={sel ? `${stroke}30` : '#1b1f25'} stroke={stroke} strokeWidth={sel ? 2.4 : 1.4} style={{ transition: 'all .3s' }} />
                 <text x={n.x} y={n.y - 6} textAnchor="middle" fill="#fff" fontSize={11} fontWeight={600} fontFamily="Inter, system-ui, sans-serif">
                   {n.label}
                 </text>
-                <text x={n.x} y={n.y + 6} textAnchor="middle" fill="#7a88a8" fontSize={8.5} fontFamily="Inter, system-ui, sans-serif">
+                <text x={n.x} y={n.y + 6} textAnchor="middle" fill="#959da9" fontSize={8.5} fontFamily="Inter, system-ui, sans-serif">
                   {n.sub}
                 </text>
-                <text x={n.x} y={n.y + 17} textAnchor="middle" fill="#a9b4cc" fontSize={8.5} fontFamily="JetBrains Mono, ui-monospace, monospace">
+                <text x={n.x} y={n.y + 17} textAnchor="middle" fill="#b4bbc5" fontSize={8.5} fontFamily="JetBrains Mono, ui-monospace, monospace">
                   {short(n.addr, 5)}
                 </text>
               </g>
@@ -126,7 +126,7 @@ export default function ExchangeFlow() {
       {quiz && pick ? (
         <Explain tone={VERDICT[pick].ok ? 'ok' : 'bad'} title={VERDICT[pick].ok ? 'Bonne cible de réquisition' : 'Pas la bonne cible'}>
           {VERDICT[pick].text}
-          <div className="mt-1 font-mono text-[11px] text-ink-300">{NODES[pick].addr}</div>
+          <div className="mt-1 font-mono text-micro text-ink-300">{NODES[pick].addr}</div>
         </Explain>
       ) : (
         <Explain>
@@ -136,11 +136,11 @@ export default function ExchangeFlow() {
       )}
 
       <div className="flex gap-2">
-        <button className="btn-ghost !py-1 text-xs" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
+        <button className="btn-ghost !py-1 text-meta" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
           <Icon name="ArrowLeft" size={13} /> Précédent
         </button>
         <button
-          className="btn-primary !py-1 text-xs"
+          className="btn-primary !py-1 text-meta"
           onClick={() => {
             if (quiz) {
               setStep(0)

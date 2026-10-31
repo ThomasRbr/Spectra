@@ -130,11 +130,11 @@ export default function ChangeDetective() {
 
         <div className="space-y-2">
           <div className="rounded-xl border border-ink-700 bg-ink-850/80 p-2.5">
-            <div className="label mb-1 !text-[9.5px]">Entrées · {res.totalIn.toLocaleString('fr-FR', { maximumFractionDigits: 8 })} BTC</div>
+            <div className="label mb-1 !text-micro">Entrées · {res.totalIn.toLocaleString('fr-FR', { maximumFractionDigits: 8 })} BTC</div>
             {s.inputs.map((i) => (
-              <div key={i.address} className="flex justify-between font-mono text-[11px]">
+              <div key={i.address} className="flex justify-between font-mono text-micro">
                 <span className="text-ink-300">
-                  {short(i.address, 7)} <span className="font-sans text-[10px] text-ink-400">{KIND_LABEL[i.kind]}</span>
+                  {short(i.address, 7)} <span className="font-sans text-micro text-ink-400">{KIND_LABEL[i.kind]}</span>
                 </span>
                 <span className="text-white">{i.value.toFixed(8)}</span>
               </div>
@@ -143,12 +143,12 @@ export default function ChangeDetective() {
           {res.outs.map((o, idx) => {
             const isBest = idx === res.best && active > 0
             const truth = reveal && idx === s.change
-            const col = truth ? C.green : isBest ? C.cyan : '#4a5a80'
+            const col = truth ? C.green : isBest ? C.cyan : '#5d6572'
             return (
               <div key={idx} className="rounded-xl border p-2.5 transition-colors duration-300" style={{ borderColor: `${col}88`, background: isBest || truth ? `${col}0c` : '#0c1120cc' }}>
-                <div className="flex items-center justify-between gap-2 font-mono text-[11px]">
+                <div className="flex items-center justify-between gap-2 font-mono text-micro">
                   <span className="text-ink-200">
-                    #{idx} {short(o.address, 7)} <span className="font-sans text-[10px] text-ink-400">{KIND_LABEL[o.kind]}</span>
+                    #{idx} {short(o.address, 7)} <span className="font-sans text-micro text-ink-400">{KIND_LABEL[o.kind]}</span>
                   </span>
                   <span className="text-white">{o.value.toFixed(8)}</span>
                 </div>
@@ -156,7 +156,7 @@ export default function ChangeDetective() {
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-ink-700">
                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${o.prob * 100}%`, background: col }} />
                   </div>
-                  <span className="w-10 text-right font-mono text-[11px]" style={{ color: col }}>
+                  <span className="w-10 text-right font-mono text-micro" style={{ color: col }}>
                     {Math.round(o.prob * 100)} %
                   </span>
                 </div>
@@ -171,16 +171,16 @@ export default function ChangeDetective() {
                   </div>
                 )}
                 {truth && (
-                  <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-emerald-300">
+                  <div className="mt-1 flex items-center gap-1 text-micro font-semibold text-emerald-300">
                     <Icon name="BadgeCheck" size={12} /> Vrai rendu
                   </div>
                 )}
               </div>
             )
           })}
-          <div className="flex items-center justify-between font-mono text-[10.5px] text-ink-400">
+          <div className="flex items-center justify-between font-mono text-micro text-ink-400">
             <span>frais : {res.fee.toFixed(8)} BTC</span>
-            <button className="btn-ghost !px-2 !py-0.5 text-[11px]" onClick={() => setReveal((r) => !r)}>
+            <button className="btn-ghost !px-2 !py-0.5 text-micro" onClick={() => setReveal((r) => !r)}>
               <Icon name={reveal ? 'EyeOff' : 'Eye'} size={12} /> {reveal ? 'Masquer' : 'Révéler la vérité'}
             </button>
           </div>

@@ -20,7 +20,7 @@ export function openPrintable(html: string, filename: string): void {
 function button(label: string, primary: boolean): HTMLButtonElement {
   const b = document.createElement('button')
   b.textContent = label
-  b.style.cssText = `font:600 13px Inter,system-ui,sans-serif;padding:7px 14px;border-radius:8px;cursor:pointer;border:1px solid ${primary ? '#22d3ee' : '#2c3a5c'};background:${primary ? '#22d3ee' : '#10172a'};color:${primary ? '#05070d' : '#d6dcea'}`
+  b.style.cssText = `font:600 13px Inter,system-ui,sans-serif;padding:7px 14px;border-radius:8px;cursor:pointer;border:1px solid ${primary ? '#7ea6ff' : '#3d444f'};background:${primary ? '#7ea6ff' : '#1b1f25'};color:${primary ? '#0e1013' : '#dfe3e8'}`
   return b
 }
 
@@ -28,7 +28,7 @@ function showOverlay(html: string, filename: string) {
   const overlay = document.createElement('div')
   overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;background:rgba(5,7,13,.92);backdrop-filter:blur(4px)'
   const bar = document.createElement('div')
-  bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid #1f2b47;background:#090d18'
+  bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid #2f353e;background:#121418'
   const title = document.createElement('div')
   title.textContent = 'Aperçu avant impression'
   title.style.cssText = 'flex:1;font:600 14px Inter,system-ui,sans-serif;color:#fff'

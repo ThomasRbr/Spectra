@@ -27,7 +27,7 @@ const LEG_SHORT: Record<LegKind, string> = { value: 'valeur', internal: 'interne
 export function LegChip({ w, tx, t }: { w: World; tx: Tx; t: Transfer }) {
   if (!hasAbi(tx.chain)) return null
   const k = legKind(w, tx, t)
-  return <span className={`chip !py-0 text-[10px] ${LEG_STYLE[k]}`} title={LEG_KIND_LABEL[k]}>{LEG_SHORT[k]}</span>
+  return <span className={`chip !py-0 text-micro ${LEG_STYLE[k]}`} title={LEG_KIND_LABEL[k]}>{LEG_SHORT[k]}</span>
 }
 
 function Card({ icon, title, tone = 'ink', children, right }: { icon: string; title: string; tone?: 'ink' | 'violet' | 'amber' | 'rose' | 'cyan' | 'fuchsia'; children: React.ReactNode; right?: React.ReactNode }) {
@@ -41,7 +41,7 @@ function Card({ icon, title, tone = 'ink', children, right }: { icon: string; ti
   }
   return (
     <div className={`mt-3 rounded-xl border p-3 ${tones[tone]}`}>
-      <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold text-white">
+      <div className="mb-1.5 flex items-center gap-1.5 text-meta font-semibold text-white">
         <Icon name={icon} size={13} className="text-ink-200" /> <span className="flex-1">{title}</span> {right}
       </div>
       {children}
@@ -49,7 +49,7 @@ function Card({ icon, title, tone = 'ink', children, right }: { icon: string; ti
   )
 }
 
-const mono = 'font-mono text-[10.5px] leading-4 break-all'
+const mono = 'font-mono text-micro leading-4 break-all'
 
 // ── Modèle à comptes ────────────────────────────────────────────────────────
 
@@ -69,11 +69,11 @@ export function EvmDetails({ w, tx }: { w: World; tx: Tx }) {
   return (
     <>
       {tx.status === 'reverted' && (
-        <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-400/40 bg-rose-500/10 p-3 text-[12px] text-rose-100">
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-400/40 bg-rose-500/10 p-3 text-meta text-rose-100">
           <Icon name="OctagonX" size={16} className="mt-0.5 shrink-0 text-rose-300" />
           <div>
             <div className="font-semibold">Échec (reverted){tx.revertReason ? ` : « ${tx.revertReason} »` : ''}</div>
-            <div className="mt-0.5 text-[11.5px] leading-relaxed text-rose-100/80">La transaction figure dans un bloc et les frais sont payés, mais aucun transfert n'a été exécuté. Elle ne déplace pas de fonds : ne la comptez pas dans un flux. Elle renseigne en revanche sur l'intention et l'activité du signataire.</div>
+            <div className="mt-0.5 text-meta leading-relaxed text-rose-100/80">La transaction figure dans un bloc et les frais sont payés, mais aucun transfert n'a été exécuté. Elle ne déplace pas de fonds : ne la comptez pas dans un flux. Elle renseigne en revanche sur l'intention et l'activité du signataire.</div>
           </div>
         </div>
       )}
@@ -84,22 +84,22 @@ export function EvmDetails({ w, tx }: { w: World; tx: Tx }) {
         <Meta label="Prix du gas" value={gas ? `${gas.priceGwei.toLocaleString('fr-FR', { maximumFractionDigits: gas.priceGwei < 1 ? 3 : 1 })} gwei` : '—'} />
       </div>
 
-      <Card icon="FileCode2" title="Appel de contrat" tone="violet" right={cv.call ? <span className="font-mono text-[10.5px] text-violet-200">{cv.selector}</span> : undefined}>
+      <Card icon="FileCode2" title="Appel de contrat" tone="violet" right={cv.call ? <span className="font-mono text-micro text-violet-200">{cv.selector}</span> : undefined}>
         {cv.call ? (
           <>
             <div className="flex flex-wrap items-center gap-1.5">
               <span className={`chip font-mono ${cv.known ? 'bg-violet-500/20 text-violet-100' : 'bg-ink-700 text-ink-200'}`}>{cv.known ? cv.call.sig : `fonction inconnue (${cv.selector})`}</span>
               {cv.value > 0 && <span className="chip bg-sky-500/10 text-sky-200">+ {fmtAsset(cv.value, native)} envoyés avec l'appel</span>}
             </div>
-            <div className="mt-1.5 text-[11.5px] leading-relaxed text-ink-200">{describeCall(w, tx)}</div>
-            <div className="mt-1 text-[11px] text-ink-400">Contrat appelé :</div>
+            <div className="mt-1.5 text-meta leading-relaxed text-ink-200">{describeCall(w, tx)}</div>
+            <div className="mt-1 text-micro text-ink-400">Contrat appelé :</div>
             <AddrLine w={w} id={cv.call.to} compact />
             {cv.known && cv.call.args.length > 0 && (
               <div className="mt-1.5 space-y-0.5 rounded-lg bg-ink-950/50 p-2">
                 {cv.call.args.map((a, i) => {
                   const d = argDisplay(w, tx.chain, types[i], a)
                   return (
-                    <div key={i} className="text-[11px]">
+                    <div key={i} className="text-micro">
                       <span className="text-ink-400">{(cv.call!.names ?? fn?.names)?.[i] ?? `arg${i}`}</span>
                       <span className="ml-1 text-ink-500">({types[i]})</span>
                       {d.addr ? <AddrLine w={w} id={d.addr} compact /> : <div className={`${mono} text-ink-100`}>{d.text}</div>}
@@ -108,7 +108,7 @@ export function EvmDetails({ w, tx }: { w: World; tx: Tx }) {
                 })}
               </div>
             )}
-            <button className="mt-1.5 text-[11px] text-violet-200 hover:text-white" onClick={() => setRaw(!raw)}>
+            <button className="mt-1.5 text-micro text-violet-200 hover:text-white" onClick={() => setRaw(!raw)}>
               <Icon name={raw ? 'ChevronUp' : 'ChevronDown'} size={11} className="mr-0.5 inline" /> Données d'entrée brutes ({(input.length - 2) / 2} octets)
             </button>
             {raw && (
@@ -126,25 +126,25 @@ export function EvmDetails({ w, tx }: { w: World; tx: Tx }) {
             )}
           </>
         ) : (
-          <div className="text-[11.5px] text-ink-300">{describeCall(w, tx)} <span className="font-mono text-ink-400">Input data : 0x</span></div>
+          <div className="text-meta text-ink-300">{describeCall(w, tx)} <span className="font-mono text-ink-400">Input data : 0x</span></div>
         )}
         {tx.creates?.length ? (
-          <div className="mt-2 rounded-lg border border-violet-400/25 p-2 text-[11px] text-ink-200">
+          <div className="mt-2 rounded-lg border border-violet-400/25 p-2 text-micro text-ink-200">
             <div className="mb-0.5 text-violet-200">Contrat(s) déployé(s) par cette transaction</div>
             {tx.creates.map((c) => <AddrLine key={c} w={w} id={c} compact />)}
-            <div className="mt-1 text-[10.5px] text-ink-400">Une adresse CREATE2 est calculable d'avance (fabrique + sel + code) : elle peut recevoir des fonds avant que le contrat n'existe.</div>
+            <div className="mt-1 text-micro text-ink-400">Une adresse CREATE2 est calculable d'avance (fabrique + sel + code) : elle peut recevoir des fonds avant que le contrat n'existe.</div>
           </div>
         ) : null}
       </Card>
 
       {internals.length > 0 && (
         <Card icon="CornerDownRight" title={`Transactions internes (${internals.length})`} tone="amber">
-          <div className="mb-1 text-[11px] leading-relaxed text-ink-300">De l'{native} déplacé par un contrat pendant l'exécution. Ces mouvements n'émettent aucun événement et n'apparaissent pas dans la liste « normale » des transactions du bénéficiaire sur un explorateur.</div>
+          <div className="mb-1 text-micro leading-relaxed text-ink-300">De l'{native} déplacé par un contrat pendant l'exécution. Ces mouvements n'émettent aucun événement et n'apparaissent pas dans la liste « normale » des transactions du bénéficiaire sur un explorateur.</div>
           <div className="space-y-1">
             {internals.map((c, i) => (
               <div key={i} className="rounded-lg border border-amber-400/15 p-1">
                 <AddrLine w={w} id={c.from} compact />
-                <div className="flex items-center gap-1.5 px-2 text-[11px]">
+                <div className="flex items-center gap-1.5 px-2 text-micro">
                   <span className="font-mono text-ink-500">{'↳'.repeat(c.depth)} CALL</span>
                   <span className="font-mono font-semibold text-amber-100">{fmtAsset(c.value, native)}</span>
                 </div>
@@ -161,7 +161,7 @@ export function EvmDetails({ w, tx }: { w: World; tx: Tx }) {
             {logs.map((l) => <LogRow key={l.index} w={w} log={l} />)}
           </div>
         ) : (
-          <div className="text-[11.5px] text-ink-300">{tx.status === 'reverted' ? 'Aucun événement : une transaction échouée n\'en émet pas.' : 'Aucun événement émis (simple envoi d\'actif natif).'}</div>
+          <div className="text-meta text-ink-300">{tx.status === 'reverted' ? 'Aucun événement : une transaction échouée n\'en émet pas.' : 'Aucun événement émis (simple envoi d\'actif natif).'}</div>
         )}
       </Card>
     </>
@@ -171,8 +171,8 @@ export function EvmDetails({ w, tx }: { w: World; tx: Tx }) {
 function Meta({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
   return (
     <div className="rounded-lg border border-ink-700/60 bg-ink-850/40 px-1.5 py-1" title={hint}>
-      <div className="text-[9.5px] uppercase tracking-wide text-ink-400">{label}</div>
-      <div className="font-mono text-[11.5px] text-ink-100">{value}</div>
+      <div className="text-micro uppercase tracking-wide text-ink-400">{label}</div>
+      <div className="font-mono text-meta text-ink-100">{value}</div>
     </div>
   )
 }
@@ -182,18 +182,18 @@ function LogRow({ w, log }: { w: World; log: ReturnType<typeof txLogs>[number] }
   return (
     <div className="rounded-lg border border-cyan-400/15 bg-ink-950/40 p-1.5">
       <div className="flex items-center gap-1.5">
-        <span className="font-mono text-[10px] text-ink-500">#{log.index}</span>
+        <span className="font-mono text-micro text-ink-500">#{log.index}</span>
         <span className="chip bg-cyan-500/15 font-mono text-cyan-100">{log.name}</span>
-        <span className="min-w-0 flex-1 truncate text-[10.5px] text-ink-300">émis par</span>
-        <button className="text-[10.5px] text-cyan-200 hover:text-white" onClick={() => setOpen(!open)}>{open ? 'décodé' : 'brut'}</button>
+        <span className="min-w-0 flex-1 truncate text-micro text-ink-300">émis par</span>
+        <button className="text-micro text-cyan-200 hover:text-white" onClick={() => setOpen(!open)}>{open ? 'décodé' : 'brut'}</button>
       </div>
       <AddrLine w={w} id={log.emitter} compact />
       {!open ? (
         <div className="space-y-0.5 px-1">
           {log.params.map((p) => (
-            <div key={p.name} className="text-[11px]">
+            <div key={p.name} className="text-micro">
               <span className="text-ink-400">{p.name}</span>
-              {p.indexed && <span className="ml-1 text-[9.5px] text-cyan-300">indexé</span>}
+              {p.indexed && <span className="ml-1 text-micro text-cyan-300">indexé</span>}
               {p.addr ? <AddrLine w={w} id={p.addr} compact /> : <div className={`${mono} text-ink-100`}>{p.text}</div>}
             </div>
           ))}
@@ -222,17 +222,17 @@ export function UtxoDetails({ w, tx }: { w: World; tx: Tx }) {
       {tx.ord && <OrdCard w={w} tx={tx} />}
       {tx.opReturn && (
         <Card icon="FileText" title="Sortie OP_RETURN (données, 0 BTC)" tone="fuchsia">
-          {tx.opReturn.text && <div className="text-[11.5px] text-fuchsia-100">{tx.opReturn.text}</div>}
+          {tx.opReturn.text && <div className="text-meta text-fuchsia-100">{tx.opReturn.text}</div>}
           <div className={`${mono} mt-1 text-ink-300`}>{tx.opReturn.hex}</div>
-          <div className="mt-1 text-[10.5px] leading-relaxed text-ink-400">{tx.opReturn.protocol === 'runes' ? 'Runestone (OP_RETURN OP_13) : instruction qui attribue des soldes de runes aux sorties de la transaction. Les runes suivent les UTXO, pas les adresses.' : 'Sortie non dépensable qui publie des données dans la chaîne.'}</div>
+          <div className="mt-1 text-micro leading-relaxed text-ink-400">{tx.opReturn.protocol === 'runes' ? 'Runestone (OP_RETURN OP_13) : instruction qui attribue des soldes de runes aux sorties de la transaction. Les runes suivent les UTXO, pas les adresses.' : 'Sortie non dépensable qui publie des données dans la chaîne.'}</div>
         </Card>
       )}
       {datums.length > 0 && (
         <Card icon="Database" title="Datums (eUTXO)" tone="cyan">
-          <div className="mb-1 text-[11px] leading-relaxed text-ink-300">Sur Cardano, une sortie envoyée à une adresse de script porte une donnée (datum) que le contrat lira : propriétaire, adresse de retour, conditions. C'est souvent elle qui révèle à qui reviennent les fonds.</div>
+          <div className="mb-1 text-micro leading-relaxed text-ink-300">Sur Cardano, une sortie envoyée à une adresse de script porte une donnée (datum) que le contrat lira : propriétaire, adresse de retour, conditions. C'est souvent elle qui révèle à qui reviennent les fonds.</div>
           {datums.map((o) => (
             <div key={o.n} className="rounded-lg border border-cyan-400/15 p-1.5">
-              <div className="text-[10.5px] text-ink-400">Sortie {o.n}</div>
+              <div className="text-micro text-ink-400">Sortie {o.n}</div>
               <AddrLine w={w} id={o.address} compact />
               <pre className={`${mono} mt-1 whitespace-pre-wrap rounded bg-ink-950/60 p-1.5 text-cyan-100`}>{o.datum}</pre>
             </div>
@@ -246,26 +246,26 @@ export function UtxoDetails({ w, tx }: { w: World; tx: Tx }) {
             <Meta label="Poids" value={`${size.weight} WU`} hint="Hors témoin × 4 + témoin × 1" />
             <Meta label="Taille virt." value={`${size.vsize} vB`} hint="Poids / 4 : base du calcul des frais" />
           </div>
-          <div className="mt-1.5 text-[11px] leading-relaxed text-ink-300">
+          <div className="mt-1.5 text-micro leading-relaxed text-ink-300">
             Taux : <span className="font-mono text-ink-100">{size.feeRate.toLocaleString('fr-FR')} sat/vB</span>.
             {size.witnessBytes > 0 ? <> Témoin : {size.witnessBytes} octets comptés au quart : la remise SegWit économise {Math.round((1 - size.vsize / size.vsizeWithoutDiscount) * 100)} % sur les frais.</> : <> Aucun témoin : transaction entièrement « legacy », sans remise.</>}
           </div>
         </Card>
       )}
       {isBitcoinLike(tx) && (
-        <Card icon="Code" title="Scripts et témoins" right={<button className="text-[11px] text-accent" onClick={() => setOpen(!open)}>{open ? 'Masquer' : 'Afficher'}</button>}>
+        <Card icon="Code" title="Scripts et témoins" right={<button className="text-micro text-accent" onClick={() => setOpen(!open)}>{open ? 'Masquer' : 'Afficher'}</button>}>
           {!open ? (
-            <div className="text-[11px] text-ink-400">{[...new Set(tx.inputs.map((_, n) => unlockOf(w, tx, n).type))].join(' · ')}</div>
+            <div className="text-micro text-ink-400">{[...new Set(tx.inputs.map((_, n) => unlockOf(w, tx, n).type))].join(' · ')}</div>
           ) : (
             <div className="space-y-2">
               {tx.inputs.map((inp, n) => {
                 const u = unlockOf(w, tx, n)
                 return (
                   <div key={n} className="rounded-lg border border-ink-700/60 p-1.5">
-                    <div className="flex items-center gap-1.5 text-[11px]"><span className="text-ink-400">Entrée {n}</span><span className="chip bg-ink-700 text-ink-100">{u.type}</span></div>
+                    <div className="flex items-center gap-1.5 text-micro"><span className="text-ink-400">Entrée {n}</span><span className="chip bg-ink-700 text-ink-100">{u.type}</span></div>
                     <AddrLine w={w} id={inp.address} compact />
                     {u.multisig && (
-                      <div className="my-1 rounded-md bg-amber-400/10 p-1.5 text-[11px] text-amber-100">
+                      <div className="my-1 rounded-md bg-amber-400/10 p-1.5 text-micro text-amber-100">
                         Multisig {u.multisig.m}-sur-{u.multisig.n} · ont signé : {u.multisig.signed.map((k) => `clé n° ${k}`).join(', ')}
                         <div className="mt-0.5 space-y-0.5">
                           {u.multisig.pubkeys.map((k, i) => (
@@ -276,7 +276,7 @@ export function UtxoDetails({ w, tx }: { w: World; tx: Tx }) {
                     )}
                     {u.scriptSig.length > 0 && <Items title="scriptSig" items={u.scriptSig} />}
                     {u.witness.length > 0 && <Items title={`Témoin (${u.witness.length} éléments)`} items={u.witness} />}
-                    <div className="mt-1 text-[10.5px] leading-relaxed text-ink-400">{u.explain}</div>
+                    <div className="mt-1 text-micro leading-relaxed text-ink-400">{u.explain}</div>
                   </div>
                 )
               })}
@@ -284,9 +284,9 @@ export function UtxoDetails({ w, tx }: { w: World; tx: Tx }) {
                 const s = lockScript(w, o.address)
                 return (
                   <div key={`o${o.n}`} className="rounded-lg border border-ink-700/60 p-1.5">
-                    <div className="flex items-center gap-1.5 text-[11px]"><span className="text-ink-400">Sortie {o.n}</span><span className="chip bg-ink-700 text-ink-100">{s.type}</span></div>
+                    <div className="flex items-center gap-1.5 text-micro"><span className="text-ink-400">Sortie {o.n}</span><span className="chip bg-ink-700 text-ink-100">{s.type}</span></div>
                     <div className={`${mono} text-ink-200`}>{s.asm}</div>
-                    <div className="text-[10.5px] text-ink-400">{s.help}</div>
+                    <div className="text-micro text-ink-400">{s.help}</div>
                   </div>
                 )
               })}
@@ -301,10 +301,10 @@ export function UtxoDetails({ w, tx }: { w: World; tx: Tx }) {
 function Items({ title, items }: { title: string; items: { label: string; hex: string; bytes: number }[] }) {
   return (
     <div className="mt-1">
-      <div className="text-[10.5px] text-ink-400">{title}</div>
+      <div className="text-micro text-ink-400">{title}</div>
       {items.map((it, i) => (
         <div key={i} className="mt-0.5 rounded bg-ink-950/60 p-1">
-          <div className="text-[10.5px] text-ink-200">{it.label} <span className="text-ink-500">({it.bytes} o)</span></div>
+          <div className="text-micro text-ink-200">{it.label} <span className="text-ink-500">({it.bytes} o)</span></div>
           {it.hex && <div className={`${mono} text-ink-400`}>{it.hex.length > 120 ? `${it.hex.slice(0, 120)}…` : it.hex}</div>}
         </div>
       ))}
@@ -326,7 +326,7 @@ function OrdCard({ w, tx }: { w: World; tx: Tx }) {
   }
   return (
     <Card icon="Gem" title={title[o.kind]} tone="fuchsia">
-      <div className="space-y-0.5 text-[11.5px] text-ink-200">
+      <div className="space-y-0.5 text-meta text-ink-200">
         {o.id && (
           <div>
             <div><span className="text-ink-400">Inscription</span>{o.number !== undefined && <span className="text-ink-400"> · n° {o.number.toLocaleString('fr-FR')}</span>}</div>
@@ -344,7 +344,7 @@ function OrdCard({ w, tx }: { w: World; tx: Tx }) {
           </div>
         )}
       </div>
-      <div className="mt-1.5 text-[10.5px] leading-relaxed text-ink-400">
+      <div className="mt-1.5 text-micro leading-relaxed text-ink-400">
         {o.kind === 'commit' && 'Première moitié de la création : des fonds partent vers une adresse Taproot qui engage (sans le montrer) le script contenant l\'inscription.'}
         {o.kind === 'reveal' && 'Le contenu est publié dans le témoin de l\'entrée (dépense Taproot par script). L\'inscription s\'attache au premier satoshi de la sortie 0.'}
         {o.kind === 'transfer' && 'L\'inscription suit son satoshi : première entrée → première sortie. Les frais sont payés par une autre entrée, dont le reste part en rendu.'}
@@ -365,10 +365,10 @@ export function AddressExtra({ w, id }: { w: World; id: string }) {
   return (
     <div className="mt-2.5 space-y-1.5">
       {a.tags.includes('null') && (
-        <div className="rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/5 p-2 text-[11px] leading-relaxed text-ink-200">Adresse nulle : personne n'en détient la clé. Les jetons « reçus de » cette adresse viennent d'être créés (mint) ; ceux « envoyés » vers elle sont détruits (burn). Ce n'est jamais une destination de fonds.</div>
+        <div className="rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/5 p-2 text-micro leading-relaxed text-ink-200">Adresse nulle : personne n'en détient la clé. Les jetons « reçus de » cette adresse viennent d'être créés (mint) ; ceux « envoyés » vers elle sont détruits (burn). Ce n'est jamais une destination de fonds.</div>
       )}
       {a.contract && (
-        <div className="rounded-lg border border-indigo-400/25 bg-indigo-400/5 p-2 text-[11px] text-ink-200">
+        <div className="rounded-lg border border-indigo-400/25 bg-indigo-400/5 p-2 text-micro text-ink-200">
           <div className="flex items-center gap-1.5">
             <Icon name="FileCode2" size={12} className="text-indigo-300" />
             <span className="font-semibold text-white">{a.contract.name}</span>
@@ -376,14 +376,14 @@ export function AddressExtra({ w, id }: { w: World; id: string }) {
           </div>
           <div className="mt-0.5 text-ink-300">{CONTRACT_HELP[a.contract.type] ?? ''}</div>
           {created && (
-            <button className="mt-1 text-[10.5px] text-indigo-200 hover:text-white" onClick={() => useGame.getState().select({ kind: 'tx', id: created.id })}>
+            <button className="mt-1 text-micro text-indigo-200 hover:text-white" onClick={() => useGame.getState().select({ kind: 'tx', id: created.id })}>
               <Icon name="Hammer" size={11} className="mr-0.5 inline" /> Déployé par la transaction {shortAddr(created.hash, 8)}
             </button>
           )}
         </div>
       )}
       {a.stake && (
-        <div className="rounded-lg border border-blue-400/25 bg-blue-400/5 p-2 text-[11px] text-ink-200">
+        <div className="rounded-lg border border-blue-400/25 bg-blue-400/5 p-2 text-micro text-ink-200">
           <div className="text-ink-400">Clé de staking</div>
           <div className={`${mono} text-blue-100`}>{a.stake}</div>
           <div className="mt-1 text-ink-300">La partie staking est encodée en fin d'adresse : <span className="font-mono text-blue-200">…{a.addr.slice(-45, -6)}</span><span className="font-mono text-ink-500">{a.addr.slice(-6)}</span>. {siblings.length ? `${siblings.length} autre(s) adresse(s) connue(s) la partagent : même portefeuille.` : 'Aucune autre adresse connue ne la partage pour l\'instant.'}</div>
@@ -391,7 +391,7 @@ export function AddressExtra({ w, id }: { w: World; id: string }) {
         </div>
       )}
       {a.multisig && (
-        <div className="rounded-lg border border-amber-400/25 bg-amber-400/5 p-2 text-[11px] text-ink-200">Script multisignature {a.multisig.m}-sur-{a.multisig.n} : {a.multisig.n} clés, {a.multisig.m} signatures requises. Les clés et les signataires ne sont visibles qu'au moment d'une dépense (témoin de l'entrée).</div>
+        <div className="rounded-lg border border-amber-400/25 bg-amber-400/5 p-2 text-micro text-ink-200">Script multisignature {a.multisig.m}-sur-{a.multisig.n} : {a.multisig.n} clés, {a.multisig.m} signatures requises. Les clés et les signataires ne sont visibles qu'au moment d'une dépense (témoin de l'entrée).</div>
       )}
     </div>
   )

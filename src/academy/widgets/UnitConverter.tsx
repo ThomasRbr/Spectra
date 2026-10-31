@@ -113,13 +113,13 @@ export default function UnitConverter() {
                 setTokenId(t.id)
                 setEdit(null)
               }}
-              className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11.5px] transition ${tokenId === t.id ? 'border-accent/70 bg-ink-800 text-white' : 'border-ink-700 text-ink-300 hover:border-ink-500'}`}
+              className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-meta transition ${tokenId === t.id ? 'border-accent/70 bg-ink-800 text-white' : 'border-ink-700 text-ink-300 hover:border-ink-500'}`}
             >
               <span className="font-semibold" style={{ color: ASSETS[t.asset].color }}>
                 {t.asset}
               </span>
               <ChainBadge chain={t.chain} compact />
-              <span className="font-mono text-[10.5px] text-ink-400">{t.decimals} déc.</span>
+              <span className="font-mono text-micro text-ink-400">{t.decimals} déc.</span>
             </button>
           ))}
         </div>
@@ -132,8 +132,8 @@ export default function UnitConverter() {
           return (
             <div key={u.id} className="grid items-center gap-2 sm:grid-cols-[150px_1fr]">
               <div>
-                <div className="text-[12.5px] font-semibold text-white">{u.label}</div>
-                <div className="text-[10.5px] text-ink-400">{u.note}</div>
+                <div className="text-dense font-semibold text-white">{u.label}</div>
+                <div className="text-micro text-ink-400">{u.note}</div>
               </div>
               <input
                 className={`input font-mono ${invalid ? '!border-rose-500' : ''} ${u.exp === 0 ? 'text-ink-200' : 'text-white'}`}
@@ -150,21 +150,21 @@ export default function UnitConverter() {
 
       <div className="grid gap-2 sm:grid-cols-2">
         <Box title="Contre-valeur">
-          <div className="text-lg font-semibold text-white">{fmtUsd(usdVal)}</div>
-          <div className="text-[11px] text-ink-400">
+          <div className="text-title font-semibold text-white">{fmtUsd(usdVal)}</div>
+          <div className="text-micro text-ink-400">
             au cours indicatif de {ASSETS[asset].usd.toLocaleString('fr-FR')} $ / {asset}
           </div>
         </Box>
         <Box title="Ce qui est écrit on-chain">
-          <div className="break-all font-mono text-[12px] text-accent">{v.toString()}</div>
-          <div className="text-[11px] text-ink-400">
+          <div className="break-all font-mono text-meta text-accent">{v.toString()}</div>
+          <div className="text-micro text-ink-400">
             entier ÷ 10^{topExp} = {formatUnits(v, topExp)} {asset}
           </div>
         </Box>
       </div>
 
       {edit?.truncated && (
-        <div className="flex items-center gap-2 text-[11.5px] text-orange-300">
+        <div className="flex items-center gap-2 text-meta text-orange-300">
           <Icon name="TriangleAlert" size={13} /> Trop de décimales : l'unité minimale ne peut pas être fractionnée, l'excédent est ignoré.
         </div>
       )}

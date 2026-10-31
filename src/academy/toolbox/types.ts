@@ -7,7 +7,7 @@ export const TOOLBOX_CATEGORIES: Record<ToolboxCategory, { label: string; icon: 
   accueil: { label: 'Accueil victime', icon: 'HeartHandshake', color: '#34d399' },
   urgence: { label: 'Urgence', icon: 'Siren', color: '#f43f5e' },
   perquisition: { label: 'Perquisition & saisie', icon: 'PackageOpen', color: '#fb923c' },
-  requisitions: { label: 'Réquisitions', icon: 'Send', color: '#22d3ee' },
+  requisitions: { label: 'Réquisitions', icon: 'Send', color: '#7ea6ff' },
   analyse: { label: 'Analyse', icon: 'Microscope', color: '#38bdf8' },
   redaction: { label: 'Rédaction', icon: 'FilePenLine', color: '#a78bfa' },
   opsec: { label: 'OPSEC', icon: 'EyeOff', color: '#facc15' },

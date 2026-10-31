@@ -39,8 +39,8 @@ export function FingerprintCard({ w, tx }: { w: World; tx: Tx }) {
   ]
   return (
     <div className="mt-3 rounded-xl border border-ink-700/60 bg-ink-850/50 p-3">
-      <div className="mb-2 flex items-center gap-1.5 text-[12.5px] font-semibold text-white"><Icon name="Fingerprint" size={14} className="text-violet-glow" /> Empreinte du portefeuille</div>
-      <dl className="grid grid-cols-[88px_1fr] gap-x-2 gap-y-1 text-[11.5px]">
+      <div className="mb-2 flex items-center gap-1.5 text-dense font-semibold text-white"><Icon name="Fingerprint" size={14} className="text-violet-300" /> Empreinte du portefeuille</div>
+      <dl className="grid grid-cols-[88px_1fr] gap-x-2 gap-y-1 text-meta">
         {rows.map(([k, v, hint]) => (
           <div key={k} className="contents">
             <dt className="text-ink-400">{k}</dt>
@@ -48,7 +48,7 @@ export function FingerprintCard({ w, tx }: { w: World; tx: Tx }) {
           </div>
         ))}
       </dl>
-      <div className="mt-2 border-t border-ink-700/60 pt-2 text-[11px] leading-relaxed text-ink-300">
+      <div className="mt-2 border-t border-ink-700/60 pt-2 text-micro leading-relaxed text-ink-300">
         {fp.families.length === 0
           ? 'Combinaison atypique : aucune famille de logiciel courante ne produit ces champs.'
           : fp.families.length === 1
@@ -87,13 +87,13 @@ export function WalletUsage({ w, id }: { w: World; id: string }) {
     <div className="mt-3 rounded-lg border border-ink-700/60 bg-ink-850/40 p-2.5">
       <div className="label mb-1.5 flex items-center gap-1.5"><Icon name="Fingerprint" size={12} /> Empreinte des dépenses</div>
       {groups.map((g, i) => (
-        <div key={i} className="text-[11.5px] text-ink-200">
+        <div key={i} className="text-meta text-ink-200">
           <span className="font-mono text-ink-100">v{g.fp.version} · nLockTime {g.fp.locktimeKind === 'height' ? 'hauteur' : '0'} · RBF {g.fp.rbf ? 'oui' : 'non'}</span>
           <span className="text-ink-400"> · {g.n} tx</span>
-          <div className="text-[10.5px] text-ink-400">{g.fp.families.map((f) => f.label).join(' ; ') || 'Combinaison atypique'}</div>
+          <div className="text-micro text-ink-400">{g.fp.families.map((f) => f.label).join(' ; ') || 'Combinaison atypique'}</div>
         </div>
       ))}
-      {groups.length > 1 && <div className="mt-1 text-[10.5px] text-amber-300">Plusieurs empreintes : l'adresse a été dépensée par des logiciels différents (clé partagée, importée ou cédée).</div>}
+      {groups.length > 1 && <div className="mt-1 text-micro text-amber-300">Plusieurs empreintes : l'adresse a été dépensée par des logiciels différents (clé partagée, importée ou cédée).</div>}
     </div>
   )
 }
@@ -112,24 +112,24 @@ export function DepositPanel({ w, id }: { w: World; id: string }) {
         <div className="rounded-xl border p-3" style={{ borderColor: '#22d3ee40', background: '#22d3ee0a' }}>
           <div className="flex items-center gap-2">
             <Icon name={v.role === 'deposit' ? 'Inbox' : 'Combine'} size={16} className="text-accent" />
-            <div className="text-[13px] font-semibold text-white">
+            <div className="text-dense font-semibold text-white">
               {v.role === 'deposit'
                 ? v.targetEntity ? `Adresse de dépôt probable de ${v.targetEntity.name}` : 'Adresse de dépôt ou de collecte probable'
                 : v.targetEntity ? `Portefeuille collecteur de ${v.targetEntity.name}` : 'Portefeuille collecteur non attribué'}
             </div>
-            <span className="ml-auto font-mono text-[11px] text-ink-300">{Math.round(v.score * 100)} / 100</span>
+            <span className="ml-auto font-mono text-micro text-ink-300">{Math.round(v.score * 100)} / 100</span>
           </div>
           <ul className="mt-2 space-y-0.5">
-            {v.reasons.map((r, i) => <li key={i} className="flex gap-1.5 text-[11.5px] text-ink-200"><Icon name="Check" size={12} className="mt-0.5 shrink-0 text-accent" /> {r}</li>)}
+            {v.reasons.map((r, i) => <li key={i} className="flex gap-1.5 text-meta text-ink-200"><Icon name="Check" size={12} className="mt-0.5 shrink-0 text-accent" /> {r}</li>)}
           </ul>
           {v.role === 'deposit' && v.target && (
             <>
               <div className="label mb-1 mt-3">Collecteur</div>
               <AddrLine w={w} id={v.target} />
-              <button className="btn-outline mt-2 w-full !py-1 text-xs" onClick={() => reveal(v.sweeps, 'Reversements')}><Icon name="Waypoints" size={13} /> Afficher les reversements ({v.sweeps.length})</button>
+              <button className="btn-outline mt-2 w-full !py-1 text-meta" onClick={() => reveal(v.sweeps, 'Reversements')}><Icon name="Waypoints" size={13} /> Afficher les reversements ({v.sweeps.length})</button>
             </>
           )}
-          <p className="mt-2 text-[10.5px] leading-relaxed text-ink-400">
+          <p className="mt-2 text-micro leading-relaxed text-ink-400">
             Une plateforme attribue à chaque client une adresse de dépôt unique, vidée régulièrement vers son portefeuille chaud. Si le collecteur est attribué, une réquisition sur l'adresse de dépôt permet d'identifier le titulaire du compte.
           </p>
         </div>
@@ -140,7 +140,7 @@ export function DepositPanel({ w, id }: { w: World; id: string }) {
           <div className="space-y-0.5">
             {v.siblings.slice(0, limit).map((s) => <AddrLine key={s} w={w} id={s} compact />)}
           </div>
-          {v.siblings.length > limit && <button className="btn-ghost mt-1 w-full text-xs" onClick={() => setLimit((l) => l + 20)}>Afficher plus</button>}
+          {v.siblings.length > limit && <button className="btn-ghost mt-1 w-full text-meta" onClick={() => setLimit((l) => l + 20)}>Afficher plus</button>}
         </div>
       )}
     </div>
@@ -161,37 +161,37 @@ export function SwapMatchPanel({ w, txId, address, compact }: { w: World; txId: 
   return (
     <div className={compact ? '' : 'mt-3 rounded-xl border border-orange-400/30 bg-orange-400/5 p-3'}>
       {!compact && (
-        <div className="mb-1 flex items-center gap-1.5 text-[12.5px] font-semibold text-orange-200">
+        <div className="mb-1 flex items-center gap-1.5 text-dense font-semibold text-orange-200">
           <Icon name="Repeat" size={13} /> Échangeur instantané{m.entity ? ` : ${m.entity.name}` : ''}
         </div>
       )}
       {!compact && (
-        <div className="mb-2 text-[11px] leading-relaxed text-ink-300">
+        <div className="mb-2 text-micro leading-relaxed text-ink-300">
           Le service paie le client depuis son propre portefeuille, souvent sur une autre chaîne : aucun lien on-chain. Les candidats sont classés sur le montant ({fmtUsd(m.depositUsd)} déposés, frais de 0,2 à 3 %) et le délai.
         </div>
       )}
       {m.candidates.length === 0 ? (
-        <div className="text-[11.5px] text-ink-400">{m.note}</div>
+        <div className="text-meta text-ink-400">{m.note}</div>
       ) : (
         <div className="space-y-1">
           {m.candidates.map((c) => (
             <div key={c.txId + c.to} className="rounded-lg border border-ink-700/60 bg-ink-900/50 p-1.5">
-              <div className="flex items-center gap-2 px-1.5 text-[11px]">
+              <div className="flex items-center gap-2 px-1.5 text-micro">
                 <div className="h-1.5 w-12 overflow-hidden rounded-full bg-ink-700"><div className="h-full rounded-full bg-orange-300" style={{ width: `${c.prob * 100}%` }} /></div>
                 <span className="w-9 font-mono text-orange-200">{Math.round(c.prob * 100)} %</span>
                 <ChainBadge chain={c.chain} compact />
                 <span className="font-mono text-ink-100">{fmtAsset(c.value, c.asset)}</span>
                 <span className="text-ink-400">+{c.dtMin} min</span>
                 <span className="ml-auto flex gap-1">
-                  <button className="btn-ghost !px-1.5 !py-0.5 text-[11px]" title="Ajouter au graphe avec un lien de corrélation" onClick={() => link(c)}><Icon name="Link2" size={12} /> Lier</button>
-                  <button className="btn-ghost !px-1.5 !py-0.5 text-[11px]" title="Poursuivre le traçage depuis ce paiement" onClick={() => openTracer({ address: c.to, txId: c.txId, asset: CHAINS[c.chain].model === 'utxo' ? undefined : c.asset, from: CHAINS[c.chain].model === 'utxo' ? undefined : c.from })}><Icon name="Route" size={12} /></button>
+                  <button className="btn-ghost !px-1.5 !py-0.5 text-micro" title="Ajouter au graphe avec un lien de corrélation" onClick={() => link(c)}><Icon name="Link2" size={12} /> Lier</button>
+                  <button className="btn-ghost !px-1.5 !py-0.5 text-micro" title="Poursuivre le traçage depuis ce paiement" onClick={() => openTracer({ address: c.to, txId: c.txId, asset: CHAINS[c.chain].model === 'utxo' ? undefined : c.asset, from: CHAINS[c.chain].model === 'utxo' ? undefined : c.from })}><Icon name="Route" size={12} /></button>
                 </span>
               </div>
               <AddrLine w={w} id={c.to} compact />
-              <div className="px-2 text-[10.5px] text-ink-400">{c.reasons.join(' · ')}</div>
+              <div className="px-2 text-micro text-ink-400">{c.reasons.join(' · ')}</div>
             </div>
           ))}
-          <div className="px-1 text-[10.5px] text-ink-400">Rapprochement probabiliste : à confirmer par réquisition auprès du service (identifiant de commande, adresse de paiement).</div>
+          <div className="px-1 text-micro text-ink-400">Rapprochement probabiliste : à confirmer par réquisition auprès du service (identifiant de commande, adresse de paiement).</div>
         </div>
       )}
     </div>
@@ -219,7 +219,7 @@ export function PeelModal() {
   const native = st.address ? CHAINS[w.get(st.address).chain].native : 'BTC'
   return (
     <Modal open={st.open} onClose={close} title="Détecteur de peel chain" icon="ListTree" width="max-w-4xl">
-      <div className="mb-3 rounded-xl border border-ink-700/60 bg-ink-850/50 p-3 text-[12px] leading-relaxed text-ink-300">
+      <div className="mb-3 rounded-xl border border-ink-700/60 bg-ink-850/50 p-3 text-meta leading-relaxed text-ink-300">
         Dans une peel chain, chaque transaction détache une petite somme (la « pelure », souvent vers un service) et renvoie le reste vers une adresse neuve du même portefeuille. L'outil suit la plus grosse sortie à chaque saut, tant que le motif se répète.
       </div>
       {!res || res.steps.length === 0 ? (
@@ -228,7 +228,7 @@ export function PeelModal() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             <Card label="Sauts" value={String(res.steps.length)} sub={res.medianIntervalH !== undefined ? `intervalle médian ${fmtH(res.medianIntervalH)}` : undefined} />
-            <Card label="Montant détaché" value={fmtUsd(res.peeledUsd)} sub={`${res.steps.reduce((s, x) => s + x.peels.length, 0)} pelure(s)`} accent="#22d3ee" />
+            <Card label="Montant détaché" value={fmtUsd(res.peeledUsd)} sub={`${res.steps.reduce((s, x) => s + x.peels.length, 0)} pelure(s)`} accent="#7ea6ff" />
             <Card label="Vers des services" value={fmtUsd(res.byEntity.reduce((s, e) => s + e.usd, 0))} sub={`${res.byEntity.length} service(s) · ${res.unattributedPeels} pelure(s) non attribuée(s)`} accent="#a78bfa" />
             <Card label="Reste en bout de chaîne" value={fmtAsset(res.end.value, native)} sub={res.end.entity ? `chez ${res.end.entity.name}` : res.end.reason === 'unspent' ? 'non dépensé : piste de gel' : undefined} accent="#facc15" />
           </div>
@@ -236,7 +236,7 @@ export function PeelModal() {
           {res.byEntity.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {res.byEntity.map((e) => (
-                <span key={e.entity.id} className="flex items-center gap-1.5 rounded-lg border border-ink-700/60 px-2 py-1 text-[11.5px]">
+                <span key={e.entity.id} className="flex items-center gap-1.5 rounded-lg border border-ink-700/60 px-2 py-1 text-meta">
                   <EntityChip entity={e.entity} /> <span className="font-mono text-ink-100">{fmtUsd(e.usd)}</span> <span className="text-ink-400">({e.count} pelure{e.count > 1 ? 's' : ''})</span>
                 </span>
               ))}
@@ -244,7 +244,7 @@ export function PeelModal() {
           )}
 
           <div className="max-h-[46vh] overflow-auto rounded-xl border border-ink-700/60">
-            <table className="w-full text-[11.5px]">
+            <table className="w-full text-meta">
               <thead className="sticky top-0 bg-ink-850 text-left text-ink-400">
                 <tr><th className="px-2.5 py-2 font-medium">#</th><th className="px-2 py-2 font-medium">Date</th><th className="px-2 py-2 font-medium">Pelure</th><th className="px-2 py-2 font-medium">Destination</th><th className="px-2 py-2 font-medium">Reste</th><th className="px-2 py-2 font-medium" title="Probabilité que la sortie suivie soit le rendu">Rendu</th></tr>
               </thead>
@@ -252,7 +252,7 @@ export function PeelModal() {
                 {res.steps.map((s, i) => (
                   <tr key={s.txId} className="cursor-pointer border-t border-ink-700/50 align-top hover:bg-ink-800/60" onClick={() => useGame.getState().select({ kind: 'tx', id: s.txId })}>
                     <td className="px-2.5 py-1.5 font-mono text-ink-400">{i + 1}</td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-ink-200">{fmtTime(s.time)}{s.dtH !== undefined && <div className="text-[10.5px] text-ink-400">+{fmtH(s.dtH)}</div>}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5 text-ink-200">{fmtTime(s.time)}{s.dtH !== undefined && <div className="text-micro text-ink-400">+{fmtH(s.dtH)}</div>}</td>
                     <td className="px-2 py-1.5 font-mono text-ink-100">{s.peels.length ? s.peels.map((p) => <div key={p.address}>{fmtAsset(p.value, native)}</div>) : <span className="text-ink-400">—</span>}</td>
                     <td className="max-w-[260px] px-2 py-1">{s.peels.map((p) => <AddrLine key={p.address} w={w} id={p.address} compact />)}</td>
                     <td className="px-2 py-1.5 font-mono text-ink-200">{fmtAsset(s.remaining, native)}</td>
@@ -263,7 +263,7 @@ export function PeelModal() {
             </table>
           </div>
 
-          <div className="flex items-start gap-2 rounded-lg border border-ink-700/60 bg-ink-850/40 p-2.5 text-[11.5px] text-ink-300">
+          <div className="flex items-start gap-2 rounded-lg border border-ink-700/60 bg-ink-850/40 p-2.5 text-meta text-ink-300">
             <Icon name="Flag" size={13} className="mt-0.5 shrink-0" />
             <div>
               {PEEL_END_LABEL[res.end.reason]}

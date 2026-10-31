@@ -76,7 +76,7 @@ export const guidePremiersPas: ScenarioTemplate = {
       briefing:
         `${victimName}, demeurant à ${city}, a répondu à une annonce en ligne pour ${vehicle}. Le « vendeur », prétendument muté à l'étranger, exigeait un paiement en bitcoins avant livraison. ${g('Il', 'Elle')} a acheté ${amt(amount, 'BTC')} sur Coinhouse, les a retirés vers son portefeuille personnel puis les a envoyés à l'adresse indiquée. Le véhicule n'a jamais existé et le vendeur ne répond plus.\n\n` +
         `Votre mission : suivre les bitcoins depuis le portefeuille de la victime jusqu'à la plateforme où l'escroc les a déposés, et préparer la suite d'enquête.\n\n` +
-        `C'est une **mission guidée** : le guide pas à pas se trouve dans l'onglet **Objectifs** du panneau de gauche (le « Dossier »). Chaque étape se valide toute seule quand vous faites la bonne action, et le bouton « Je bloque » donne le chemin exact. Les indices sont gratuits.`,
+        `C'est une **mission guidée** : le guide pas à pas flotte en haut à gauche du graphe. Chaque étape se valide toute seule quand vous faites la bonne action, et le bouton « Je bloque » donne le chemin exact. Les indices sont gratuits.`,
       evidence: [
         {
           id: 'plainte',
@@ -152,7 +152,7 @@ export const guidePremiersPas: ScenarioTemplate = {
           id: 'o9', type: 'tx', points: 10,
           prompt: 'Quelle transaction alimente l\'adresse de dépôt ? (elle sera citée dans la réquisition)',
           answer: [t3.id],
-          hint: 'C\'est le losange situé juste avant l\'adresse de dépôt, entre la seconde adresse de l\'escroc et la plateforme.',
+          hint: 'C\'est le carré situé juste avant l\'adresse de dépôt, entre la seconde adresse de l\'escroc et la plateforme.',
           explanation: `La transaction ${t3.hash.slice(0, 16)}… du ${fmtDate(t3.time)} dépense la seconde adresse de l'escroc et crédite l'adresse de dépôt de ${exName}. Une réquisition précise cite l'adresse de dépôt ET cette transaction (hash, date, montant) : la plateforme retrouve alors immédiatement l'opération et le compte crédité.`,
         },
         {
@@ -209,7 +209,7 @@ export const guidePremiersPas: ScenarioTemplate = {
           `- Marquer au fil de l'eau (suspect, victime) : le rapport reprend ces marquages.`,
       },
       hints: [
-        'Le guide est dans l\'onglet Objectifs du Dossier, à gauche. Le bouton « Je bloque » de chaque étape donne le chemin exact.',
+        'Le guide flotte en haut à gauche du graphe. Le bouton « Je bloque » de chaque étape donne le chemin exact.',
         'Double-cliquer sur une adresse du graphe déplie ses sorties : les transactions qui dépensent ses bitcoins apparaissent, avec leurs destinataires.',
         'Une adresse dont l\'étiquette contient « Adresse de dépôt » appartient à une plateforme : c\'est là que le traçage on-chain s\'arrête.',
         'La date et l\'heure de chaque transaction figurent dans son panneau (« Date (Paris) ») : pratique pour mesurer un délai.',
@@ -218,9 +218,9 @@ export const guidePremiersPas: ScenarioTemplate = {
         {
           title: 'Prenez vos repères',
           text:
-            `Bienvenue ! L'écran a trois zones : à gauche le **Dossier** (onglets Objectifs, Pièces, Marqués, Journal), au centre le **graphe** (vide pour l'instant), à droite le panneau **Analyse** qui détaille ce que vous sélectionnez.\n\n` +
-            `Le résumé de l'affaire est dans l'**Ordre de mission** (icône de document, en haut à droite). Un enquêteur commence toujours par relire les faits : montant, date, adresse de la victime.\n\n` +
-            `Ce guide reste affiché en haut du dossier, quel que soit l'onglet ouvert : suivez les étapes dans l'ordre, elles se valident toutes seules.`,
+            `Bienvenue ! Le **graphe** occupe le centre (vide pour l'instant). À gauche, le rail du **Dossier** ouvre ses onglets : Objectifs, Pièces, Marquages, Journal. Le panneau **Analyse** s'ouvre à droite dès que vous sélectionnez une adresse ou une transaction.\n\n` +
+            `Le résumé de l'affaire est dans l'**Ordre de mission** (icône de presse-papiers dans le rail, ou menu **Outils**). Un enquêteur commence toujours par relire les faits : montant, date, adresse de la victime.\n\n` +
+            `Ce guide flotte en haut à gauche du graphe ; cliquez son titre pour le replier. Suivez les étapes dans l'ordre, elles se valident toutes seules.`,
           check: { kind: 'manual' },
         },
         {
@@ -236,23 +236,23 @@ export const guidePremiersPas: ScenarioTemplate = {
           text:
             `L'adresse est sélectionnée : le panneau **Analyse** (à droite) affiche son solde actuel, son nombre de transactions, le total reçu et envoyé. Elle est « non attribuée » : la base ne la connaît pas, c'est un portefeuille de particulier.\n\n` +
             `Dans l'onglet **Historique** du panneau, chaque ligne est une transaction : flèche verte = entrée, flèche rouge = sortie. Cliquez la transaction **entrante** venant de « Coinhouse — Hot Wallet » : c'est l'achat de la victime, qui confirme sa déclaration.`,
-          tip: 'Si le panneau de droite ne montre pas l\'adresse, cliquez son nœud (le rond) sur le graphe. Puis panneau Analyse ▸ onglet **Historique** ▸ cliquez la ligne à flèche verte « Coinhouse — Hot Wallet ».',
+          tip: 'Si le panneau Analyse est fermé ou montre autre chose, cliquez le nœud de l\'adresse sur le graphe. Puis panneau Analyse ▸ onglet **Historique** ▸ cliquez la ligne à flèche verte « Coinhouse — Hot Wallet ».',
           check: { kind: 'selected', id: buyTx.id },
         },
         {
           title: 'Dépliez les sorties de la victime',
           text:
             `Le panneau affiche maintenant la transaction d'achat. Revenez à l'adresse de la victime : cliquez son nœud sur le graphe.\n\n` +
-            `Pour voir où sont partis ses bitcoins, **dépliez ses sorties** : double-clic sur le nœud, ou bouton **Sorties** du panneau. Un petit losange apparaît (la transaction de paiement), relié à ses destinataires.`,
+            `Pour voir où sont partis ses bitcoins, **dépliez ses sorties** : double-clic sur le nœud, ou bouton **Sorties** du panneau. Un petit carré apparaît (la transaction de paiement), relié à ses destinataires.`,
           tip: 'Double-cliquez le nœud de la victime sur le graphe. Autres chemins : clic droit sur le nœud ▸ « Déplier les sorties », ou bouton **Sorties** (flèche rouge) dans le panneau d\'adresse.',
           check: { kind: 'txRevealed', tx: t1.id },
         },
         {
           title: 'Ouvrez la transaction de paiement',
           text:
-            `Cliquez le **losange** : le panneau affiche la transaction. Lisez ses **Entrées** (les bitcoins dépensés, venant de la victime) et ses **Sorties** (où ils vont). La différence entre les deux, ce sont les **Frais** payés aux mineurs.\n\n` +
+            `Cliquez le **carré** : le panneau affiche la transaction. Lisez ses **Entrées** (les bitcoins dépensés, venant de la victime) et ses **Sorties** (où ils vont). La différence entre les deux, ce sont les **Frais** payés aux mineurs.\n\n` +
             `Il y a deux sorties : le paiement de ${amt(amount, 'BTC')} (montant rond, celui de la plainte) et une autre somme qui **revient à la victime** : le **rendu**. Sur Bitcoin, on dépense des « pièces » entières et la monnaie revient sur une adresse neuve. La barre « Rendu probable » le signale. Le rendu n'est pas une piste : ne le suivez pas.`,
-          tip: 'Cliquez le petit losange entre la victime et ses deux destinataires. Dans le panneau, dépliez la barre « Rendu probable » pour voir les raisons (type d\'adresse identique à l\'entrée, montant non rond…).',
+          tip: 'Cliquez le petit carré entre la victime et ses deux destinataires. Dans le panneau, dépliez la barre « Rendu probable » pour voir les raisons (type d\'adresse identique à l\'entrée, montant non rond…).',
           check: { kind: 'selected', id: t1.id },
         },
         {
@@ -276,7 +276,7 @@ export const guidePremiersPas: ScenarioTemplate = {
           text:
             `Même méthode pour l'objectif 2 : sélectionnez l'**autre** sortie de la transaction de paiement, celle qui revient à la victime, puis « Utiliser l'adresse sélectionnée ».\n\n` +
             `Savoir reconnaître le rendu est la compétence de base du traçage Bitcoin : si on le prend pour un paiement, on part sur une fausse piste (ici, chez la victime elle-même !).`,
-          tip: 'Cliquez le nœud non marqué relié au losange du paiement (montant non rond, adresse bc1q… comme la victime) ▸ objectif 2 ▸ « Utiliser l\'adresse sélectionnée ».',
+          tip: 'Cliquez le nœud non marqué relié au carré du paiement (montant non rond, adresse bc1q… comme la victime) ▸ objectif 2 ▸ « Utiliser l\'adresse sélectionnée ».',
           check: { kind: 'correct', objective: 'o6' },
         },
         {
@@ -328,8 +328,8 @@ export const guidePremiersPas: ScenarioTemplate = {
           title: 'Citez la transaction de dépôt',
           text:
             `Une réquisition ne cite pas seulement une adresse : elle cite aussi la **transaction** de dépôt, pour que la plateforme retrouve l'opération sans ambiguïté.\n\n` +
-            `Cliquez le **losange** juste avant l'adresse de dépôt, puis, dans l'objectif 7, **« Utiliser la transaction sélectionnée »**. Profitez-en pour lire son hash complet, sa date et ses sorties.`,
-          tip: 'Clic sur le losange relié à « ' + exName + ' — Adresse de dépôt » (côté gauche) ▸ objectif 7 ▸ « Utiliser la transaction sélectionnée ».',
+            `Cliquez le **carré** juste avant l'adresse de dépôt, puis, dans l'objectif 7, **« Utiliser la transaction sélectionnée »**. Profitez-en pour lire son hash complet, sa date et ses sorties.`,
+          tip: 'Clic sur le carré relié à « ' + exName + ' — Adresse de dépôt » (côté gauche) ▸ objectif 7 ▸ « Utiliser la transaction sélectionnée ».',
           check: { kind: 'correct', objective: 'o9' },
         },
         {
@@ -344,7 +344,7 @@ export const guidePremiersPas: ScenarioTemplate = {
           text:
             `Combien de temps l'escroc a-t-il attendu avant d'encaisser ? Ouvrez la transaction de **paiement** de la victime puis celle du **dépôt** : chacune affiche sa **Date (Paris)**. Calculez l'écart en heures (une marge d'une heure et demie est tolérée) et saisissez-le dans l'objectif 9.\n\n` +
             `Ce délai mesure l'urgence et indique à la plateforme sur quelle période rechercher les connexions du titulaire.`,
-          tip: 'Clic sur le losange du paiement ▸ notez « Date (Paris) ». Clic sur le losange du dépôt ▸ notez sa date. Écart en heures (ex. de 10 h la veille à 14 h le lendemain = 28 h).',
+          tip: 'Clic sur le carré du paiement ▸ notez « Date (Paris) ». Clic sur le carré du dépôt ▸ notez sa date. Écart en heures (ex. de 10 h la veille à 14 h le lendemain = 28 h).',
           check: { kind: 'correct', objective: 'o8' },
         },
         {
@@ -352,7 +352,7 @@ export const guidePremiersPas: ScenarioTemplate = {
           text:
             `La transaction de dépôt a une seconde sortie, non étiquetée : le **rendu de l'escroc**. Cliquez-la : son **Solde actuel** n'est pas nul et elle n'a jamais été dépensée. L'escroc détient donc encore une partie des fonds.\n\n` +
             `Marquez-la **Suspect** et désignez-la dans l'objectif 10. Ce rendu-là, contrairement à celui de la victime, est une piste : s'il bouge un jour, il peut mener à un autre point d'encaissement.`,
-          tip: 'Clic sur le nœud non étiqueté relié au losange du dépôt (pas l\'adresse de dépôt) ▸ objectif 10 ▸ « Utiliser l\'adresse sélectionnée ».',
+          tip: 'Clic sur le nœud non étiqueté relié au carré du dépôt (pas l\'adresse de dépôt) ▸ objectif 10 ▸ « Utiliser l\'adresse sélectionnée ».',
           check: { kind: 'correct', objective: 'o10' },
         },
         {

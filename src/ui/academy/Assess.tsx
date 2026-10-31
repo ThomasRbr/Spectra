@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import { spectraMarkSvg } from '../brand'
 import { DRILLS, EXAMS, LEVELS, LESSONS, PATHS, examById, lessonById, pathById, type DrillItem, type Question } from '../../academy'
 import { Rng, randomSeed } from '../../engine/rng'
 import { useProfile, type CardGrade, type Certificate } from '../../store/profile'
 import { useUi } from '../../store/ui'
 import { dueCards, pathProgress, type CardRef } from '../../lib/academy'
-import { Empty, Icon, ProgressBar, fmtDuration } from '../common'
+import { Empty, Icon, ProgressBar, fmtDuration, tint } from '../common'
 import { openPrintable } from '../../lib/printable'
 import { QuestionCard, isCorrect } from './Quiz'
 import { DrillQuestion, checkDrill } from './Practice'
@@ -51,19 +52,19 @@ export function CardsReview({ lessonId }: { lessonId?: string }) {
   const card = queue[0]
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
-      <button className="btn-ghost -ml-2 mb-3 !px-2 text-[12px]" onClick={() => (lesson ? useUi.getState().openLesson(lesson.id) : useUi.getState().openAcademy({ kind: 'home' }))}>
+      <button className="btn-ghost -ml-2 mb-3 !px-2 text-meta" onClick={() => (lesson ? useUi.getState().openLesson(lesson.id) : useUi.getState().openAcademy({ kind: 'home' }))}>
         <Icon name="ChevronLeft" size={14} /> {lesson ? lesson.title : 'Académie'}
       </button>
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <div className="label text-amber-300">Révisions</div>
-          <h1 className="mt-1 text-[26px] font-bold text-white">{lesson ? `Fiches — ${lesson.title}` : 'Fiches du jour'}</h1>
-          <p className="text-[12.5px] text-ink-400">Répétition espacée : plus une fiche est maîtrisée, plus elle revient tard. Espace pour retourner, 1-4 pour noter.</p>
+          <h1 className="mt-1 text-page font-semibold tracking-tight text-white">{lesson ? `Fiches — ${lesson.title}` : 'Fiches du jour'}</h1>
+          <p className="text-dense text-ink-400">Répétition espacée : plus une fiche est maîtrisée, plus elle revient tard. Espace pour retourner, 1-4 pour noter.</p>
         </div>
         <div className="ml-auto flex gap-2 text-center">
-          <div className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-1.5"><div className="text-[9.5px] uppercase text-ink-400">Restantes</div><div className="font-mono text-[15px] text-white">{queue.length}</div></div>
-          <div className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-1.5"><div className="text-[9.5px] uppercase text-ink-400">Revues</div><div className="font-mono text-[15px] text-white">{done}</div></div>
-          <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/5 px-3 py-1.5"><div className="text-[9.5px] uppercase text-ink-400">Maîtrisées</div><div className="font-mono text-[15px] text-emerald-300">{mastered}/{totalKnown}</div></div>
+          <div className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-1.5"><div className="text-micro uppercase text-ink-400">Restantes</div><div className="font-mono text-title text-white">{queue.length}</div></div>
+          <div className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-1.5"><div className="text-micro uppercase text-ink-400">Revues</div><div className="font-mono text-title text-white">{done}</div></div>
+          <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/5 px-3 py-1.5"><div className="text-micro uppercase text-ink-400">Maîtrisées</div><div className="font-mono text-title text-emerald-300">{mastered}/{totalKnown}</div></div>
         </div>
       </div>
 
@@ -73,23 +74,23 @@ export function CardsReview({ lessonId }: { lessonId?: string }) {
         </div>
       ) : (
         <>
-          <div className="mt-6 text-[12px] text-ink-400">{card.lessonTitle}</div>
+          <div className="mt-6 text-meta text-ink-400">{card.lessonTitle}</div>
           <button onClick={() => setFlipped((f) => !f)} className="mt-1.5 h-72 w-full [perspective:1200px]">
             <div className={`relative h-full w-full transition-transform duration-500 [transform-style:preserve-3d] ${flipped ? '[transform:rotateY(180deg)]' : ''}`}>
-              <div className="absolute inset-0 flex flex-col items-center justify-center rounded-3xl border border-ink-600 bg-gradient-to-br from-ink-850 to-ink-900 p-8 text-center shadow-panel [backface-visibility:hidden]">
-                <div className="text-[11px] uppercase tracking-[0.2em] text-amber-300">Question</div>
-                <div className="mt-3 text-[20px] font-semibold leading-snug text-white">{card.card.front}</div>
-                <div className="mt-6 text-[11.5px] text-ink-500">Cliquer ou Espace pour voir la réponse</div>
+              <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl border border-ink-600 bg-ink-850 p-8 text-center shadow-panel [backface-visibility:hidden]">
+                <div className="text-micro uppercase tracking-[0.2em] text-amber-300">Question</div>
+                <div className="mt-3 text-section font-semibold leading-snug text-white">{card.card.front}</div>
+                <div className="mt-6 text-meta text-ink-500">Cliquer ou Espace pour voir la réponse</div>
               </div>
-              <div className="absolute inset-0 flex flex-col items-center justify-center rounded-3xl border border-amber-400/40 bg-gradient-to-br from-amber-400/[0.08] to-ink-900 p-8 text-center shadow-panel [backface-visibility:hidden] [transform:rotateY(180deg)]">
-                <div className="text-[11px] uppercase tracking-[0.2em] text-amber-300">Réponse</div>
-                <div className="mt-3 text-[16px] leading-relaxed text-ink-100">{card.card.back}</div>
+              <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl border border-amber-400/40 bg-amber-400/[0.06] p-8 text-center shadow-panel [backface-visibility:hidden] [transform:rotateY(180deg)]">
+                <div className="text-micro uppercase tracking-[0.2em] text-amber-300">Réponse</div>
+                <div className="mt-3 text-title leading-relaxed text-ink-100">{card.card.back}</div>
               </div>
             </div>
           </button>
           <div className={`mt-4 grid grid-cols-4 gap-2 transition ${flipped ? 'opacity-100' : 'pointer-events-none opacity-30'}`}>
-            {([['again', 'À revoir', '#f43f5e', '1'], ['hard', 'Difficile', '#fb923c', '2'], ['good', 'Bien', '#22d3ee', '3'], ['easy', 'Facile', '#34d399', '4']] as const).map(([g, label, color, k]) => (
-              <button key={g} onClick={() => grade(g)} className="rounded-xl border py-2.5 text-[13px] font-semibold transition hover:brightness-125" style={{ borderColor: `${color}66`, color, background: `${color}10` }}>
+            {([['again', 'À revoir', '#f43f5e', '1'], ['hard', 'Difficile', '#fb923c', '2'], ['good', 'Bien', '#7ea6ff', '3'], ['easy', 'Facile', '#34d399', '4']] as const).map(([g, label, color, k]) => (
+              <button key={g} onClick={() => grade(g)} className="rounded-xl border py-2.5 text-dense font-semibold transition hover:brightness-125" style={{ borderColor: `${color}66`, color, background: `${color}10` }}>
                 {label} <span className="kbd ml-1">{k}</span>
               </button>
             ))}
@@ -110,26 +111,26 @@ export function ExamsList() {
   ]
   return (
     <div className="mx-auto max-w-6xl px-8 py-8">
-      <div className="label text-accent">Évaluation</div>
-      <h1 className="mt-1 text-3xl font-bold text-white">Examens</h1>
-      <p className="mt-1 max-w-2xl text-[13.5px] text-ink-300">Questions tirées au hasard dans les quiz des leçons et des exercices générés, chronométrées, sans correction avant la fin. Réussir un examen de niveau valide ce niveau.</p>
+      <div className="text-dense text-ink-400">Évaluation</div>
+      <h1 className="mt-1 text-page font-semibold tracking-tight text-white">Examens</h1>
+      <p className="mt-1 max-w-2xl text-body text-ink-300">Questions tirées au hasard dans les quiz des leçons et des exercices générés, chronométrées, sans correction avant la fin. Réussir un examen de niveau valide ce niveau.</p>
       {groups.map((g) => (
         <section key={g.title} className="mt-7">
-          <h2 className="mb-3 text-[15px] font-semibold text-white">{g.title}</h2>
+          <h2 className="mb-3 text-title font-semibold text-white">{g.title}</h2>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {g.items.map((e) => {
               const r = exams[e.id]
               const lv = LEVELS[e.level]
               return (
-                <button key={e.id} onClick={() => useUi.getState().openAcademy({ kind: 'exam', id: e.id })} className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-4 text-left transition hover:border-accent/50">
+                <button key={e.id} onClick={() => useUi.getState().openAcademy({ kind: 'exam', id: e.id })} className="rounded-xl border border-ink-700/70 bg-ink-900/60 p-4 text-left transition hover:border-accent/50">
                   <div className="flex items-center gap-2">
-                    <span className="chip border" style={{ color: lv.color, borderColor: `${lv.color}55` }}>{lv.short}</span>
+                    <span className="chip border" style={{ color: tint(lv.color), borderColor: `${lv.color}55` }}>{lv.short}</span>
                     {r?.passedAt ? <span className="chip bg-emerald-400/10 text-emerald-300"><Icon name="BadgeCheck" size={11} /> Réussi</span> : r ? <span className="chip bg-ink-800 text-ink-300">{r.attempts} tentative(s)</span> : null}
-                    <span className="ml-auto font-mono text-[12px] text-ink-300">{r ? `${r.best} %` : ''}</span>
+                    <span className="ml-auto font-mono text-meta text-ink-300">{r ? `${r.best} %` : ''}</span>
                   </div>
-                  <div className="mt-2 text-[15px] font-semibold text-white">{e.title}</div>
-                  <div className="mt-1 line-clamp-2 text-[12.5px] text-ink-300">{e.description}</div>
-                  <div className="mt-3 flex gap-3 text-[11.5px] text-ink-400">
+                  <div className="mt-2 text-title font-semibold text-white">{e.title}</div>
+                  <div className="mt-1 line-clamp-2 text-dense text-ink-300">{e.description}</div>
+                  <div className="mt-3 flex gap-3 text-meta text-ink-400">
                     <span><Icon name="ListChecks" size={11} className="mr-1 inline" />{e.questions} questions</span>
                     <span><Icon name="Timer" size={11} className="mr-1 inline" />{e.minutes} min</span>
                     <span><Icon name="Target" size={11} className="mr-1 inline" />{e.passPct} % requis</span>
@@ -210,18 +211,18 @@ export function ExamRunner({ id, pathId }: { id: string; pathId?: string }) {
   if (seed === null) {
     return (
       <div className="mx-auto max-w-2xl px-6 py-10">
-        <button className="btn-ghost -ml-2 mb-3 !px-2 text-[12px]" onClick={() => useUi.getState().openAcademy(path ? { kind: 'path', id: path.id } : { kind: 'exams' })}><Icon name="ChevronLeft" size={14} /> {path ? path.title : 'Examens'}</button>
-        <div className="rounded-3xl border border-ink-700 hero-gradient p-8 text-center">
-          <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-accent/40 bg-accent/10 text-accent"><Icon name="FileCheck2" size={30} /></span>
-          <h1 className="mt-4 text-[26px] font-bold text-white">{e.title}</h1>
-          <p className="mt-2 text-[14px] text-ink-300">{e.description}</p>
-          <div className="mt-5 flex justify-center gap-6 text-[13px] text-ink-200">
+        <button className="btn-ghost -ml-2 mb-3 !px-2 text-meta" onClick={() => useUi.getState().openAcademy(path ? { kind: 'path', id: path.id } : { kind: 'exams' })}><Icon name="ChevronLeft" size={14} /> {path ? path.title : 'Examens'}</button>
+        <div className="rounded-xl border border-ink-700 p-8 text-center">
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-xl border border-accent/40 bg-accent/10 text-accent"><Icon name="FileCheck2" size={30} /></span>
+          <h1 className="mt-4 text-page font-semibold tracking-tight text-white">{e.title}</h1>
+          <p className="mt-2 text-body text-ink-300">{e.description}</p>
+          <div className="mt-5 flex justify-center gap-6 text-dense text-ink-200">
             <span><b className="text-white">{e.questions}</b> questions</span>
             <span><b className="text-white">{e.minutes}</b> minutes</span>
             <span><b className="text-white">{e.passPct} %</b> pour réussir</span>
           </div>
-          {rec && <div className="mt-3 text-[12px] text-ink-400">Meilleur score : {rec.best} % · {rec.attempts} tentative(s){rec.passedAt ? ' · réussi' : ''}</div>}
-          <button className="btn-primary mt-6 !px-6 !py-2.5 text-[14px]" onClick={() => {
+          {rec && <div className="mt-3 text-meta text-ink-400">Meilleur score : {rec.best} % · {rec.attempts} tentative(s){rec.passedAt ? ' · réussi' : ''}</div>}
+          <button className="btn-primary mt-6 !px-6 !py-2.5 text-body" onClick={() => {
             setSeed(randomSeed())
             setStartedAt(Date.now())
             setNow(Date.now())
@@ -231,7 +232,7 @@ export function ExamRunner({ id, pathId }: { id: string; pathId?: string }) {
           }}>
             <Icon name="Play" size={16} /> Commencer l'examen
           </button>
-          <div className="mt-3 text-[11.5px] text-ink-500">Chaque tentative tire de nouvelles questions.</div>
+          <div className="mt-3 text-meta text-ink-500">Chaque tentative tire de nouvelles questions.</div>
         </div>
       </div>
     )
@@ -240,22 +241,22 @@ export function ExamRunner({ id, pathId }: { id: string; pathId?: string }) {
   const answered = items.filter((_, i) => answers[i] !== undefined && answers[i] !== '' && !(Array.isArray(answers[i]) && !(answers[i] as number[]).length)).length
   return (
     <div className="mx-auto max-w-3xl px-6 py-8" id="exam-top">
-      <div className="sticky top-0 z-10 -mx-2 mb-4 flex items-center gap-3 rounded-2xl border border-ink-700 bg-ink-900/95 px-4 py-2.5 backdrop-blur">
+      <div className="sticky top-0 z-10 -mx-2 mb-4 flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-900/95 px-4 py-2.5">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[14px] font-semibold text-white">{e.title}</div>
+          <div className="truncate text-body font-semibold text-white">{e.title}</div>
           <ProgressBar value={answered / items.length} className="mt-1" />
         </div>
-        <span className="font-mono text-[12px] text-ink-300">{answered}/{items.length}</span>
-        {!result && <span className={`flex items-center gap-1 rounded-lg border px-2 py-1 font-mono text-[13px] ${remaining < 60 ? 'border-rose-400/50 text-rose-300' : 'border-ink-600 text-ink-100'}`}><Icon name="Timer" size={13} /> {fmtDuration(remaining)}</span>}
+        <span className="font-mono text-meta text-ink-300">{answered}/{items.length}</span>
+        {!result && <span className={`flex items-center gap-1 rounded-lg border px-2 py-1 font-mono text-dense ${remaining < 60 ? 'border-rose-400/50 text-rose-300' : 'border-ink-600 text-ink-100'}`}><Icon name="Timer" size={13} /> {fmtDuration(remaining)}</span>}
         {!result && <button className="btn-primary !py-1.5" onClick={() => confirm(answered < items.length ? `${items.length - answered} question(s) sans réponse. Rendre la copie ?` : 'Rendre la copie ?') && submit()}>Rendre</button>}
       </div>
 
       {result && (
-        <div className={`mb-6 rounded-3xl border p-6 text-center ${result.passed ? 'border-emerald-400/40 bg-emerald-400/[0.06]' : 'border-rose-400/40 bg-rose-400/[0.06]'}`}>
+        <div className={`mb-6 rounded-xl border p-6 text-center ${result.passed ? 'border-emerald-400/40 bg-emerald-400/[0.06]' : 'border-rose-400/40 bg-rose-400/[0.06]'}`}>
           <Icon name={result.passed ? 'BadgeCheck' : 'CircleX'} size={40} className={`mx-auto ${result.passed ? 'text-emerald-400' : 'text-rose-400'}`} />
-          <div className="mt-2 text-[34px] font-black text-white">{result.pct} %</div>
-          <div className="text-[14px] text-ink-200">{result.ok}/{items.length} bonnes réponses · seuil {e.passPct} %</div>
-          <div className={`mt-2 text-[15px] font-semibold ${result.passed ? 'text-emerald-300' : 'text-rose-300'}`}>{result.passed ? 'Examen réussi : certificat ajouté à votre dossier.' : 'Examen non validé : revoyez les corrections ci-dessous puis retentez.'}</div>
+          <div className="mt-2 text-display font-semibold text-white">{result.pct} %</div>
+          <div className="text-body text-ink-200">{result.ok}/{items.length} bonnes réponses · seuil {e.passPct} %</div>
+          <div className={`mt-2 text-title font-semibold ${result.passed ? 'text-emerald-300' : 'text-rose-300'}`}>{result.passed ? 'Examen réussi : certificat ajouté à votre dossier.' : 'Examen non validé : revoyez les corrections ci-dessous puis retentez.'}</div>
           <div className="mt-4 flex justify-center gap-2">
             <button className="btn-outline" onClick={() => setSeed(null)}><Icon name="RotateCcw" size={14} /> Nouvelle tentative</button>
             {result.passed && <button className="btn-primary" onClick={() => useUi.getState().openAcademy({ kind: 'certs' })}><Icon name="Award" size={14} /> Mes certificats</button>}
@@ -269,7 +270,7 @@ export function ExamRunner({ id, pathId }: { id: string; pathId?: string }) {
           {items.map((_, i) => {
             const a = answers[i]
             const has = a !== undefined && a !== '' && !(Array.isArray(a) && !a.length)
-            return <button key={i} onClick={() => setCur(i)} className={`h-7 w-7 rounded-md font-mono text-[11px] transition ${cur === i ? 'bg-accent text-ink-950' : has ? 'bg-accent/20 text-accent' : 'bg-ink-800 text-ink-400 hover:text-white'}`}>{i + 1}</button>
+            return <button key={i} onClick={() => setCur(i)} className={`h-7 w-7 rounded-md font-mono text-micro transition ${cur === i ? 'bg-accent text-ink-950' : has ? 'bg-accent/20 text-accent' : 'bg-ink-800 text-ink-400 hover:text-white'}`}>{i + 1}</button>
           })}
         </div>
       )}
@@ -279,11 +280,11 @@ export function ExamRunner({ id, pathId }: { id: string; pathId?: string }) {
           if (!result && i !== cur) return null
           return (
             <div key={i}>
-              <div className="mb-1 text-[11px] text-ink-500">Question {i + 1} · {it.from}</div>
+              <div className="mb-1 text-micro text-ink-500">Question {i + 1} · {it.from}</div>
               {it.kind === 'q' ? (
                 <QuestionCard q={it.q} index={i} value={answers[i] as number[] | undefined} reveal={!!result} onChange={(v) => setAnswers((a) => ({ ...a, [i]: v }))} />
               ) : (
-                <div className={`rounded-2xl border bg-ink-900/60 p-4 ${result ? (checkDrill(it.d, answers[i] as string | number) ? 'border-emerald-400/40' : 'border-rose-400/40') : 'border-ink-700/70'}`}>
+                <div className={`rounded-xl border bg-ink-900/60 p-4 ${result ? (checkDrill(it.d, answers[i] as string | number) ? 'border-emerald-400/40' : 'border-rose-400/40') : 'border-ink-700/70'}`}>
                   <DrillQuestion item={it.d} value={answers[i] as string | number | undefined} reveal={!!result} onChange={(v) => setAnswers((a) => ({ ...a, [i]: v }))} />
                 </div>
               )}
@@ -308,29 +309,29 @@ export function Certificates() {
   const certs = [...p.certificates].sort((a, b) => b.date - a.date)
   return (
     <div className="mx-auto max-w-6xl px-8 py-8">
-      <div className="label text-accent">Reconnaissance</div>
-      <h1 className="mt-1 text-3xl font-bold text-white">Certificats</h1>
-      <p className="mt-1 text-[13.5px] text-ink-300">Les certifications pratiques valident la capacité à mener une enquête. Les examens à questions et les parcours délivrent des insignes de compétence, exigés pour s'y présenter. Tous les certificats sont imprimables (ou enregistrables en PDF).</p>
+      <div className="text-dense text-ink-400">Reconnaissance</div>
+      <h1 className="mt-1 text-page font-semibold tracking-tight text-white">Certificats</h1>
+      <p className="mt-1 text-body text-ink-300">Les certifications pratiques valident la capacité à mener une enquête. Les examens à questions et les parcours délivrent des insignes de compétence, exigés pour s'y présenter. Tous les certificats sont imprimables (ou enregistrables en PDF).</p>
       <div className="mt-6"><PracticalCerts /></div>
-      <h2 className="mb-3 mt-10 text-[15px] font-semibold text-white">Certificats obtenus</h2>
+      <h2 className="mb-3 mt-10 text-title font-semibold text-white">Certificats obtenus</h2>
       {!certs.length ? (
         <div><Empty icon="Award" title="Aucun certificat pour l'instant" sub="Réussissez un examen, terminez un parcours ou passez une certification pratique." /></div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {certs.map((c) => (
-            <div key={`${c.kind}-${c.id}`} className="relative overflow-hidden rounded-2xl border border-amber-400/30 bg-gradient-to-br from-amber-400/[0.08] via-ink-900 to-ink-900 p-5">
+            <div key={`${c.kind}-${c.id}`} className="relative overflow-hidden rounded-xl border border-amber-400/30 bg-amber-400/[0.06] p-5">
               <Icon name="Award" size={80} className="absolute -right-4 -top-4 text-amber-400/10" />
-              <div className="text-[10.5px] uppercase tracking-[0.18em] text-amber-300">{c.kind === 'practical' ? 'Certification pratique' : c.kind === 'path' ? 'Parcours terminé' : 'Insigne de compétence'}</div>
-              <div className="mt-1 text-[17px] font-bold text-white">{c.title}</div>
-              <div className="mt-1 text-[12.5px] text-ink-300">Délivré le {new Date(c.date).toLocaleDateString('fr-FR')}{c.score !== undefined ? ` · ${c.score} %` : ''}{c.expires ? ` · valide jusqu'au ${new Date(c.expires).toLocaleDateString('fr-FR')}` : ''}</div>
-              {c.code && <div className="mt-0.5 font-mono text-[11.5px] text-ink-200">{c.code}</div>}
-              <button className="btn-outline mt-4 !py-1 text-[12px]" onClick={() => (c.kind === 'practical' ? printPractical(c, p.name, p.unit) : printCertificate(c, p.name, p.unit))}><Icon name="Printer" size={13} /> Imprimer</button>
+              <div className="text-micro uppercase tracking-[0.18em] text-amber-300">{c.kind === 'practical' ? 'Certification pratique' : c.kind === 'path' ? 'Parcours terminé' : 'Insigne de compétence'}</div>
+              <div className="mt-1 text-title font-bold text-white">{c.title}</div>
+              <div className="mt-1 text-dense text-ink-300">Délivré le {new Date(c.date).toLocaleDateString('fr-FR')}{c.score !== undefined ? ` · ${c.score} %` : ''}{c.expires ? ` · valide jusqu'au ${new Date(c.expires).toLocaleDateString('fr-FR')}` : ''}</div>
+              {c.code && <div className="mt-0.5 font-mono text-meta text-ink-200">{c.code}</div>}
+              <button className="btn-outline mt-4 !py-1 text-meta" onClick={() => (c.kind === 'practical' ? printPractical(c, p.name, p.unit) : printCertificate(c, p.name, p.unit))}><Icon name="Printer" size={13} /> Imprimer</button>
             </div>
           ))}
         </div>
       )}
       <div className="mt-10">
-        <h2 className="mb-3 text-[15px] font-semibold text-white">Parcours et certificats associés</h2>
+        <h2 className="mb-3 text-title font-semibold text-white">Parcours et certificats associés</h2>
         <div className="grid gap-2 md:grid-cols-2">
           {PATHS.map((path) => {
             const pr = pathProgress(p, path)
@@ -338,10 +339,10 @@ export function Certificates() {
               <div key={path.id} className="flex items-center gap-3 rounded-xl border border-ink-700/70 bg-ink-900/50 p-3">
                 <Icon name={path.icon} size={18} color={path.color} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] text-white">{path.certificate}</div>
+                  <div className="truncate text-dense text-white">{path.certificate}</div>
                   <ProgressBar value={pr.pct} className="mt-1" color={path.color} />
                 </div>
-                <span className="font-mono text-[11.5px] text-ink-400">{pr.done}/{pr.total}</span>
+                <span className="font-mono text-meta text-ink-400">{pr.done}/{pr.total}</span>
               </div>
             )
           })}
@@ -356,12 +357,12 @@ function printCertificate(c: Certificate, name: string, unit: string) {
   const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Certificat — ${esc(c.title)}</title>
 <style>@page{size:A4 landscape;margin:0}body{margin:0;font-family:Georgia,'Times New Roman',serif;background:#f4f1ea}
 .c{box-sizing:border-box;width:297mm;height:210mm;padding:18mm;display:flex}
-.f{flex:1;border:3px double #0e7490;padding:14mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:white}
-.k{letter-spacing:.35em;text-transform:uppercase;color:#0e7490;font:600 13px Inter,Arial,sans-serif}
-h1{font-size:42px;margin:10mm 0 4mm;color:#111}.n{font-size:30px;margin:6mm 0;font-style:italic}.t{font-size:22px;font-weight:bold;color:#0e7490}
-.m{margin-top:12mm;font:13px Inter,Arial,sans-serif;color:#555}.p{position:fixed;top:10px;right:10px;padding:8px 14px;background:#0e7490;color:#fff;border:0;border-radius:6px;cursor:pointer}@media print{.p{display:none}}</style></head>
+.f{flex:1;border:3px double #3a5a9e;padding:14mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:white}
+.k{letter-spacing:.35em;text-transform:uppercase;color:#3a5a9e;font:600 13px Inter,Arial,sans-serif}
+h1{font-size:42px;margin:10mm 0 4mm;color:#111}.n{font-size:30px;margin:6mm 0;font-style:italic}.t{font-size:22px;font-weight:bold;color:#3a5a9e}
+.m{margin-top:12mm;font:13px Inter,Arial,sans-serif;color:#555}.p{position:fixed;top:10px;right:10px;padding:8px 14px;background:#3a5a9e;color:#fff;border:0;border-radius:6px;cursor:pointer}@media print{.p{display:none}}</style></head>
 <body><button class="p" onclick="window.print()">Imprimer / PDF</button><div class="c"><div class="f">
-<div class="k">SPECTRA · Académie du traçage de crypto-actifs</div><h1>Certificat de réussite</h1><div>Décerné à</div><div class="n">${esc(name)}</div><div>${esc(unit)}</div>
+${spectraMarkSvg(46)}<div class="k" style="margin-top:4mm">SPECTRA · Académie du traçage de crypto-actifs</div><h1>Certificat de réussite</h1><div>Décerné à</div><div class="n">${esc(name)}</div><div>${esc(unit)}</div>
 <div style="margin-top:8mm">pour avoir ${c.kind === 'path' ? 'achevé le parcours' : 'réussi l\'examen'}</div><div class="t">${esc(c.title)}</div>
 <div class="m">Délivré le ${new Date(c.date).toLocaleDateString('fr-FR', { dateStyle: 'long' })}${c.score !== undefined ? ` · score ${c.score} %` : ''}<br>Certificat d'entraînement interne — sans valeur de diplôme</div></div></div></body></html>`
   openPrintable(html, `certificat-${c.id}.html`)

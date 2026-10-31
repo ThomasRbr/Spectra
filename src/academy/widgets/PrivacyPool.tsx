@@ -58,16 +58,16 @@ export default function PrivacyPool() {
 
       <div className="rounded-xl border border-ink-700 bg-ink-950/60 p-2">
         <svg viewBox="0 0 720 200" className="h-auto w-full" role="img" aria-label="Chronologie des dépôts et retraits">
-          <line x1={20} y1={100} x2={700} y2={100} stroke="#2c3a5c" strokeWidth={2} />
+          <line x1={20} y1={100} x2={700} y2={100} stroke="#3d444f" strokeWidth={2} />
           {[0, 12, 24, 36, 48, 60].map((h) => (
             <g key={h}>
-              <line x1={px(h)} y1={96} x2={px(h)} y2={104} stroke="#4a5a80" />
-              <text x={px(h)} y={116} textAnchor="middle" fill="#4a5a80" fontSize={9} fontFamily="Inter, system-ui, sans-serif">{h} h</text>
+              <line x1={px(h)} y1={96} x2={px(h)} y2={104} stroke="#5d6572" />
+              <text x={px(h)} y={116} textAnchor="middle" fill="#5d6572" fontSize={9} fontFamily="Inter, system-ui, sans-serif">{h} h</text>
             </g>
           ))}
           <rect x={px(Math.max(0, TARGET.t - win))} y={30} width={px(TARGET.t) - px(Math.max(0, TARGET.t - win))} height={70} fill={`${C.cyan}0d`} style={{ transition: 'all .3s' }} />
-          <text x={22} y={18} fill="#7a88a8" fontSize={9.5} fontFamily="Inter, system-ui, sans-serif" fontWeight={600}>DÉPÔTS 10 ETH</text>
-          <text x={22} y={192} fill="#7a88a8" fontSize={9.5} fontFamily="Inter, system-ui, sans-serif" fontWeight={600}>RETRAITS 10 ETH</text>
+          <text x={22} y={18} fill="#959da9" fontSize={9.5} fontFamily="Inter, system-ui, sans-serif" fontWeight={600}>DÉPÔTS 10 ETH</text>
+          <text x={22} y={192} fill="#959da9" fontSize={9.5} fontFamily="Inter, system-ui, sans-serif" fontWeight={600}>RETRAITS 10 ETH</text>
           {linked &&
             WITHDRAWALS.filter((w) => DEPOSITS.some((d) => d.addr === w.to)).map((w) => {
               const d = DEPOSITS.find((x) => x.addr === w.to)!
@@ -76,31 +76,31 @@ export default function PrivacyPool() {
           {DEPOSITS.map((d) => {
             const c = res.cand.has(d.id)
             const isT = reveal && d.id === TRUTH
-            const col = isT ? C.green : c ? C.cyan : '#2c3a5c'
+            const col = isT ? C.green : c ? C.cyan : '#3d444f'
             return (
               <g key={d.id} style={{ transition: 'opacity .3s' }} opacity={d.t >= TARGET.t ? 0.35 : 1}>
                 <line x1={px(d.t)} y1={62} x2={px(d.t)} y2={100} stroke={col} strokeWidth={1.5} />
-                <circle cx={px(d.t)} cy={52} r={11} fill={c || isT ? `${col}30` : '#0c1120'} stroke={col} strokeWidth={2} style={{ transition: 'all .3s' }} />
+                <circle cx={px(d.t)} cy={52} r={11} fill={c || isT ? `${col}30` : '#15181d'} stroke={col} strokeWidth={2} style={{ transition: 'all .3s' }} />
                 <text x={px(d.t)} y={55.5} textAnchor="middle" fill="#fff" fontSize={8.5} fontWeight={700} fontFamily="Inter, system-ui, sans-serif">{d.id}</text>
-                {gas && <text x={px(d.t)} y={34} textAnchor="middle" fill={d.gas === TARGET.gas ? C.amber : '#4a5a80'} fontSize={8} fontFamily="JetBrains Mono, ui-monospace, monospace">{String(d.gas).replace('.', ',')}</text>}
+                {gas && <text x={px(d.t)} y={34} textAnchor="middle" fill={d.gas === TARGET.gas ? C.amber : '#5d6572'} fontSize={8} fontFamily="JetBrains Mono, ui-monospace, monospace">{String(d.gas).replace('.', ',')}</text>}
               </g>
             )
           })}
           {WITHDRAWALS.map((w) => {
-            const col = w.target ? C.rose : '#4a5a80'
+            const col = w.target ? C.rose : '#5d6572'
             return (
               <g key={w.id}>
                 <line x1={px(w.t)} y1={100} x2={px(w.t)} y2={138} stroke={col} strokeWidth={1.5} />
-                <rect x={px(w.t) - 13} y={138} width={26} height={22} rx={5} fill={w.target ? `${C.rose}30` : '#0c1120'} stroke={col} strokeWidth={w.target ? 2 : 1.2} />
+                <rect x={px(w.t) - 13} y={138} width={26} height={22} rx={5} fill={w.target ? `${C.rose}30` : '#15181d'} stroke={col} strokeWidth={w.target ? 2 : 1.2} />
                 <text x={px(w.t)} y={153} textAnchor="middle" fill="#fff" fontSize={8.5} fontWeight={700} fontFamily="Inter, system-ui, sans-serif">{w.id}</text>
-                {gas && <text x={px(w.t)} y={172} textAnchor="middle" fill={w.gas === TARGET.gas ? C.amber : '#4a5a80'} fontSize={8} fontFamily="JetBrains Mono, ui-monospace, monospace">{String(w.gas).replace('.', ',')}</text>}
+                {gas && <text x={px(w.t)} y={172} textAnchor="middle" fill={w.gas === TARGET.gas ? C.amber : '#5d6572'} fontSize={8} fontFamily="JetBrains Mono, ui-monospace, monospace">{String(w.gas).replace('.', ',')}</text>}
               </g>
             )
           })}
         </svg>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-ink-300">
+      <div className="flex flex-wrap items-center gap-2 font-mono text-micro text-ink-300">
         <span className="chip bg-rose-500/15 text-rose-300">Cible W4</span>
         <span>retrait de 10 ETH vers {short(TARGET.to, 6)}</span>
         <span>· à t + {TARGET.t} h</span>
@@ -115,22 +115,22 @@ export default function PrivacyPool() {
         </div>
         <div className="flex flex-col justify-between gap-2 rounded-xl border border-ink-700 bg-ink-850/80 p-3">
           <div>
-            <div className="label !text-[10px]">Anonymity set de W4</div>
+            <div className="label !text-micro">Anonymity set de W4</div>
             <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-3xl font-bold transition-colors" style={{ color: n <= 1 ? C.rose : n <= 3 ? C.amber : C.cyan }}>{n}</span>
-              <span className="text-[12px] text-ink-300">/ {res.base} dépôts antérieurs</span>
+              <span className="text-page font-bold transition-colors" style={{ color: n <= 1 ? C.rose : n <= 3 ? C.amber : C.cyan }}>{n}</span>
+              <span className="text-meta text-ink-300">/ {res.base} dépôts antérieurs</span>
             </div>
             <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-700">
               <div className="h-full rounded-full bg-accent transition-all duration-500" style={{ width: `${(n / res.base) * 100}%` }} />
             </div>
-            <div className="mt-1 text-[11px] text-ink-400">Probabilité naïve par candidat : {n ? `1/${n} (${Math.round(100 / n)} %)` : '—'}</div>
+            <div className="mt-1 text-micro text-ink-400">Probabilité naïve par candidat : {n ? `1/${n} (${Math.round(100 / n)} %)` : '—'}</div>
             <div className="mt-1.5 flex flex-wrap gap-1">
               {[...res.cand].map((id) => (
                 <span key={id} className="chip bg-cyan-500/10 font-mono text-cyan-300">{id}</span>
               ))}
             </div>
           </div>
-          <button className="btn-ghost !justify-start !px-0 !py-0.5 text-[11px]" onClick={() => setReveal((r) => !r)}>
+          <button className="btn-ghost !justify-start !px-0 !py-0.5 text-micro" onClick={() => setReveal((r) => !r)}>
             <Icon name={reveal ? 'EyeOff' : 'Eye'} size={12} /> {reveal ? 'Masquer la vérité' : 'Révéler le vrai dépôt'}
           </button>
         </div>

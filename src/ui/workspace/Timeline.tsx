@@ -28,7 +28,7 @@ export function Timeline() {
   const H = 64
   if (!w || !txs.length) {
     return (
-      <div className="flex h-full items-center justify-center gap-2 text-[11.5px] text-ink-400">
+      <div className="flex h-full items-center justify-center gap-2 text-meta text-ink-400">
         <Icon name="CalendarClock" size={14} /> La frise chronologique se remplit au fur et à mesure que vous dépliez des transactions.
       </div>
     )
@@ -50,8 +50,8 @@ export function Timeline() {
 
   return (
     <div className="relative flex h-full flex-col px-4 pb-1 pt-2">
-      <div className="mb-1 flex items-center gap-3 text-[11px]">
-        <span className="label !text-[10px]">Chronologie</span>
+      <div className="mb-1 flex items-center gap-3 text-micro">
+        <span className="label !text-micro">Chronologie</span>
         <span className="text-ink-400">{txs.length} transactions · {fmtTime(t0)} → {fmtTime(t1)}</span>
         {range ? (
           <button className="chip ml-auto bg-accent/15 text-accent hover:bg-accent/25" onClick={() => useUi.getState().setTimeRange(null)}>
@@ -88,15 +88,15 @@ export function Timeline() {
           const px = (i / ticks) * W
           return (
             <g key={i}>
-              <line x1={px} x2={px} y1={0} y2={H} stroke="#172036" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-              <text x={Math.min(W - 70, Math.max(2, px + 3))} y={H + 12} fill="#4a5a80" fontSize={9.5} fontFamily="JetBrains Mono">
+              <line x1={px} x2={px} y1={0} y2={H} stroke="#1f232a" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+              <text x={Math.min(W - 70, Math.max(2, px + 3))} y={H + 12} fill="#5d6572" fontSize={9.5} fontFamily="JetBrains Mono">
                 {new Date(tAt(px) * 1000).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
               </text>
             </g>
           )
         })}
-        <line x1={0} x2={W} y1={H} y2={H} stroke="#2c3a5c" vectorEffect="non-scaling-stroke" />
-        {range && <rect x={x(range[0])} width={Math.max(1, x(range[1]) - x(range[0]))} y={0} height={H} fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.5)" vectorEffect="non-scaling-stroke" />}
+        <line x1={0} x2={W} y1={H} y2={H} stroke="#3d444f" vectorEffect="non-scaling-stroke" />
+        {range && <rect x={x(range[0])} width={Math.max(1, x(range[1]) - x(range[0]))} y={0} height={H} fill="rgba(126,166,255,0.08)" stroke="rgba(126,166,255,0.5)" vectorEffect="non-scaling-stroke" />}
         {txs.map((t) => {
           const v = w.txUsd(t)
           const h = 6 + (maxUsd > 0 ? Math.log10(v + 1) / Math.log10(maxUsd + 1) : 0) * (H - 10)
@@ -117,12 +117,12 @@ export function Timeline() {
             </g>
           )
         })}
-        {drag && <rect x={Math.min(drag.x0, drag.x1)} width={Math.abs(drag.x1 - drag.x0)} y={0} height={H} fill="rgba(34,211,238,0.12)" />}
+        {drag && <rect x={Math.min(drag.x0, drag.x1)} width={Math.abs(drag.x1 - drag.x0)} y={0} height={H} fill="rgba(126,166,255,0.12)" />}
       </svg>
       {hover && (() => {
         const t = w.tx(hover.id)
         return (
-          <div className="pointer-events-none absolute z-20 rounded-lg panel-solid px-2.5 py-1.5 text-[11px] shadow-panel" style={{ left: `calc(${(hover.x / W) * 100}% + 8px)`, bottom: 56 }}>
+          <div className="pointer-events-none absolute z-20 rounded-lg panel-solid px-2.5 py-1.5 text-micro shadow-panel" style={{ left: `calc(${(hover.x / W) * 100}% + 8px)`, bottom: 56 }}>
             <div className="font-mono text-ink-100">{t.hash.slice(0, 14)}…</div>
             <div className="text-ink-300">{fmtTime(t.time)} · {CHAINS[t.chain].short} · {fmtUsd(w.txUsd(t))}</div>
           </div>

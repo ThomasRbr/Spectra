@@ -109,7 +109,7 @@ export const guideUsdtTron: ScenarioTemplate = {
       briefing:
         `${victimName} (${city}) a fait la connaissance de ${persona} sur un réseau social. Après des semaines d'échanges quotidiens, ${persona} lui a présenté « ${brand} », une plateforme de trading où ${g('il', 'elle')} aurait multiplié ses gains. ${victimName} a versé des USDT à trois reprises, sur le réseau Tron, vers son « adresse de dépôt personnelle ». Pour retirer, on lui réclame maintenant une « taxe » de 20 %.\n\n` +
         `${g('Il', 'Elle')} dépose plainte aujourd'hui, ${fmtDate(plainteT)}. Votre mission : suivre les USDT jusqu'au portefeuille qui centralise l'argent des victimes, mesurer ce qui s'y trouve encore et décider des actions urgentes.\n\n` +
-        `C'est une **mission guidée** : le guide pas à pas se trouve dans l'onglet **Objectifs** du Dossier (à gauche). Les étapes se valident d'elles-mêmes ; « Je bloque » donne le chemin exact. Les indices sont gratuits.`,
+        `C'est une **mission guidée** : le guide pas à pas flotte en haut à gauche du graphe. Les étapes se valident d'elles-mêmes ; « Je bloque » donne le chemin exact. Les indices sont gratuits.`,
       evidence: [
         {
           id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: plainteT, author: victimName,
@@ -235,7 +235,7 @@ export const guideUsdtTron: ScenarioTemplate = {
           `- La frise chronologique aide à dater les mouvements et à mesurer l'urgence : ici, le dernier décaissement date de quelques heures à peine avant la plainte.`,
       },
       hints: [
-        'Le guide est dans l\'onglet Objectifs du Dossier. Le bouton « Je bloque » de chaque étape donne le chemin exact.',
+        'Le guide flotte en haut à gauche du graphe. Le bouton « Je bloque » de chaque étape donne le chemin exact.',
         'Sur Tron, chaque montant indique son actif : TRX (actif natif, sert aux frais) ou USDT (jeton TRC-20). Suivez les USDT.',
         'Le « Solde actuel » d\'une adresse, en haut du panneau d\'analyse, montre ce qu\'elle détient encore : des USDT encore là sont gelables par l\'émetteur.',
         'Les entrées du collecteur (bouton « Entrées ») montrent tous les relais qui l\'alimentent : un relais = une victime, à confirmer en dépliant ses propres entrées.',

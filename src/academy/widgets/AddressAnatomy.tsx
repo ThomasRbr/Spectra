@@ -63,16 +63,16 @@ export default function AddressAnatomy() {
   return (
     <div className="space-y-3">
       <Instr>Observez l'adresse et choisissez la chaîne et le type correspondants. Indices : premier(s) caractère(s), longueur, alphabet (Base58, Bech32 en minuscules, hexadécimal).</Instr>
-      <div className="flex items-center justify-between text-[12px] text-ink-300">
+      <div className="flex items-center justify-between text-meta text-ink-300">
         <span>
           Adresse n° {round + 1} · score <span className="font-semibold text-white">{score.ok}</span> / {score.total}
         </span>
         <span className="font-mono">{q.address.length} caractères</span>
       </div>
 
-      <div className="rounded-xl border bg-ink-950/70 p-3 transition-colors duration-300" style={{ borderColor: revealed ? `${col}88` : '#172036' }}>
-        <div className="break-all font-mono text-[14px] leading-relaxed tracking-wide">
-          <span className="rounded px-0.5 transition-colors duration-300" style={revealed && q.t.prefix > 0 ? { background: `${col}30`, color: col, fontWeight: 700 } : { color: '#d6dcea' }}>
+      <div className="rounded-xl border bg-ink-950/70 p-3 transition-colors duration-300" style={{ borderColor: revealed ? `${col}88` : '#1f232a' }}>
+        <div className="break-all font-mono text-body leading-relaxed tracking-wide">
+          <span className="rounded px-0.5 transition-colors duration-300" style={revealed && q.t.prefix > 0 ? { background: `${col}30`, color: col, fontWeight: 700 } : { color: '#dfe3e8' }}>
             {q.address.slice(0, q.t.prefix)}
           </span>
           <span className="text-ink-100">{q.address.slice(q.t.prefix)}</span>
@@ -94,7 +94,7 @@ export default function AddressAnatomy() {
           const isPicked = picked === o.id
           const st = !revealed ? 'border-ink-700 bg-ink-850 hover:border-accent/60 hover:bg-ink-800' : isAns ? 'border-emerald-400/70 bg-emerald-500/10' : isPicked ? 'border-rose-500/70 bg-rose-500/10' : 'border-ink-700 bg-ink-900 opacity-50'
           return (
-            <button key={o.id} disabled={revealed} onClick={() => choose(o.id)} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-[12.5px] text-ink-100 transition ${st}`}>
+            <button key={o.id} disabled={revealed} onClick={() => choose(o.id)} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-dense text-ink-100 transition ${st}`}>
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: CHAINS[o.chain].color }} />
               <span className="flex-1">{o.label}</span>
               {revealed && isAns && <Icon name="Check" size={14} className="text-emerald-300" />}
@@ -108,7 +108,7 @@ export default function AddressAnatomy() {
         <Explain tone={correct ? 'ok' : 'bad'} title={correct ? 'Bonne réponse' : `Non : c'est ${q.t.label}`}>
           {q.t.explain}
           <div className="mt-2">
-            <button className="btn-primary !py-1 text-xs" onClick={next}>
+            <button className="btn-primary !py-1 text-meta" onClick={next}>
               Adresse suivante <Icon name="ArrowRight" size={13} />
             </button>
           </div>
@@ -119,7 +119,7 @@ export default function AddressAnatomy() {
         </Explain>
       )}
 
-      <details className="rounded-lg border border-ink-700 bg-ink-900/60 px-3 py-2 text-[12px] text-ink-300">
+      <details className="rounded-lg border border-ink-700 bg-ink-900/60 px-3 py-2 text-meta text-ink-300">
         <summary className="cursor-pointer select-none text-ink-200">Aide-mémoire des préfixes</summary>
         <div className="mt-2 grid gap-1 sm:grid-cols-2">
           {TYPES.map((t) => (

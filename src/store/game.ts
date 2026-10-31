@@ -19,11 +19,11 @@ import { useUi } from './ui'
 export type Flag = 'suspect' | 'victim' | 'interest' | 'service' | 'dead-end'
 
 export const FLAG_META: Record<Flag, { label: string; color: string }> = {
-  suspect: { label: 'Suspect', color: '#f472b6' },
-  victim: { label: 'Victime', color: '#4ade80' },
+  suspect: { label: 'Suspect', color: '#ff8a4c' },
+  victim: { label: 'Victime', color: '#5ec8e5' },
   interest: { label: 'Intérêt', color: '#facc15' },
-  service: { label: 'Service / plateforme', color: '#22d3ee' },
-  'dead-end': { label: 'Impasse', color: '#64748b' },
+  service: { label: 'Service / plateforme', color: '#b4bbc5' },
+  'dead-end': { label: 'Impasse', color: '#7a8290' },
 }
 
 export type Selection =

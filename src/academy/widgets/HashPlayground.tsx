@@ -17,11 +17,11 @@ function tweak(s: string): string {
 function HashLine({ hash, other, label }: { hash: string | null; other: string | null; label: string }) {
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between text-[11px] text-ink-300">
+      <div className="mb-1 flex items-center justify-between text-micro text-ink-300">
         <span>{label}</span>
         <span className="font-mono">{hash ? '64 caractères hexadécimaux = 256 bits' : 'calcul…'}</span>
       </div>
-      <div className="break-all rounded-lg border border-ink-700 bg-ink-950/70 px-2.5 py-2 font-mono text-[12.5px] leading-relaxed tracking-wide">
+      <div className="break-all rounded-lg border border-ink-700 bg-ink-950/70 px-2.5 py-2 font-mono text-dense leading-relaxed tracking-wide">
         {hash
           ? hash.split('').map((c, i) => {
               const diff = other && other[i] !== c
@@ -73,22 +73,22 @@ export default function HashPlayground() {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Box title="Texte A">
-          <textarea className="input h-16 resize-none font-mono text-[12.5px]" value={a} onChange={(e) => setA(e.target.value)} aria-label="Texte A" />
+          <textarea className="input h-16 resize-none font-mono text-dense" value={a} onChange={(e) => setA(e.target.value)} aria-label="Texte A" />
         </Box>
         <Box
           title="Texte B"
           right={
             <div className="flex gap-1">
-              <button className="btn-ghost !px-2 !py-0.5 text-[11px]" onClick={() => setB(a)} title="Copier A dans B">
+              <button className="btn-ghost !px-2 !py-0.5 text-micro" onClick={() => setB(a)} title="Copier A dans B">
                 <Icon name="Copy" size={12} /> = A
               </button>
-              <button className="btn-ghost !px-2 !py-0.5 text-[11px]" onClick={() => setB(tweak(a))} title="B = A avec un caractère modifié">
+              <button className="btn-ghost !px-2 !py-0.5 text-micro" onClick={() => setB(tweak(a))} title="B = A avec un caractère modifié">
                 <Icon name="Shuffle" size={12} /> 1 caractère
               </button>
             </div>
           }
         >
-          <textarea className="input h-16 resize-none font-mono text-[12.5px]" value={b} onChange={(e) => setB(e.target.value)} aria-label="Texte B" />
+          <textarea className="input h-16 resize-none font-mono text-dense" value={b} onChange={(e) => setB(e.target.value)} aria-label="Texte B" />
         </Box>
       </div>
 
@@ -101,23 +101,23 @@ export default function HashPlayground() {
         <Box title="Bits modifiés (256)">
           <div className="grid grid-cols-[repeat(32,minmax(0,1fr))] gap-[2px]" style={{ width: 224 }} aria-label="Carte des bits modifiés">
             {(stats?.bits ?? Array.from({ length: 256 }, () => false)).map((on, i) => (
-              <span key={i} className="h-[5px] rounded-[1px] transition-colors duration-300" style={{ background: on ? C.cyan : '#1f2b47', boxShadow: on ? `0 0 4px ${C.cyan}88` : undefined }} />
+              <span key={i} className="h-[5px] rounded-[1px] transition-colors duration-300" style={{ background: on ? C.cyan : '#2f353e', boxShadow: on ? `0 0 4px ${C.cyan}88` : undefined }} />
             ))}
           </div>
         </Box>
         <Box title="Mesure de l'effet avalanche">
           <div className="grid grid-cols-3 gap-2 text-center">
             <div>
-              <div className="text-lg font-semibold text-white">{charDiff}</div>
-              <div className="text-[10.5px] text-ink-300">caractère(s) d'entrée différent(s)</div>
+              <div className="text-title font-semibold text-white">{charDiff}</div>
+              <div className="text-micro text-ink-300">caractère(s) d'entrée différent(s)</div>
             </div>
             <div>
-              <div className="text-lg font-semibold text-accent">{stats ? stats.changed : '…'}</div>
-              <div className="text-[10.5px] text-ink-300">bits de sortie changés / 256</div>
+              <div className="text-title font-semibold text-accent">{stats ? stats.changed : '…'}</div>
+              <div className="text-micro text-ink-300">bits de sortie changés / 256</div>
             </div>
             <div>
-              <div className="text-lg font-semibold text-white">{stats ? Math.round((stats.changed / 256) * 100) : '…'} %</div>
-              <div className="text-[10.5px] text-ink-300">≈ 50 % attendu</div>
+              <div className="text-title font-semibold text-white">{stats ? Math.round((stats.changed / 256) * 100) : '…'} %</div>
+              <div className="text-micro text-ink-300">≈ 50 % attendu</div>
             </div>
           </div>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-700">
