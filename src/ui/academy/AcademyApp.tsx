@@ -37,15 +37,15 @@ export function AcademyApp() {
   const key = view.kind === 'lesson' ? `l-${view.id}` : view.kind === 'drill' ? `d-${view.id}` : view.kind === 'exam' ? `e-${view.id}` : view.kind === 'path' ? `p-${view.id}` : view.kind === 'cards' ? `c-${view.lessonId ?? ''}` : view.kind
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-12 shrink-0 items-center gap-1 overflow-x-auto border-b border-ink-700/70 bg-ink-900/80 px-4 backdrop-blur-xl">
-        <span className="mr-3 flex items-center gap-2 whitespace-nowrap text-[13px] font-bold tracking-wide text-white"><Icon name="GraduationCap" size={16} className="text-accent" /> Académie</span>
+      <div className="flex h-12 shrink-0 items-center gap-1 overflow-x-auto border-b border-ink-700/70 bg-ink-900/80 px-4">
+        <span className="mr-3 flex items-center gap-2 whitespace-nowrap text-dense font-bold tracking-wide text-white"><Icon name="GraduationCap" size={16} className="text-accent" /> Académie</span>
         {TABS.map((t) => {
           const active = t.match.includes(view.kind)
           return (
-            <button key={t.kind} onClick={() => useUi.getState().openAcademy({ kind: t.kind } as AcademyView)} className={`relative flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition ${active ? 'bg-accent/10 text-white' : 'text-ink-300 hover:bg-ink-800 hover:text-white'}`}>
+            <button key={t.kind} onClick={() => useUi.getState().openAcademy({ kind: t.kind } as AcademyView)} className={`relative flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-dense font-medium transition ${active ? 'bg-accent/10 text-white' : 'text-ink-300 hover:bg-ink-800 hover:text-white'}`}>
               <Icon name={t.icon} size={14} className={active ? 'text-accent' : ''} />
               {t.label}
-              {t.kind === 'cards' && due > 0 && <span className="rounded-full bg-amber-400 px-1.5 text-[10px] font-bold text-ink-950">{due}</span>}
+              {t.kind === 'cards' && due > 0 && <span className="rounded-full bg-amber-400 px-1.5 text-micro font-bold text-ink-950">{due}</span>}
             </button>
           )
         })}

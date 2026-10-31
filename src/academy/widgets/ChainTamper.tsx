@@ -127,7 +127,7 @@ export default function ChainTamper() {
         Modifiez le contenu d'un bloc (par exemple « 2 BTC » en « 20 BTC »). Chaque bloc contient l'empreinte du précédent : observez la propagation, puis cliquez sur <strong>Re-miner</strong> pour retrouver un nonce valide.
       </Instr>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-[12px] text-ink-300">
+        <div className="flex items-center gap-2 text-meta text-ink-300">
           Difficulté (empreinte commençant par)
           <Seg<Diff>
             value={diff}
@@ -139,13 +139,13 @@ export default function ChainTamper() {
             ]}
           />
         </div>
-        <button className="btn-outline !py-1 text-xs" onClick={reset} disabled={mining !== null}>
+        <button className="btn-outline !py-1 text-meta" onClick={reset} disabled={mining !== null}>
           <Icon name="RotateCcw" size={13} /> Réinitialiser
         </button>
       </div>
 
       {!ready || !hashes ? (
-        <div className="rounded-xl border border-ink-700 bg-ink-850 p-6 text-center text-sm text-ink-300">
+        <div className="rounded-xl border border-ink-700 bg-ink-850 p-6 text-center text-body text-ink-300">
           <Icon name="Pickaxe" size={18} className="mx-auto mb-2 animate-pulse text-accent" />
           Minage initial de la chaîne…
         </div>
@@ -159,7 +159,7 @@ export default function ChainTamper() {
               <div key={i}>
                 {i > 0 && (
                   <div className="flex justify-center py-0.5">
-                    <Icon name="ArrowDown" size={14} color={valid[i - 1] ? '#4a5a80' : C.rose} />
+                    <Icon name="ArrowDown" size={14} color={valid[i - 1] ? '#5d6572' : C.rose} />
                   </div>
                 )}
                 <div className="rounded-xl border p-2.5 transition-colors duration-300" style={{ borderColor: `${col}66`, background: `${col}0a` }}>
@@ -167,13 +167,13 @@ export default function ChainTamper() {
                     <span className="chip border font-mono" style={{ color: col, borderColor: `${col}55` }}>
                       <Icon name={ok ? 'ShieldCheck' : 'ShieldX'} size={12} /> Bloc #{i}
                     </span>
-                    <input className="input !w-auto min-w-0 flex-1 !py-1 font-mono text-[12.5px]" value={d} onChange={(e) => setData((ds) => ds.map((x, k) => (k === i ? e.target.value : x)))} aria-label={`Données du bloc ${i}`} disabled={mining !== null} />
-                    <span className="w-20 text-right font-mono text-[11px] text-ink-300">nonce {nonces[i]}</span>
-                    <button className={ok ? 'btn-ghost !px-2 !py-1 text-xs' : 'btn-primary !px-2 !py-1 text-xs'} onClick={() => remine(i)} disabled={mining !== null || ok}>
+                    <input className="input !w-auto min-w-0 flex-1 !py-1 font-mono text-dense" value={d} onChange={(e) => setData((ds) => ds.map((x, k) => (k === i ? e.target.value : x)))} aria-label={`Données du bloc ${i}`} disabled={mining !== null} />
+                    <span className="w-20 text-right font-mono text-micro text-ink-300">nonce {nonces[i]}</span>
+                    <button className={ok ? 'btn-ghost !px-2 !py-1 text-meta' : 'btn-primary !px-2 !py-1 text-meta'} onClick={() => remine(i)} disabled={mining !== null || ok}>
                       <Icon name="Pickaxe" size={12} className={mining === i ? 'animate-spin' : ''} /> {mining === i ? 'Minage…' : 'Re-miner'}
                     </button>
                   </div>
-                  <div className="mt-1.5 grid gap-x-3 font-mono text-[10.5px] sm:grid-cols-2">
+                  <div className="mt-1.5 grid gap-x-3 font-mono text-micro sm:grid-cols-2">
                     <div className="truncate text-ink-400">
                       préc. : <span className="text-ink-300">{prev.slice(0, 24)}…</span>
                     </div>

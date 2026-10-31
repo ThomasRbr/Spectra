@@ -64,7 +64,7 @@ export const PATHS: LearningPath[] = [
   {
     id: 'cursus', title: 'Le grand cursus', subtitle: 'De débutant absolu à expert',
     description: `Le parcours complet : les ${CURRICULUM.length} leçons dans l'ordre, chaque exercice juste après sa leçon, chaque mission dès que ses prérequis sont lus, et un examen pour valider chacun des six niveaux.`,
-    icon: 'GraduationCap', color: '#22d3ee', levels: [0, 5], steps: cursusSteps(), certificate: 'Cursus complet SPECTRA — Enquêteur crypto-actifs',
+    icon: 'GraduationCap', color: '#7ea6ff', levels: [0, 5], steps: cursusSteps(), certificate: 'Cursus complet SPECTRA — Enquêteur crypto-actifs',
   },
   {
     id: 'decouverte', title: 'Découverte', subtitle: 'Je pars de zéro',
@@ -114,7 +114,7 @@ export const PATHS: LearningPath[] = [
   {
     id: 'enqueteur', title: 'Enquêteur judiciaire', subtitle: 'De la plainte à l\'audience',
     description: 'Réflexes, OSINT, OPSEC, réquisitions, réglementation, gel et saisie, traçage outillé, rapport, coopération internationale, expertise et contradictoire.',
-    icon: 'Scale', color: '#22d3ee', levels: [0, 5],
+    icon: 'Scale', color: '#7ea6ff', levels: [0, 5],
     requires: 'Les missions de ce parcours supposent le niveau 1 (UTXO, exchanges, stablecoins, Tron) : suivez-le d\'abord si besoin.',
     steps: [L('premiers-reflexes'), L('suivre-flux'), M('guide-rapport'), L('osint'), L('opsec-enqueteur'), L('dab-cash-p2p'), M('dab-cash-p2p'), L('requisitions'), D('requisition-target', 10), L('cadre-reglementaire'), L('gel-saisie'), L('gel-stablecoins'), M('pig-butchering-tron'), L('forensique-supports'), M('forensique-telephone'), L('portefeuilles-hd'), M('hd-perquisition'), L('violences-seed'), M('tron-kidnapping-ransom'), L('tracage-outille'), D('taint-method', 5), L('rapport'), L('cooperation-internationale'), L('expertise-judiciaire'), L('saisie-avancee'), E('exam-procedure')],
     certificate: 'Enquêteur judiciaire crypto-actifs',

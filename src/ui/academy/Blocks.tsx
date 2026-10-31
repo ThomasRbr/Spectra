@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { WIDGETS, type Block, type FlowEdge, type FlowKind, type FlowNode, type WidgetId } from '../../academy'
 import { useProfile } from '../../store/profile'
-import { Icon, RichText } from '../common'
+import { Icon, RichText, tint } from '../common'
 
 // ── Texte ──────────────────────────────────────────────────────────────────
 
 export function Md({ md, className }: { md: string; className?: string }) {
-  return <RichText text={md} className={`!text-[14.5px] leading-[1.75] ${className ?? ''}`} />
+  return <RichText text={md} className={`!text-body leading-[1.75] ${className ?? ''}`} />
 }
 
 // ── Schéma de flux ─────────────────────────────────────────────────────────
@@ -15,8 +15,8 @@ export const FLOW_META: Record<FlowKind, { color: string; icon: string; label: s
   victim: { color: '#4ade80', icon: 'HeartHandshake', label: 'Victime' },
   suspect: { color: '#f472b6', icon: 'UserX', label: 'Suspect' },
   wallet: { color: '#94a3b8', icon: 'Wallet', label: 'Portefeuille' },
-  exchange: { color: '#22d3ee', icon: 'Landmark', label: 'Exchange' },
-  deposit: { color: '#22d3ee', icon: 'ArrowDownToLine', label: 'Adresse de dépôt' },
+  exchange: { color: '#7ea6ff', icon: 'Landmark', label: 'Exchange' },
+  deposit: { color: '#7ea6ff', icon: 'ArrowDownToLine', label: 'Adresse de dépôt' },
   hot: { color: '#38bdf8', icon: 'Flame', label: 'Hot wallet' },
   mixer: { color: '#f43f5e', icon: 'Blend', label: 'Mixeur' },
   bridge: { color: '#a78bfa', icon: 'Waypoints', label: 'Bridge' },
@@ -24,7 +24,7 @@ export const FLOW_META: Record<FlowKind, { color: string; icon: string; label: s
   contract: { color: '#818cf8', icon: 'FileCode2', label: 'Contrat' },
   service: { color: '#0ea5e9', icon: 'Building2', label: 'Service' },
   unknown: { color: '#64748b', icon: 'CircleHelp', label: 'Inconnu' },
-  tx: { color: '#7a88a8', icon: 'Diamond', label: 'Transaction' },
+  tx: { color: '#959da9', icon: 'Diamond', label: 'Transaction' },
 }
 
 const NW = 168
@@ -103,13 +103,13 @@ export function FlowDiagram({ nodes, edges, caption }: { nodes: FlowNode[]; edge
 
   return (
     <figure className="my-2">
-      <div ref={box} className="overflow-x-auto rounded-2xl border border-ink-700/70 bg-ink-950/70 p-1" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(122,136,168,.12) 1px, transparent 0)', backgroundSize: '22px 22px' }}>
+      <div ref={box} className="theme-ink grid-bg overflow-x-auto rounded-xl border border-ink-600 p-1 font-sans" style={{ backgroundSize: '22px 22px' }}>
         <div className="mx-auto" style={{ width: W * scale, height: H * scale }}>
           <div className="relative origin-top-left" style={{ width: W, height: H, transform: `scale(${scale})` }}>
             <svg className="absolute inset-0" width={W} height={H}>
               <defs>
                 <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                  <path d="M0,0 L10,5 L0,10 z" fill="#7a88a8" />
+                  <path d="M0,0 L10,5 L0,10 z" fill="#959da9" />
                 </marker>
               </defs>
               {edges.map((e, i) => {
@@ -149,14 +149,14 @@ export function FlowDiagram({ nodes, edges, caption }: { nodes: FlowNode[]; edge
                     my = (y1 + y2) / 2
                   }
                 }
-                const color = e.dashed ? '#fbbf24' : '#7a88a8'
+                const color = e.dashed ? '#fbbf24' : '#959da9'
                 return (
                   <g key={i}>
                     <path d={d} fill="none" stroke={color} strokeWidth={1.6} strokeDasharray={e.dashed ? '5 4' : undefined} markerEnd="url(#fa)" opacity={0.9} />
                     {e.label && (
                       <g transform={`translate(${mx},${my})`}>
-                        <rect x={-e.label.length * 3.1 - 6} y={-9} width={e.label.length * 6.2 + 12} height={17} rx={5} fill="#05070d" stroke="#1f2b47" />
-                        <text textAnchor="middle" dominantBaseline="middle" y={0.5} fill={e.dashed ? '#fde68a' : '#d6dcea'} fontSize={10.5} fontFamily="JetBrains Mono">{e.label}</text>
+                        <rect x={-e.label.length * 3.1 - 6} y={-9} width={e.label.length * 6.2 + 12} height={17} rx={5} fill="#0e1013" stroke="#2f353e" />
+                        <text textAnchor="middle" dominantBaseline="middle" y={0.5} fill={e.dashed ? '#fde68a' : '#dfe3e8'} fontSize={10.5} fontFamily="JetBrains Mono">{e.label}</text>
                       </g>
                     )}
                   </g>
@@ -173,8 +173,8 @@ export function FlowDiagram({ nodes, edges, caption }: { nodes: FlowNode[]; edge
                     <Icon name={m.icon} size={14} color={m.color} />
                   </span>
                   <div className="min-w-0">
-                    <div className="truncate text-[12px] font-semibold leading-tight text-white" title={n.label}>{n.label}</div>
-                    <div className="truncate text-[10.5px] leading-tight text-ink-300" title={n.sub}>{n.sub ?? m.label}</div>
+                    <div className="truncate text-meta font-semibold leading-tight text-white" title={n.label}>{n.label}</div>
+                    <div className="truncate text-micro leading-tight text-ink-300" title={n.sub}>{n.sub ?? m.label}</div>
                   </div>
                 </div>
               )
@@ -182,7 +182,7 @@ export function FlowDiagram({ nodes, edges, caption }: { nodes: FlowNode[]; edge
           </div>
         </div>
       </div>
-      {caption && <figcaption className="mt-1.5 text-center text-[12px] italic text-ink-400">{caption}</figcaption>}
+      {caption && <figcaption className="mt-1.5 text-center text-meta italic text-ink-400">{caption}</figcaption>}
     </figure>
   )
 }
@@ -194,12 +194,12 @@ function InlineCheck({ b, lessonId, index }: { b: Extract<Block, { type: 'check'
   const [chosen, setChosen] = useState<number | null>(null)
   const done = chosen !== null
   return (
-    <div className="rounded-2xl border border-violet-400/30 bg-violet-400/[0.05] p-4">
-      <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-violet-300">
+    <div className="rounded-xl border border-violet-400/30 bg-violet-400/[0.05] p-4">
+      <div className="mb-2 flex items-center gap-2 text-micro font-semibold uppercase tracking-wider text-violet-300">
         <Icon name="BrainCircuit" size={13} /> Vérifiez votre compréhension
         {recorded !== undefined && !done && <span className="ml-auto normal-case tracking-normal text-ink-400">déjà répondu ({recorded ? 'juste' : 'faux'})</span>}
       </div>
-      <div className="text-[14px] font-medium text-white">{b.q}</div>
+      <div className="text-body font-medium text-white">{b.q}</div>
       <div className="mt-3 grid gap-1.5">
         {b.options.map((o, i) => {
           const good = done && i === b.answer
@@ -212,9 +212,9 @@ function InlineCheck({ b, lessonId, index }: { b: Extract<Block, { type: 'check'
                 setChosen(i)
                 useProfile.getState().recordCheck(lessonId, index, i === b.answer)
               }}
-              className={`flex items-start gap-2.5 rounded-xl border px-3 py-2 text-left text-[13.5px] transition ${good ? 'border-emerald-400/60 bg-emerald-400/10 text-emerald-50' : bad ? 'border-rose-400/60 bg-rose-400/10 text-rose-50' : 'border-ink-700 text-ink-100 hover:border-violet-400/50 hover:bg-ink-800'}`}
+              className={`flex items-start gap-2.5 rounded-xl border px-3 py-2 text-left text-body transition ${good ? 'border-emerald-400/60 bg-emerald-400/10 text-emerald-50' : bad ? 'border-rose-400/60 bg-rose-400/10 text-rose-50' : 'border-ink-700 text-ink-100 hover:border-violet-400/50 hover:bg-ink-800'}`}
             >
-              <span className="mt-0.5 font-mono text-[11px] text-ink-400">{String.fromCharCode(65 + i)}</span>
+              <span className="mt-0.5 font-mono text-micro text-ink-400">{String.fromCharCode(65 + i)}</span>
               <span className="flex-1">{o}</span>
               {good && <Icon name="CircleCheck" size={16} className="text-emerald-400" />}
               {bad && <Icon name="CircleX" size={16} className="text-rose-400" />}
@@ -223,7 +223,7 @@ function InlineCheck({ b, lessonId, index }: { b: Extract<Block, { type: 'check'
         })}
       </div>
       {done && (
-        <div className="mt-3 flex gap-2 rounded-xl bg-ink-900/80 p-3 text-[13px] leading-relaxed text-ink-200 animate-fadein">
+        <div className="mt-3 flex gap-2 rounded-xl bg-ink-900/80 p-3 text-dense leading-relaxed text-ink-200 animate-fadein">
           <Icon name={chosen === b.answer ? 'PartyPopper' : 'Lightbulb'} size={15} className={`mt-0.5 shrink-0 ${chosen === b.answer ? 'text-emerald-400' : 'text-yellow-300'}`} />
           <span>{b.explain}</span>
         </div>
@@ -237,16 +237,16 @@ function InlineCheck({ b, lessonId, index }: { b: Extract<Block, { type: 'check'
 function WidgetHost({ id, caption }: { id: WidgetId; caption?: string }) {
   const w = WIDGETS[id]
   return (
-    <div className="overflow-hidden rounded-2xl border border-accent/30 bg-ink-900/80 shadow-glow">
-      <div className="flex items-center gap-2 border-b border-ink-700/70 bg-accent/[0.06] px-4 py-2.5">
-        <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent/15 text-accent"><Icon name="FlaskConical" size={14} /></span>
+    <div className="theme-ink overflow-hidden rounded-xl border border-ink-600 bg-ink-900 font-sans">
+      <div className="flex items-center gap-2.5 border-b border-ink-700 px-4 py-3">
+        <span className="grid h-8 w-8 place-items-center rounded-lg bg-ink-800 text-ink-100"><Icon name="FlaskConical" size={15} /></span>
         <div className="min-w-0 flex-1">
-          <div className="text-[10.5px] font-semibold uppercase tracking-wider text-accent">Simulateur interactif</div>
-          <div className="truncate text-[13.5px] font-semibold text-white">{w?.title ?? id}</div>
+          <div className="text-meta font-semibold text-ink-300">Simulateur interactif</div>
+          <div className="truncate text-body font-semibold text-white">{w?.title ?? id}</div>
         </div>
       </div>
-      <div className="p-4">{w ? <w.component /> : <div className="py-6 text-center text-[12.5px] text-ink-400">Simulateur en cours de préparation.</div>}</div>
-      {caption && <div className="border-t border-ink-700/70 px-4 py-2 text-[12px] italic text-ink-400">{caption}</div>}
+      <div className="p-4">{w ? <w.component /> : <div className="py-6 text-center text-dense text-ink-400">Simulateur en cours de préparation.</div>}</div>
+      {caption && <div className="border-t border-ink-700/70 px-4 py-2 text-meta italic text-ink-400">{caption}</div>}
     </div>
   )
 }
@@ -254,7 +254,7 @@ function WidgetHost({ id, caption }: { id: WidgetId; caption?: string }) {
 // ── Rendu d'un bloc ────────────────────────────────────────────────────────
 
 const CALLOUT: Record<string, { color: string; icon: string; title: string }> = {
-  tip: { color: '#22d3ee', icon: 'Lightbulb', title: 'Astuce' },
+  tip: { color: '#7ea6ff', icon: 'Lightbulb', title: 'Astuce' },
   warn: { color: '#fb923c', icon: 'TriangleAlert', title: 'Attention' },
   law: { color: '#a78bfa', icon: 'Scale', title: 'Point juridique' },
   field: { color: '#34d399', icon: 'Binoculars', title: 'Sur le terrain' },
@@ -269,7 +269,7 @@ export function BlockView({ b, lessonId, index }: { b: Block; lessonId: string; 
   switch (b.type) {
     case 'heading':
       return (
-        <h2 id={headingId(index)} className="scroll-mt-24 pt-4 text-[21px] font-bold tracking-tight text-white">
+        <h2 id={headingId(index)} className="scroll-mt-24 pt-4 text-section font-bold tracking-tight text-white">
           {b.text}
         </h2>
       )
@@ -278,11 +278,11 @@ export function BlockView({ b, lessonId, index }: { b: Block; lessonId: string; 
     case 'callout': {
       const c = CALLOUT[b.kind] ?? CALLOUT.tip
       return (
-        <div className="flex gap-3 rounded-2xl border px-4 py-3.5" style={{ borderColor: `${c.color}40`, background: `${c.color}0b` }}>
-          <Icon name={c.icon} size={18} color={c.color} className="mt-0.5 shrink-0" />
+        <div className="flex gap-3 rounded-lg px-4 py-3.5" style={{ background: `${c.color}17` }}>
+          <Icon name={c.icon} size={18} color={tint(c.color)} className="mt-0.5 shrink-0" />
           <div className="min-w-0">
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider" style={{ color: c.color }}>{b.title ?? c.title}</div>
-            <Md md={b.md} className="!text-[13.5px] [&_p:last-child]:mb-0" />
+            <div className="mb-1 text-meta font-semibold" style={{ color: tint(c.color) }}>{b.title ?? c.title}</div>
+            <Md md={b.md} className="!text-body [&_p:last-child]:mb-0" />
           </div>
         </div>
       )
@@ -292,9 +292,9 @@ export function BlockView({ b, lessonId, index }: { b: Block; lessonId: string; 
     case 'table':
       return (
         <figure>
-          <div className="overflow-x-auto rounded-2xl border border-ink-700/70">
-            <table className="w-full text-left text-[13px]">
-              <thead className="bg-ink-850 text-[11.5px] uppercase tracking-wider text-ink-300">
+          <div className="overflow-x-auto rounded-xl border border-ink-700/70">
+            <table className="w-full text-left text-dense">
+              <thead className="bg-ink-850 text-meta uppercase tracking-wider text-ink-300">
                 <tr>{b.headers.map((h, i) => <th key={i} className="px-3.5 py-2.5 font-semibold">{h}</th>)}</tr>
               </thead>
               <tbody>
@@ -306,7 +306,7 @@ export function BlockView({ b, lessonId, index }: { b: Block; lessonId: string; 
               </tbody>
             </table>
           </div>
-          {b.caption && <figcaption className="mt-1.5 text-center text-[12px] italic text-ink-400">{b.caption}</figcaption>}
+          {b.caption && <figcaption className="mt-1.5 text-center text-meta italic text-ink-400">{b.caption}</figcaption>}
         </figure>
       )
     case 'steps':
@@ -315,10 +315,10 @@ export function BlockView({ b, lessonId, index }: { b: Block; lessonId: string; 
           {b.items.map((it, i) => (
             <li key={i} className="relative flex gap-3.5">
               {i < b.items.length - 1 && <span className="absolute left-[15px] top-9 h-[calc(100%-18px)] w-px bg-ink-600" />}
-              <span className="z-10 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-accent/50 bg-ink-900 font-mono text-[13px] font-semibold text-accent">{i + 1}</span>
+              <span className="z-10 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-accent/50 bg-ink-900 font-mono text-dense font-semibold text-accent">{i + 1}</span>
               <div className="min-w-0 flex-1 rounded-xl border border-ink-700/60 bg-ink-900/50 px-3.5 py-2.5">
-                <div className="text-[14px] font-semibold text-white">{it.title}</div>
-                <Md md={it.md} className="!text-[13.5px] mt-1 [&_p:last-child]:mb-0" />
+                <div className="text-body font-semibold text-white">{it.title}</div>
+                <Md md={it.md} className="!text-body mt-1 [&_p:last-child]:mb-0" />
               </div>
             </li>
           ))}
@@ -329,8 +329,8 @@ export function BlockView({ b, lessonId, index }: { b: Block; lessonId: string; 
         <div className="grid gap-2 sm:grid-cols-2">
           {b.items.map((t, i) => (
             <div key={i} className="rounded-xl border border-ink-700/60 bg-ink-900/50 px-3.5 py-2.5">
-              <div className="font-mono text-[13px] font-semibold text-cyan-200">{t.term}</div>
-              <div className="mt-0.5 text-[13px] leading-relaxed text-ink-200"><InlineMd text={t.def} /></div>
+              <div className="font-mono text-dense font-semibold text-cyan-200">{t.term}</div>
+              <div className="mt-0.5 text-dense leading-relaxed text-ink-200"><InlineMd text={t.def} /></div>
             </div>
           ))}
         </div>
@@ -339,11 +339,11 @@ export function BlockView({ b, lessonId, index }: { b: Block; lessonId: string; 
       return (
         <div className="grid gap-3 md:grid-cols-2">
           {[b.left, b.right].map((side, i) => (
-            <div key={i} className="rounded-2xl border bg-ink-900/50 p-4" style={{ borderColor: i ? '#a78bfa55' : '#22d3ee55' }}>
-              <div className="mb-2 flex items-center gap-2 text-[14px] font-semibold" style={{ color: i ? '#c4b5fd' : '#67e8f9' }}>
-                <span className="h-2 w-2 rounded-full" style={{ background: i ? '#a78bfa' : '#22d3ee' }} /> {side.title}
+            <div key={i} className="rounded-xl border bg-ink-900/50 p-4" style={{ borderColor: i ? '#a78bfa55' : '#22d3ee55' }}>
+              <div className="mb-2 flex items-center gap-2 text-body font-semibold" style={{ color: tint(i ? '#c4b5fd' : '#a9c3ff') }}>
+                <span className="h-2 w-2 rounded-full" style={{ background: i ? '#a78bfa' : '#7ea6ff' }} /> {side.title}
               </div>
-              <Md md={side.md} className="!text-[13.5px] [&_p:last-child]:mb-0" />
+              <Md md={side.md} className="!text-body [&_p:last-child]:mb-0" />
             </div>
           ))}
         </div>
@@ -354,20 +354,20 @@ export function BlockView({ b, lessonId, index }: { b: Block; lessonId: string; 
       return <WidgetHost id={b.id} caption={b.caption} />
     case 'case':
       return (
-        <div className="overflow-hidden rounded-2xl border border-amber-400/30 bg-gradient-to-br from-amber-400/[0.07] to-transparent">
+        <div className="overflow-hidden rounded-xl border border-amber-400/30 bg-amber-400/[0.06]">
           <div className="flex items-center gap-2 border-b border-amber-400/20 px-4 py-2.5">
             <Icon name="FolderSearch" size={15} className="text-amber-300" />
-            <span className="text-[10.5px] font-semibold uppercase tracking-wider text-amber-300">Étude de cas</span>
-            <span className="truncate text-[13.5px] font-semibold text-white">{b.title}</span>
+            <span className="text-micro font-semibold uppercase tracking-wider text-amber-300">Étude de cas</span>
+            <span className="truncate text-body font-semibold text-white">{b.title}</span>
           </div>
-          <div className="px-4 py-3"><Md md={b.md} className="!text-[13.5px] [&_p:last-child]:mb-0" /></div>
+          <div className="px-4 py-3"><Md md={b.md} className="!text-body [&_p:last-child]:mb-0" /></div>
         </div>
       )
     case 'quote':
       return (
         <blockquote className="rounded-r-2xl border-l-4 border-accent/60 bg-ink-900/50 px-5 py-3">
-          <Md md={b.md} className="!text-[14px] italic [&_p:last-child]:mb-0" />
-          <div className="mt-1 text-[12px] text-ink-400">— {b.source}</div>
+          <Md md={b.md} className="!text-body italic [&_p:last-child]:mb-0" />
+          <div className="mt-1 text-meta text-ink-400">— {b.source}</div>
         </blockquote>
       )
   }

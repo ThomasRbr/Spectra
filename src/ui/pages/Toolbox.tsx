@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useUi } from '../../store/ui'
 import {
   FICHES,
   MODELES,
@@ -13,7 +14,7 @@ import {
   type Modele,
   type ToolboxCategory,
 } from '../../academy/toolbox'
-import { Icon, ProgressBar, Tabs } from '../common'
+import { Icon, ProgressBar, Tabs, tint } from '../common'
 import { FicheView } from '../toolbox/FicheView'
 import { ModeleView } from '../toolbox/ModeleView'
 import { loadChecks } from '../toolbox/checks'
@@ -42,6 +43,14 @@ export function Toolbox() {
     if (v.kind !== 'list') setTabState(v.kind === 'fiche' ? 'fiches' : 'modeles')
     document.getElementById('toolbox-scroll')?.scrollTo({ top: 0 })
   }
+
+  // Fiche ou modèle demandé depuis la recherche globale.
+  useEffect(() => {
+    const it = useUi.getState().intent
+    if (it?.kind !== 'fiche' && it?.kind !== 'modele') return
+    useUi.getState().set({ intent: null })
+    setView({ kind: it.kind, id: it.id })
+  }, [])
 
   const fiche = view.kind === 'fiche' ? ficheById(view.id) : undefined
   const modele = view.kind === 'modele' ? modeleById(view.id) : undefined
@@ -74,21 +83,21 @@ function ToolboxHome({ tab, setTab, q, setQ, cat, setCat, open }: { tab: Tab; se
 
   return (
     <div className="mx-auto max-w-7xl px-8 py-8">
-      <div className="relative overflow-hidden rounded-3xl border border-ink-700/70 hero-gradient p-8">
+      <div className="relative overflow-hidden rounded-xl border border-ink-700/70 p-8">
         <div className="relative z-10 grid gap-6 lg:grid-cols-[1fr_300px]">
           <div>
-            <div className="label text-accent">Boîte à outils terrain</div>
-            <h1 className="mt-2 text-[34px] font-extrabold leading-tight tracking-tight text-white">Les bons réflexes,<br />au bon moment</h1>
-            <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-ink-200">
+            <div className="text-dense text-ink-400">Boîte à outils terrain</div>
+            <h1 className="mt-2 font-serif text-[40px] font-semibold leading-[1.12] tracking-tight text-white">Les bons réflexes,<br />au bon moment</h1>
+            <p className="mt-3 max-w-xl text-body leading-relaxed text-ink-200">
               {FICHES.length} fiches réflexes à dérouler sur le terrain — accueil de victime, gel en urgence, perquisition, réquisitions, analyse, rédaction — et {MODELES.length} modèles de documents pré-remplis à imprimer ou à copier.
             </p>
-            <div className="mt-4 flex items-start gap-2 text-[12px] leading-relaxed text-ink-300">
+            <div className="mt-4 flex items-start gap-2 text-meta leading-relaxed text-ink-300">
               <Icon name="Scale" size={14} className="mt-0.5 shrink-0 text-violet-300" />
               <span>Contenu pédagogique : il ne remplace ni les instructions de votre service, ni l'avis du magistrat. Les modèles sont à adapter aux trames en vigueur.</span>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 self-center">
-            <HeroStat icon="ListChecks" color="#22d3ee" value={FICHES.length} label="fiches réflexes" />
+            <HeroStat icon="ListChecks" color="#7ea6ff" value={FICHES.length} label="fiches réflexes" />
             <HeroStat icon="FileText" color="#a78bfa" value={MODELES.length} label="modèles" />
             <HeroStat icon="TriangleAlert" color="#f43f5e" value={FICHES.reduce((n, f) => n + f.sections.reduce((m, s) => m + s.items.filter((i) => i.critique).length, 0), 0)} label="points critiques" />
             <HeroStat icon="Printer" color="#34d399" value="A4" label="impression sobre" />
@@ -131,7 +140,7 @@ function ToolboxHome({ tab, setTab, q, setQ, cat, setCat, open }: { tab: Tab; se
           : modeles.map((m) => <ModeleCard key={m.id} m={m} onOpen={() => open({ kind: 'modele', id: m.id })} />)}
       </div>
       {!items.length && (
-        <div className="mt-14 text-center text-[13px] text-ink-400">
+        <div className="mt-14 text-center text-dense text-ink-400">
           Aucun résultat.{' '}
           <button
             className="text-accent hover:underline"
@@ -152,8 +161,8 @@ function HeroStat({ icon, color, value, label }: { icon: string; color: string; 
   return (
     <div className="rounded-xl panel px-3 py-2.5">
       <Icon name={icon} size={15} color={color} />
-      <div className="mt-1 text-[20px] font-bold leading-none text-white">{value}</div>
-      <div className="mt-1 text-[11px] text-ink-300">{label}</div>
+      <div className="mt-1 text-section font-bold leading-none text-white">{value}</div>
+      <div className="mt-1 text-micro text-ink-300">{label}</div>
     </div>
   )
 }
@@ -162,7 +171,7 @@ function CatBtn({ active, onClick, children, color }: { active: boolean; onClick
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[12px] font-medium transition ${active ? 'border-ink-500 bg-ink-700 text-white' : 'border-ink-700 bg-ink-900/70 text-ink-300 hover:text-white'}`}
+      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-meta font-medium transition ${active ? 'border-ink-500 bg-ink-700 text-white' : 'border-ink-700 bg-ink-900/70 text-ink-300 hover:text-white'}`}
       style={active && color ? { color, background: `${color}1c`, borderColor: `${color}66` } : undefined}
     >
       {children}
@@ -175,28 +184,28 @@ function FicheCard({ f, done, onOpen }: { f: Fiche; done: number; onOpen: () => 
   const total = ficheItemCount(f)
   const crit = f.sections.reduce((n, s) => n + s.items.filter((i) => i.critique).length, 0)
   return (
-    <button onClick={onOpen} className="group flex flex-col rounded-2xl border border-ink-700/70 bg-ink-900/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-ink-500 hover:shadow-panel">
+    <button onClick={onOpen} className="group flex flex-col rounded-xl border border-ink-700/70 bg-ink-900/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-ink-500 hover:shadow-panel">
       <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border" style={{ color: c.color, borderColor: `${c.color}55`, background: `${c.color}14` }}>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border" style={{ color: tint(c.color), borderColor: `${c.color}55`, background: `${c.color}14` }}>
           <Icon name={f.icon} size={19} />
         </span>
         <div className="min-w-0">
-          <div className="text-[10.5px] font-semibold uppercase tracking-wider" style={{ color: c.color }}>
+          <div className="text-micro font-semibold uppercase tracking-wider" style={{ color: tint(c.color) }}>
             {c.label}
           </div>
-          <h3 className="mt-0.5 text-[14.5px] font-semibold leading-snug text-white group-hover:text-accent">{f.title}</h3>
+          <h3 className="mt-0.5 text-body font-semibold leading-snug text-white group-hover:text-accent">{f.title}</h3>
         </div>
       </div>
-      <p className="mt-2.5 line-clamp-3 text-[12.5px] leading-relaxed text-ink-300">{f.summary}</p>
+      <p className="mt-2.5 line-clamp-3 text-dense leading-relaxed text-ink-300">{f.summary}</p>
       <div className="mt-auto pt-3">
-        <div className="flex items-center gap-2 text-[11.5px] text-ink-400">
+        <div className="flex items-center gap-2 text-meta text-ink-400">
           <span className="flex items-center gap-1">
             <Icon name="ListChecks" size={12} /> {total} étapes
           </span>
           <span className="flex items-center gap-1 text-rose-300/90">
             <Icon name="TriangleAlert" size={11} /> {crit} critiques
           </span>
-          {done > 0 && <span className="ml-auto font-mono text-[11px] text-accent">{Math.min(done, total)}/{total}</span>}
+          {done > 0 && <span className="ml-auto font-mono text-micro text-accent">{Math.min(done, total)}/{total}</span>}
         </div>
         {done > 0 && <ProgressBar value={Math.min(done, total) / total} className="mt-2" />}
       </div>
@@ -207,20 +216,20 @@ function FicheCard({ f, done, onOpen }: { f: Fiche; done: number; onOpen: () => 
 function ModeleCard({ m, onOpen }: { m: Modele; onOpen: () => void }) {
   const c = TOOLBOX_CATEGORIES[m.category]
   return (
-    <button onClick={onOpen} className="group flex flex-col rounded-2xl border border-ink-700/70 bg-ink-900/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-ink-500 hover:shadow-panel">
+    <button onClick={onOpen} className="group flex flex-col rounded-xl border border-ink-700/70 bg-ink-900/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-ink-500 hover:shadow-panel">
       <div className="flex items-start gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-violet-400/40 bg-violet-400/10 text-violet-300">
           <Icon name={m.icon} size={19} />
         </span>
         <div className="min-w-0">
-          <div className="text-[10.5px] font-semibold uppercase tracking-wider" style={{ color: c.color }}>
+          <div className="text-micro font-semibold uppercase tracking-wider" style={{ color: tint(c.color) }}>
             {c.label}
           </div>
-          <h3 className="mt-0.5 text-[14.5px] font-semibold leading-snug text-white group-hover:text-accent">{m.title}</h3>
+          <h3 className="mt-0.5 text-body font-semibold leading-snug text-white group-hover:text-accent">{m.title}</h3>
         </div>
       </div>
-      <p className="mt-2.5 line-clamp-3 text-[12.5px] leading-relaxed text-ink-300">{m.description}</p>
-      <div className="mt-auto flex items-center gap-3 pt-3 text-[11.5px] text-ink-400">
+      <p className="mt-2.5 line-clamp-3 text-dense leading-relaxed text-ink-300">{m.description}</p>
+      <div className="mt-auto flex items-center gap-3 pt-3 text-meta text-ink-400">
         <span className="flex items-center gap-1">
           <Icon name="TextCursorInput" size={12} /> {m.fields.length} champs
         </span>

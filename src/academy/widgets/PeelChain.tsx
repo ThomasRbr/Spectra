@@ -62,17 +62,17 @@ export default function PeelChain() {
     <div className="space-y-3">
       <Instr>Lancez l'animation ou avancez saut par saut. À chaque transaction, une petite somme est « pelée » vers un exchange et le gros reste part vers une adresse neuve.</Instr>
       <div className="flex flex-wrap items-center gap-2">
-        <button className="btn-primary !py-1 text-xs" onClick={() => {
+        <button className="btn-primary !py-1 text-meta" onClick={() => {
             if (hop >= HOPS) setHop(0)
             setPlaying((p) => (hop >= HOPS ? true : !p))
           }}>
           <Icon name={playing ? 'Pause' : 'Play'} size={13} /> {playing ? 'Pause' : hop >= HOPS ? 'Rejouer' : 'Lecture'}
         </button>
-        <button className="btn-outline !py-1 text-xs" onClick={() => setHop((h) => Math.min(HOPS, h + 1))} disabled={hop >= HOPS || playing}>
+        <button className="btn-outline !py-1 text-meta" onClick={() => setHop((h) => Math.min(HOPS, h + 1))} disabled={hop >= HOPS || playing}>
           <Icon name="StepForward" size={13} /> Étape suivante
         </button>
         <button
-          className="btn-ghost !py-1 text-xs"
+          className="btn-ghost !py-1 text-meta"
           onClick={() => {
             setPlaying(false)
             setHop(0)
@@ -104,7 +104,7 @@ export default function PeelChain() {
                   {h.peel.toLocaleString('fr-FR', { maximumFractionDigits: 8 })}
                 </text>
                 {hints && vis && (
-                  <text x={mid} y={70} textAnchor="middle" fill="#7a88a8" fontSize={9} fontFamily="Inter, system-ui, sans-serif">
+                  <text x={mid} y={70} textAnchor="middle" fill="#959da9" fontSize={9} fontFamily="Inter, system-ui, sans-serif">
                     +{h.minutes - (data.hops[h.k - 2]?.minutes ?? 0)} min
                   </text>
                 )}
@@ -117,11 +117,11 @@ export default function PeelChain() {
             const active = k === hop
             return (
               <g key={k} style={{ opacity: vis ? 1 : 0.15, transition: 'opacity .5s' }}>
-                <circle cx={nx(k)} cy={80} r={active ? 15 : 12} fill={active ? `${C.cyan}33` : '#10172a'} stroke={k === 0 ? C.rose : C.cyan} strokeWidth={2} style={{ transition: 'r .3s' }} />
+                <circle cx={nx(k)} cy={80} r={active ? 15 : 12} fill={active ? `${C.cyan}33` : '#1b1f25'} stroke={k === 0 ? C.rose : C.cyan} strokeWidth={2} style={{ transition: 'r .3s' }} />
                 <text x={nx(k)} y={84} textAnchor="middle" fill="#fff" fontSize={10} fontWeight={700} fontFamily="Inter, system-ui, sans-serif">
                   {k === 0 ? 'S' : k}
                 </text>
-                <text x={nx(k)} y={116} textAnchor="middle" fill={k === 0 ? C.rose : '#d6dcea'} fontSize={10} fontFamily="JetBrains Mono, ui-monospace, monospace">
+                <text x={nx(k)} y={116} textAnchor="middle" fill={k === 0 ? C.rose : '#dfe3e8'} fontSize={10} fontFamily="JetBrains Mono, ui-monospace, monospace">
                   {rem.toLocaleString('fr-FR', { maximumFractionDigits: 4 })}
                 </text>
               </g>
@@ -135,19 +135,19 @@ export default function PeelChain() {
 
       <div className="grid grid-cols-3 gap-2 text-center">
         <div className="rounded-xl border border-ink-700 bg-ink-850/80 p-2">
-          <div className="text-[10.5px] text-ink-300">Sauts</div>
-          <div className="font-mono text-[13px] font-semibold text-white">
+          <div className="text-micro text-ink-300">Sauts</div>
+          <div className="font-mono text-dense font-semibold text-white">
             {hop} / {HOPS}
           </div>
         </div>
         <div className="rounded-xl border border-ink-700 bg-ink-850/80 p-2">
-          <div className="text-[10.5px] text-ink-300">Pelé vers exchanges</div>
-          <div className="font-mono text-[13px] font-semibold text-amber-300">{peeled.toLocaleString('fr-FR', { maximumFractionDigits: 4 })} BTC</div>
-          <div className="text-[10px] text-ink-400">{fmtUsd(peeled * ASSETS.BTC.usd)}</div>
+          <div className="text-micro text-ink-300">Pelé vers exchanges</div>
+          <div className="font-mono text-dense font-semibold text-amber-300">{peeled.toLocaleString('fr-FR', { maximumFractionDigits: 4 })} BTC</div>
+          <div className="text-micro text-ink-400">{fmtUsd(peeled * ASSETS.BTC.usd)}</div>
         </div>
         <div className="rounded-xl border border-ink-700 bg-ink-850/80 p-2">
-          <div className="text-[10.5px] text-ink-300">Reste sur le fil</div>
-          <div className="font-mono text-[13px] font-semibold text-accent">{remaining.toLocaleString('fr-FR', { maximumFractionDigits: 4 })} BTC</div>
+          <div className="text-micro text-ink-300">Reste sur le fil</div>
+          <div className="font-mono text-dense font-semibold text-accent">{remaining.toLocaleString('fr-FR', { maximumFractionDigits: 4 })} BTC</div>
         </div>
       </div>
 

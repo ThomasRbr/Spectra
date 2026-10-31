@@ -75,88 +75,86 @@ export function GuidePanel({ steps }: { steps: GuideStep[] }) {
   const done = flags.filter(Boolean).length
   const allDone = current === -1
 
+  const [showAll, setShowAll] = useState(false)
   useEffect(() => {
     setTipOpen(null)
   }, [current])
 
+  const step = current >= 0 ? steps[current] : null
+  const target = step ? focusTarget(step.check) : null
+  const targetOnGraph = !!target && (target.startsWith('a:') ? !!g.addrPos[target.slice(2)] : !!g.txPos[target.slice(2)])
+
   return (
-    <div className="overflow-hidden rounded-xl border border-accent/40 bg-gradient-to-br from-accent/[0.08] to-transparent">
-      <button className="flex w-full items-center gap-2 px-3 py-2.5 text-left" onClick={() => setCollapsed((c) => !c)}>
-        <Icon name="Compass" size={15} className="text-accent" />
-        <span className="text-[12.5px] font-semibold text-white">Mission guidée</span>
-        <span className="font-mono text-[10.5px] text-ink-300">{done}/{steps.length}</span>
-        <div className="ml-2 h-1 flex-1 overflow-hidden rounded-full bg-ink-700">
-          <div className="h-full rounded-full bg-accent transition-all duration-500" style={{ width: `${(done / steps.length) * 100}%` }} />
+    <section aria-label="Mission guidée" className="w-[340px] overflow-hidden rounded-xl border border-ink-600 bg-ink-850 shadow-pop">
+      <button className="block w-full px-4 pb-3 pt-3 text-left" onClick={() => setCollapsed((c) => !c)} aria-expanded={!collapsed}>
+        <div className="flex items-center gap-2 text-meta">
+          <Icon name="Compass" size={14} className="text-accent" />
+          <span className="font-semibold text-ink-200">Mission guidée</span>
+          <span className="ml-auto font-mono text-ink-400">{Math.min(done + 1, steps.length)} / {steps.length}</span>
+          <Icon name={collapsed ? 'ChevronDown' : 'ChevronUp'} size={14} className="text-ink-400" />
         </div>
-        <Icon name={collapsed ? 'ChevronDown' : 'ChevronUp'} size={14} className="text-ink-400" />
+        <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-ink-700">
+          <div className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${(done / steps.length) * 100}%` }} />
+        </div>
+        {collapsed && step && <div className="mt-2 truncate text-dense font-medium text-white">{step.title}</div>}
       </button>
       {!collapsed && (
-        <div className="space-y-1.5 px-3 pb-3">
+        <div className="max-h-[min(60vh,560px)] overflow-y-auto px-4 pb-4">
           {allDone && (
-            <div className="flex gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 p-2.5 text-[12px] text-emerald-50">
-              <Icon name="PartyPopper" size={15} className="mt-0.5 shrink-0 text-emerald-300" />
+            <div className="flex gap-2 rounded-lg bg-emerald-400/10 p-3 text-dense leading-relaxed text-emerald-200">
+              <Icon name="PartyPopper" size={16} className="mt-0.5 shrink-0" />
               <span>Toutes les étapes sont faites. Vérifiez vos réponses puis remettez le rapport pour lire le débriefing.</span>
             </div>
           )}
-          {steps.map((s, i) => {
-            const isDone = flags[i]
-            const isCur = i === current
-            if (!isCur && !isDone && i > current + 1 && current !== -1) {
-              // Étapes lointaines : titre seul
-              return (
-                <div key={i} className="flex items-center gap-2 px-1 text-[11px] text-ink-500">
-                  <span className="grid h-4 w-4 place-items-center rounded-full border border-ink-600 font-mono text-[9px]">{i + 1}</span>
-                  {s.title}
-                </div>
-              )
-            }
-            if (isDone && !isCur) {
-              return (
-                <div key={i} className="flex items-center gap-2 px-1 text-[11px] text-ink-400">
-                  <Icon name="CircleCheck" size={14} className="shrink-0 text-emerald-400" />
-                  <span className="line-through">{s.title}</span>
-                </div>
-              )
-            }
-            const target = focusTarget(s.check)
-            return (
-              <div key={i} className={`rounded-lg border p-2.5 ${isCur ? 'border-accent/50 bg-ink-900/80 shadow-glow' : 'border-ink-700 bg-ink-900/40 opacity-70'}`}>
-                <div className="flex items-center gap-2">
-                  <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full font-mono text-[10px] ${isCur ? 'bg-accent text-ink-950' : 'border border-ink-500 text-ink-300'}`}>{i + 1}</span>
-                  <span className="text-[12.5px] font-semibold text-white">{s.title}</span>
-                </div>
-                <RichText text={s.text} className="mt-1.5 !text-[12px] [&_p:last-child]:mb-0 [&_p]:mb-1.5" />
-                {isCur && (
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    {s.check.kind === 'manual' && (
-                      <button className="btn-primary !px-2.5 !py-1 text-[11.5px]" onClick={() => useGame.getState().markGuide(`step:${i}`)}>
-                        <Icon name="Check" size={12} /> J'ai compris
-                      </button>
-                    )}
-                    {target && (target.startsWith('a:') ? !!g.addrPos[target.slice(2)] : !!g.txPos[target.slice(2)]) && (
-                      <button className="btn-ghost !px-2 !py-1 text-[11px]" onClick={() => useGame.getState().focusOn(target)}>
-                        <Icon name="Crosshair" size={12} /> Montrer sur le graphe
-                      </button>
-                    )}
-                    {s.tip && (
-                      <button className="btn-ghost !px-2 !py-1 text-[11px] text-yellow-200" onClick={() => setTipOpen(tipOpen === i ? null : i)}>
-                        <Icon name="Lightbulb" size={12} /> {tipOpen === i ? 'Masquer l\'aide' : 'Je bloque'}
-                      </button>
-                    )}
-                    {s.check.kind !== 'manual' && <span className="ml-auto text-[10px] text-ink-500">validation automatique</span>}
-                  </div>
+          {step && (
+            <div key={current} className="animate-fadein">
+              <h3 className="text-title font-semibold leading-snug text-white">{step.title}</h3>
+              <RichText text={step.text} className="mt-1.5 !text-dense [&_p:last-child]:mb-0 [&_p]:mb-2 [&_p]:text-ink-200" />
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                {step.check.kind === 'manual' && (
+                  <button className="btn-primary !px-3 !py-1.5" onClick={() => useGame.getState().markGuide(`step:${current}`)}>
+                    <Icon name="Check" size={14} /> J'ai compris
+                  </button>
                 )}
-                {isCur && tipOpen === i && s.tip && (
-                  <div className="mt-2 flex gap-1.5 rounded-md border border-yellow-400/30 bg-yellow-400/5 p-2 text-[11.5px] leading-relaxed text-yellow-50 animate-fadein">
-                    <Icon name="Lightbulb" size={12} className="mt-0.5 shrink-0 text-yellow-300" />
-                    <RichText text={s.tip} className="!text-[11.5px] [&_p:last-child]:mb-0" />
-                  </div>
+                {targetOnGraph && (
+                  <button className="btn-outline !px-2.5 !py-1.5" onClick={() => useGame.getState().focusOn(target!)}>
+                    <Icon name="Crosshair" size={13} /> Montrer
+                  </button>
                 )}
+                {step.tip && (
+                  <button className="btn-ghost !px-2.5 !py-1.5" onClick={() => setTipOpen(tipOpen === current ? null : current)} aria-expanded={tipOpen === current}>
+                    <Icon name="LifeBuoy" size={13} /> {tipOpen === current ? 'Masquer l\x27aide' : 'Je bloque'}
+                  </button>
+                )}
+                {step.check.kind !== 'manual' && <span className="ml-auto text-micro text-ink-400">se valide tout seul</span>}
               </div>
-            )
-          })}
+              {tipOpen === current && step.tip && (
+                <div className="mt-3 flex gap-2 rounded-lg bg-amber-400/10 p-3 animate-fadein">
+                  <Icon name="Lightbulb" size={14} className="mt-0.5 shrink-0 text-amber-300" />
+                  <RichText text={step.tip} className="!text-dense [&_p:last-child]:mb-0 [&_p]:text-ink-100" />
+                </div>
+              )}
+            </div>
+          )}
+          <button className="mt-4 flex w-full items-center gap-1.5 border-t border-ink-700 pt-3 text-meta text-ink-300 hover:text-white" onClick={() => setShowAll((v) => !v)} aria-expanded={showAll}>
+            <Icon name={showAll ? 'ChevronUp' : 'ChevronDown'} size={13} /> {showAll ? 'Masquer les étapes' : 'Toutes les étapes'}
+          </button>
+          {showAll && (
+            <ol className="mt-2 space-y-1">
+              {steps.map((s, i) => (
+                <li key={i} className={`flex items-center gap-2 text-meta ${i === current ? 'font-medium text-white' : flags[i] ? 'text-ink-400' : 'text-ink-300'}`}>
+                  {flags[i] ? (
+                    <Icon name="CircleCheck" size={14} className="shrink-0 text-emerald-400" />
+                  ) : (
+                    <span className={`grid h-[14px] w-[14px] shrink-0 place-items-center rounded-full font-mono text-[9px] ${i === current ? 'bg-accent text-accent-ink' : 'border border-ink-500'}`}>{i + 1}</span>
+                  )}
+                  <span className={flags[i] && i !== current ? 'line-through' : ''}>{s.title}</span>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       )}
-    </div>
+    </section>
   )
 }

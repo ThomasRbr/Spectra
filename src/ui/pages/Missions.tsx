@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CHAINS, type ChainId } from '../../engine/chains'
 import { hashSeed, randomSeed } from '../../engine/rng'
 import { GENERATED_SCENARIOS, SCENARIOS } from '../../scenarios'
@@ -8,9 +8,11 @@ import { scenarioById } from '../../scenarios'
 import { useUi } from '../../store/ui'
 import { bestByTemplate, useProfile } from '../../store/profile'
 import { ChainBadge, DifficultyBadge, Icon, Modal, ProgressBar } from '../common'
-import { LESSONS, TRACKS } from '../../academy'
+import { LESSONS } from '../../academy'
 import { missionPrereqs } from '../../academy/prereqs'
 import type { NoiseLevel } from '../../engine/noise'
+import { FlowGlyph } from '../FlowGlyph'
+import { CHAIN_LOGOS } from '../logos'
 
 export function launchCase(templateId: string, seed: number, mode: Mode = 'standard', coverage: Coverage = 'full', live = false, noise: NoiseLevel = 'normal') {
   const g = useGame.getState()
@@ -21,7 +23,7 @@ export function launchCase(templateId: string, seed: number, mode: Mode = 'stand
     if (!confirm(`Une enquête est en cours (« ${title} »). L'abandonner pour ouvrir ce nouveau dossier ?`)) return
   }
   g.start(templateId, seed, { mode, coverage, live, noise })
-  useUi.getState().set({ page: 'workspace', briefingOpen: true, timeRange: null, leftTab: useGame.getState().template?.guided ? 'objectives' : 'evidence' })
+  useUi.getState().set({ page: 'workspace', briefingOpen: true, timeRange: null, leftOpen: true, leftTab: useGame.getState().template?.guided ? 'objectives' : 'evidence' })
 }
 
 export function dailyChallenge(): { template: ScenarioTemplate; seed: number } | null {
@@ -32,27 +34,65 @@ export function dailyChallenge(): { template: ScenarioTemplate; seed: number } |
   return { template: SCENARIOS[h % SCENARIOS.length], seed: hashSeed(`seed-${key}`) }
 }
 
+type Status = 'all' | 'todo' | 'running' | 'done'
+
+/** Affaire en cours (sauvegardée ou ouverte), pour marquer sa carte. */
+function runningCase(): { id: string; done: number; total: number } | null {
+  const g = useGame.getState()
+  if (g.inst && g.template && !g.score) {
+    const total = g.inst.objectives.length
+    const done = g.inst.objectives.filter((o) => g.answers[o.id] !== undefined).length
+    return { id: g.template.id, done, total }
+  }
+  const saved = loadSavedCase()
+  return saved ? { id: saved.templateId, done: 0, total: 0 } : null
+}
+
 export function Missions() {
   const cases = useProfile((s) => s.cases)
   const best = useMemo(() => bestByTemplate(cases), [cases])
   const [diff, setDiff] = useState<Difficulty | 0>(0)
   const [chain, setChain] = useState<ChainId | ''>('')
+  const [status, setStatus] = useState<Status>('all')
   const [q, setQ] = useState('')
   const [pick, setPick] = useState<ScenarioTemplate | null>(null)
+  const running = useMemo(runningCase, [])
+  const daily = useMemo(dailyChallenge, [])
+
+  // Mission demandée depuis la recherche globale : on ouvre sa fiche de lancement.
+  useEffect(() => {
+    const it = useUi.getState().intent
+    if (it?.kind !== 'mission') return
+    useUi.getState().set({ intent: null })
+    const s = scenarioById(it.id)
+    if (s) setPick(s)
+  }, [])
+
   const chains = [...new Set(SCENARIOS.flatMap((s) => s.chains))]
-  const list = SCENARIOS.filter((s) => (!diff || s.difficulty === diff) && (!chain || s.chains.includes(chain)) && (!q || `${s.title} ${s.tagline} ${s.skills.map((k) => SKILLS[k].label).join(' ')}`.toLowerCase().includes(q.toLowerCase())))
+  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const list = SCENARIOS.filter((s) => {
+    if (diff && s.difficulty !== diff) return false
+    if (chain && !s.chains.includes(chain)) return false
+    if (status === 'done' && best[s.id] === undefined) return false
+    if (status === 'todo' && (best[s.id] !== undefined || running?.id === s.id)) return false
+    if (status === 'running' && running?.id !== s.id) return false
+    return !q || norm(`${s.title} ${s.tagline} ${s.skills.map((k) => SKILLS[k].label).join(' ')}`).includes(norm(q))
+  })
   const groups = ([1, 2, 3, 4] as Difficulty[]).map((d) => ({ d, items: list.filter((s) => s.difficulty === d) })).filter((g) => g.items.length)
+  const solved = SCENARIOS.filter((s) => best[s.id] !== undefined).length
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-7xl px-8 py-8">
+      <div className="mx-auto max-w-[1180px] px-10 py-10">
         <div className="flex flex-wrap items-end gap-4">
           <div>
-            <div className="label text-accent">Centre d'entraînement</div>
-            <h1 className="mt-1 text-3xl font-bold text-white">Missions</h1>
-            <p className="mt-1 text-[13.5px] text-ink-300">{SCENARIOS.length} scénarios générés de façon procédurale : chaque graine produit une affaire différente.</p>
+            <div className="text-dense text-ink-400">Enquêter</div>
+            <h1 className="mt-1 text-page font-semibold tracking-tight text-white">Missions</h1>
+            <p className="mt-1.5 text-body text-ink-300">
+              {SCENARIOS.length} affaires générées à partir d'une graine : la même graine donne la même affaire. <span className="text-ink-400">{solved} résolue{solved > 1 ? 's' : ''}.</span>
+            </p>
           </div>
-          <button className="btn-outline ml-auto" onClick={() => {
+          <button className="btn-outline ml-auto !h-[38px]" onClick={() => {
             const t = SCENARIOS[Math.floor(Math.random() * SCENARIOS.length)]
             if (t) setPick(t)
           }}>
@@ -60,41 +100,57 @@ export function Missions() {
           </button>
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Icon name="Search" size={14} className="absolute left-2.5 top-2.5 text-ink-400" />
-            <input className="input w-64 !pl-8" placeholder="Rechercher une compétence, une typologie…" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
-          <div className="flex gap-1 rounded-lg border border-ink-700 bg-ink-900 p-0.5">
-            <FilterBtn active={diff === 0} onClick={() => setDiff(0)}>Tous niveaux</FilterBtn>
+        <div className="mt-7 flex flex-wrap items-center gap-2.5">
+          <label className="relative min-w-[240px] flex-1">
+            <span className="sr-only">Rechercher une mission</span>
+            <Icon name="Search" size={15} className="absolute left-3 top-[11px] text-ink-400" />
+            <input className="input !h-[38px] !pl-9" placeholder="Compétence, typologie, chaîne…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </label>
+          <div className="seg" role="group" aria-label="Niveau">
+            <button className={`seg-item ${diff === 0 ? 'seg-item-active' : ''}`} aria-pressed={diff === 0} onClick={() => setDiff(0)}>Tous</button>
             {([1, 2, 3, 4] as Difficulty[]).map((d) => (
-              <FilterBtn key={d} active={diff === d} onClick={() => setDiff(d)} color={DIFFICULTY[d].color}>{DIFFICULTY[d].label}</FilterBtn>
+              <button key={d} className={`seg-item ${diff === d ? 'seg-item-active' : ''}`} aria-pressed={diff === d} onClick={() => setDiff(d)}>{DIFFICULTY[d].label}</button>
             ))}
           </div>
-          <div className="flex flex-wrap gap-1">
-            <FilterBtn active={chain === ''} onClick={() => setChain('')}>Toutes chaînes</FilterBtn>
-            {chains.map((c) => (
-              <FilterBtn key={c} active={chain === c} onClick={() => setChain(c)} color={CHAINS[c].color}>{CHAINS[c].short}</FilterBtn>
-            ))}
-          </div>
+          <label className="relative">
+            <span className="sr-only">Statut</span>
+            <select className="input !h-[38px] cursor-pointer !pr-8 appearance-none" value={status} onChange={(e) => setStatus(e.target.value as Status)}>
+              <option value="all">Statut : toutes</option>
+              <option value="todo">À faire</option>
+              <option value="running">En cours</option>
+              <option value="done">Résolues</option>
+            </select>
+            <Icon name="ChevronDown" size={14} className="pointer-events-none absolute right-2.5 top-3 text-ink-400" />
+          </label>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Chaîne">
+          <button className={`chip h-7 border !px-2.5 !text-meta ${chain === '' ? 'border-ink-400 bg-ink-700 text-white' : 'border-ink-700 text-ink-300 hover:text-white'}`} aria-pressed={chain === ''} onClick={() => setChain('')}>Toutes les chaînes</button>
+          {chains.map((c) => (
+            <button key={c} className={`chip h-7 gap-1.5 border !px-2 !text-meta ${chain === c ? 'border-ink-400 bg-ink-700 text-white' : 'border-ink-700 text-ink-300 hover:text-white'}`} aria-pressed={chain === c} onClick={() => setChain(chain === c ? '' : c)} title={CHAINS[c].name}>
+              <img src={CHAIN_LOGOS[c]} alt="" width={14} height={14} className="rounded-full" /> {CHAINS[c].short}
+            </button>
+          ))}
         </div>
 
         <GeneratedCases best={best} onOpen={setPick} />
 
         {groups.map((g) => (
-          <section key={g.d} className="mt-8">
-            <div className="mb-3 flex items-center gap-3">
-              <span className="h-2 w-2 rounded-full" style={{ background: DIFFICULTY[g.d].color, boxShadow: `0 0 10px ${DIFFICULTY[g.d].color}` }} />
-              <h2 className="text-[15px] font-semibold text-white">{DIFFICULTY[g.d].label}</h2>
-              <span className="text-[12px] text-ink-400">{g.items.length} mission(s) · {DIFFICULTY[g.d].xp} XP max</span>
-              <div className="h-px flex-1 bg-gradient-to-r from-ink-700 to-transparent" />
+          <section key={g.d} className="mt-10">
+            <div className="mb-4 flex items-baseline gap-3">
+              <h2 className="text-title font-semibold text-white">{DIFFICULTY[g.d].label}</h2>
+              <span className="text-dense text-ink-400">
+                {g.items.length} mission{g.items.length > 1 ? 's' : ''}
+                {g.items.some((s) => s.guided) && ` · dont ${g.items.filter((s) => s.guided).length} tutoriels guidés`} · jusqu'à {DIFFICULTY[g.d].xp} XP
+              </span>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {g.items.map((s) => <MissionCard key={s.id} s={s} best={best[s.id]} onOpen={() => setPick(s)} />)}
+            <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(300px,1fr))]">
+              {g.items.map((s) => (
+                <MissionCard key={s.id} s={s} best={best[s.id]} running={running?.id === s.id ? running : undefined} daily={daily?.template.id === s.id} onOpen={() => setPick(s)} />
+              ))}
             </div>
           </section>
         ))}
-        {!groups.length && <div className="mt-16 text-center text-ink-400">Aucune mission ne correspond aux filtres.</div>}
+        {!groups.length && <div className="mt-16 text-center text-body text-ink-400">Aucune mission ne correspond aux filtres.</div>}
       </div>
       <LaunchModal s={pick} onClose={() => setPick(null)} />
     </div>
@@ -108,13 +164,14 @@ function GeneratedCases({ best, onOpen }: { best: Record<string, number>; onOpen
     return hashSeed(`gen-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`)
   })()
   const [daily, setDaily] = useState<{ s: ScenarioTemplate; seed: number } | null>(null)
+  if (!GENERATED_SCENARIOS.length) return null
   return (
-    <section className="mt-8 rounded-2xl border border-violet-400/25 bg-gradient-to-br from-violet-500/[0.07] via-ink-900/60 to-ink-900/40 p-5">
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-500/15 text-violet-200"><Icon name="Sparkles" size={19} /></span>
+    <section className="card mt-8 p-5">
+      <div className="flex flex-wrap items-center gap-4">
+        <span className="grid h-10 w-10 place-items-center rounded-lg bg-ink-800 text-ink-100"><Icon name="Sparkles" size={18} /></span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[16px] font-semibold text-white">Affaires générées</h2>
-          <p className="text-[12.5px] text-ink-300">Un générateur compose une affaire inédite à chaque partie : typologie, chaînes, techniques de blanchiment enchaînées, objectifs et débrief. Pour s'entraîner sans fin.</p>
+          <h2 className="text-title font-semibold text-white">Affaires générées</h2>
+          <p className="mt-0.5 max-w-3xl text-dense leading-relaxed text-ink-300">Une affaire inédite à chaque partie : typologie, chaînes, techniques de blanchiment enchaînées, objectifs et débrief. Pour s'entraîner sans fin.</p>
         </div>
         <button className="btn-outline" onClick={() => setDaily({ s: GENERATED_SCENARIOS[1] ?? GENERATED_SCENARIOS[0], seed: today })}>
           <Icon name="CalendarDays" size={14} /> Affaire générée du jour
@@ -122,14 +179,14 @@ function GeneratedCases({ best, onOpen }: { best: Record<string, number>; onOpen
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         {GENERATED_SCENARIOS.map((s) => (
-          <button key={s.id} className="group rounded-xl border border-ink-700/70 bg-ink-900/70 p-3 text-left transition hover:border-violet-400/50" onClick={() => onOpen(s)}>
+          <button key={s.id} className="group rounded-lg border border-ink-700 bg-ink-900 p-3.5 text-left transition-colors hover:border-ink-500" onClick={() => onOpen(s)}>
             <div className="flex items-center gap-2">
               <DifficultyBadge d={s.difficulty} />
-              <span className="text-[11.5px] text-ink-400">~{s.estMinutes} min</span>
-              {best[s.id] !== undefined && <span className="ml-auto text-[11px] font-semibold text-emerald-300"><Icon name="Trophy" size={11} /> {Math.round(best[s.id] * 100)} %</span>}
+              <span className="font-mono text-meta text-ink-400">~{s.estMinutes} min</span>
+              {best[s.id] !== undefined && <span className="ml-auto font-mono text-meta text-emerald-300">{Math.round(best[s.id] * 100)} %</span>}
             </div>
-            <div className="mt-1.5 text-[13.5px] font-semibold text-white group-hover:text-violet-200">{s.title.replace('Affaire générée — ', '')}</div>
-            <div className="mt-0.5 text-[11.5px] leading-snug text-ink-300">{s.difficulty === 2 ? 'Rebonds, peel chains, regroupements, swaps : une seule chaîne.' : s.difficulty === 3 ? 'Plus d\'étapes, agrégateurs, WETH, et un changement de chaîne (bridge ou échangeur).' : 'Jusqu\'à six techniques, deux changements de chaîne, mixeur, prêt avec garantie.'}</div>
+            <div className="mt-2 text-body font-semibold text-white">{s.title.replace('Affaire générée — ', '')}</div>
+            <div className="mt-0.5 text-meta leading-snug text-ink-300">{s.difficulty === 2 ? 'Rebonds, peel chains, regroupements, swaps : une seule chaîne.' : s.difficulty === 3 ? 'Plus d\'étapes, agrégateurs, WETH, et un changement de chaîne (bridge ou échangeur).' : 'Jusqu\'à six techniques, deux changements de chaîne, mixeur, prêt avec garantie.'}</div>
           </button>
         ))}
       </div>
@@ -138,59 +195,44 @@ function GeneratedCases({ best, onOpen }: { best: Record<string, number>; onOpen
   )
 }
 
-function FilterBtn({ active, onClick, children, color }: { active: boolean; onClick: () => void; children: React.ReactNode; color?: string }) {
+export function MissionCard({ s, best, onOpen, running, daily }: { s: ScenarioTemplate; best?: number; onOpen: () => void; running?: { done: number; total: number }; daily?: boolean }) {
+  const lessons = useProfile((p) => p.lessons)
+  const unread = missionPrereqs(s.id).filter((id) => !lessons[id]?.read).length
   return (
-    <button onClick={onClick} className={`rounded-md px-2.5 py-1 text-[12px] font-medium transition ${active ? 'bg-ink-700 text-white' : 'text-ink-300 hover:text-white'}`} style={active && color ? { color, background: `${color}1c` } : undefined}>
-      {children}
-    </button>
-  )
-}
-
-export function MissionCard({ s, best, onOpen }: { s: ScenarioTemplate; best?: number; onOpen: () => void }) {
-  const dc = DIFFICULTY[s.difficulty].color
-  return (
-    <button onClick={onOpen} className="group relative flex flex-col overflow-hidden rounded-2xl border border-ink-700/70 bg-ink-900/70 text-left transition hover:-translate-y-0.5 hover:border-ink-500 hover:shadow-panel">
-      <div className="relative h-24 overflow-hidden border-b border-ink-700/60" style={{ background: `radial-gradient(ellipse at 15% 0%, ${dc}26, transparent 60%), radial-gradient(ellipse at 100% 100%, ${CHAINS[s.chains[0]].color}22, transparent 60%), #090d18` }}>
-        <MiniGraph seed={s.id} color={dc} />
-        <div className="absolute left-4 top-3 flex gap-1">{s.chains.map((c) => <ChainBadge key={c} chain={c} compact />)}</div>
-        {best !== undefined && (
-          <div className="absolute right-3 top-3 flex items-center gap-1 rounded-md bg-ink-950/80 px-2 py-0.5 text-[11px] font-semibold" style={{ color: best >= 0.8 ? '#34d399' : best >= 0.5 ? '#facc15' : '#f43f5e' }}>
-            <Icon name="Trophy" size={11} /> {Math.round(best * 100)} %
-          </div>
-        )}
+    <button onClick={onOpen} className={`group flex flex-col overflow-hidden rounded-xl border bg-ink-850 text-left transition-colors hover:border-ink-500 ${running ? 'border-accent/50' : 'border-ink-700'}`}>
+      <FlowGlyph s={s} className="border-b border-ink-700" />
+      <div className="flex flex-1 flex-col gap-2 p-4">
+        <div className="flex items-center justify-between gap-2 text-meta text-ink-300">
+          <span className="flex min-w-0 items-center gap-1.5 truncate">
+            {s.chains.map((c) => CHAINS[c].name).join(' · ')}
+            {s.guided && <span className="text-ink-400">· guidée</span>}
+          </span>
+          <span className="shrink-0 font-mono">{s.estMinutes} min</span>
+        </div>
+        <h3 className="text-title font-semibold leading-snug text-white">{s.title}</h3>
+        <p className="line-clamp-2 text-dense leading-relaxed text-ink-300">{s.tagline}</p>
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
+          {running ? (
+            <>
+              <span className="chip h-6 bg-accent/15 !px-2 !text-meta text-accent">En cours{running.total ? ` · ${running.done} / ${running.total}` : ''}</span>
+              {running.total > 0 && <ProgressBar value={running.done / running.total} className="!w-auto flex-1" />}
+            </>
+          ) : best !== undefined ? (
+            <span className={`chip h-6 !px-2 !text-meta ${best >= 0.8 ? 'bg-emerald-400/15 text-emerald-300' : best >= 0.5 ? 'bg-amber-400/15 text-amber-300' : 'bg-rose-400/15 text-rose-300'}`}>
+              <Icon name="Check" size={12} /> Résolue · {Math.round(best * 100)} %
+            </span>
+          ) : (
+            <span className="chip h-6 bg-ink-800 !px-2 !text-meta text-ink-300">Non commencée</span>
+          )}
+          {daily && <span className="chip h-6 border border-amber-400/40 !px-2 !text-meta text-amber-300">Défi du jour</span>}
+          {!running && best === undefined && unread > 0 && (
+            <span className="ml-auto flex items-center gap-1 text-meta text-ink-400" title="Leçons prérequises pas encore lues">
+              <Icon name="BookOpen" size={13} /> {unread} à lire avant
+            </span>
+          )}
+        </div>
       </div>
-      <div className="flex flex-1 flex-col p-4">
-        <div className="flex items-center gap-2">
-          <h3 className="text-[15px] font-semibold text-white group-hover:text-accent">{s.title}</h3>
-        </div>
-        <p className="mt-1 line-clamp-2 text-[12.5px] leading-relaxed text-ink-300">{s.tagline}</p>
-        <div className="mt-3 flex flex-wrap gap-1">
-          {s.skills.slice(0, 4).map((k) => <span key={k} className="chip bg-ink-800 text-ink-200">{SKILLS[k].label}</span>)}
-          {s.skills.length > 4 && <span className="chip bg-ink-800 text-ink-400">+{s.skills.length - 4}</span>}
-        </div>
-        <div className="mt-auto flex items-center gap-2 pt-4">
-          <DifficultyBadge d={s.difficulty} />
-          {s.guided && <span className="chip bg-accent/15 text-accent"><Icon name="Compass" size={11} /> Guidée</span>}
-          <span className="ml-auto flex items-center gap-1 text-[11.5px] text-ink-400"><Icon name="Clock" size={12} /> {s.estMinutes} min</span>
-        </div>
-      </div>
     </button>
-  )
-}
-
-/** Petit graphe décoratif déterministe pour les cartes. */
-function MiniGraph({ seed, color }: { seed: string; color: string }) {
-  let h = hashSeed(seed)
-  const r = () => ((h = (Math.imul(h ^ (h >>> 15), 2246822507) + 0x6d2b79f5) >>> 0) / 4294967296)
-  const nodes = Array.from({ length: 9 }, (_, i) => ({ x: 40 + i * 38 + r() * 18, y: 22 + r() * 60 }))
-  return (
-    <svg className="absolute inset-0 h-full w-full opacity-70" viewBox="0 0 400 96" preserveAspectRatio="xMidYMid slice">
-      {nodes.slice(1).map((n, i) => {
-        const p = nodes[Math.max(0, i - Math.floor(r() * 2))]
-        return <line key={i} x1={p.x} y1={p.y} x2={n.x} y2={n.y} stroke={color} strokeOpacity={0.35} strokeWidth={1} strokeDasharray="3 3" className="animate-dash" />
-      })}
-      {nodes.map((n, i) => <circle key={i} cx={n.x} cy={n.y} r={i === 0 ? 5 : 3 + r() * 2} fill="#090d18" stroke={i === 0 ? '#f472b6' : color} strokeWidth={1.5} />)}
-    </svg>
   )
 }
 
@@ -213,34 +255,37 @@ function LaunchModalInner({ s, onClose, seed: fixedSeed }: { s: ScenarioTemplate
   const lessonsDone = useProfile.getState().lessons
   const unread = before.filter((l) => !lessonsDone[l.id]?.read).length
   const lessonChip = (l: NonNullable<ReturnType<typeof byId>>) => (
-    <button key={l.id} className="chip border border-ink-600 bg-ink-800 !py-1 text-ink-100 hover:border-accent" onClick={() => {
+    <button key={l.id} className="chip h-7 gap-1.5 border border-ink-600 !px-2 !text-meta text-ink-100 hover:border-ink-400" onClick={() => {
       onClose()
       useUi.getState().openLesson(l.id)
     }}>
-      <Icon name={lessonsDone[l.id]?.read ? 'CircleCheck' : 'GraduationCap'} size={12} className={lessonsDone[l.id]?.read ? 'text-emerald-400' : 'text-accent'} /> {l.title}
+      <Icon name={lessonsDone[l.id]?.read ? 'CircleCheck' : 'BookOpen'} size={13} className={lessonsDone[l.id]?.read ? 'text-emerald-400' : 'text-ink-300'} /> {l.title}
     </button>
   )
   return (
-    <Modal open={!!s} onClose={onClose} title={s.title} icon="Crosshair" width="max-w-2xl">
+    <Modal open={!!s} onClose={onClose} title={s.title} icon="Crosshair" width="max-w-[720px]">
+      <div className="-mx-5 -mt-5 mb-5 border-b border-ink-700">
+        <FlowGlyph s={s} className="!h-[132px]" />
+      </div>
       <div className="flex flex-wrap gap-1.5">
         <DifficultyBadge d={s.difficulty} />
         {s.chains.map((c) => <ChainBadge key={c} chain={c} />)}
-        <span className="chip bg-ink-800 text-ink-200"><Icon name="Clock" size={11} /> ~{s.estMinutes} min</span>
-        {s.guided && <span className="chip bg-accent/15 text-accent"><Icon name="Compass" size={11} /> Mission guidée · indices gratuits</span>}
+        <span className="chip border border-ink-600 text-ink-100"><Icon name="Clock" size={12} /> ~{s.estMinutes} min</span>
+        {s.guided && <span className="chip bg-accent/15 text-accent"><Icon name="Compass" size={12} /> Mission guidée · indices gratuits</span>}
       </div>
-      <p className="mt-3 text-[13.5px] leading-relaxed text-ink-200">{s.description}</p>
+      <p className="mt-4 text-body leading-relaxed text-ink-200">{s.description}</p>
       <div className="mt-3 flex flex-wrap gap-1">
-        {s.skills.map((k) => <span key={k} className="chip border border-ink-600 bg-ink-800 text-ink-100">{SKILLS[k].label}</span>)}
+        {s.skills.map((k) => <span key={k} className="chip bg-ink-800 text-ink-200">{SKILLS[k].label}</span>)}
       </div>
       {(before.length > 0 || further.length > 0) && (
-        <div className="mt-4 space-y-3 rounded-xl border border-ink-700/60 bg-ink-850/50 p-3">
+        <div className="mt-5 space-y-4 rounded-lg border border-ink-700 bg-ink-900 p-4">
           {before.length > 0 && (
             <div>
               <div className="mb-2 flex items-center gap-2">
                 <span className="label">À lire avant</span>
                 {unread > 0
-                  ? <span className="text-[11px] text-yellow-200">{unread === 1 ? '1 leçon pas encore lue' : `${unread} leçons pas encore lues`}</span>
-                  : <span className="text-[11px] text-emerald-300">prérequis lus</span>}
+                  ? <span className="text-meta text-amber-300">{unread === 1 ? '1 leçon pas encore lue' : `${unread} leçons pas encore lues`}</span>
+                  : <span className="text-meta text-emerald-300">prérequis lus</span>}
               </div>
               <div className="flex flex-wrap gap-1.5">{before.map(lessonChip)}</div>
             </div>
@@ -253,7 +298,7 @@ function LaunchModalInner({ s, onClose, seed: fixedSeed }: { s: ScenarioTemplate
           )}
         </div>
       )}
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
         <OptionGroup label="Mode" value={mode} onChange={setMode} options={[
           { v: 'standard', t: 'Entraînement', d: 'Indices disponibles' },
           { v: 'examen', t: 'Examen', d: 'Sans indice · XP ×1,5' },
@@ -262,8 +307,6 @@ function LaunchModalInner({ s, onClose, seed: fixedSeed }: { s: ScenarioTemplate
           { v: 'full', t: 'Complète', d: 'Toutes les étiquettes connues' },
           { v: 'partial', t: 'Partielle', d: '60 % des dépôts non étiquetés · XP ×1,25' },
         ]} />
-      </div>
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
         <OptionGroup label="Déroulement" value={timing} onChange={setTiming} options={[
           { v: 'past', t: 'Rétrospectif', d: 'Toute l\'histoire est déjà sur la chaîne' },
           { v: 'live', t: 'Temps réel', d: 'Horloge simulée : les fonds bougent pendant l\'enquête' },
@@ -274,18 +317,20 @@ function LaunchModalInner({ s, onClose, seed: fixedSeed }: { s: ScenarioTemplate
           { v: 'extreme', t: 'Extrême', d: 'Activité massive : filtrer et corréler' },
         ]} />
       </div>
-      {fixedSeed === undefined && (
-        <label className="mt-3 block">
+      {fixedSeed === undefined ? (
+        <label className="mt-4 block">
           <span className="label">Graine (optionnel)</span>
-          <input className="input mt-1 font-mono" placeholder="Aléatoire — saisissez un nombre pour rejouer la même affaire qu'un collègue" value={seedText} onChange={(e) => setSeedText(e.target.value.replace(/[^0-9]/g, ''))} />
+          <input className="input mt-1.5 font-mono" inputMode="numeric" placeholder="Aléatoire — saisissez un nombre pour rejouer la même affaire qu'un collègue" value={seedText} onChange={(e) => setSeedText(e.target.value.replace(/[^0-9]/g, ''))} />
         </label>
+      ) : (
+        <div className="mt-4 text-meta text-ink-300">Graine imposée : <span className="font-mono text-ink-100">{fixedSeed}</span></div>
       )}
-      <button className="btn-primary mt-5 w-full !py-2.5 text-[14px]" onClick={() => {
+      <button className="btn-primary mt-5 h-11 w-full text-body font-semibold" onClick={() => {
         const seed = fixedSeed ?? (seedText ? Number(seedText) : randomSeed())
         onClose()
         launchCase(s.id, seed, mode, coverage, timing === 'live', noise)
       }}>
-        <Icon name="Play" size={16} /> Ouvrir le dossier
+        <Icon name="FolderOpen" size={16} /> Ouvrir le dossier
       </button>
     </Modal>
   )
@@ -293,13 +338,13 @@ function LaunchModalInner({ s, onClose, seed: fixedSeed }: { s: ScenarioTemplate
 
 function OptionGroup<T extends string>({ label, value, onChange, options }: { label: string; value: T; onChange: (v: T) => void; options: { v: T; t: string; d: string }[] }) {
   return (
-    <div>
+    <div role="radiogroup" aria-label={label}>
       <div className="label mb-1.5">{label}</div>
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className={`grid gap-1.5 ${options.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
         {options.map((o) => (
-          <button key={o.v} onClick={() => onChange(o.v)} className={`rounded-xl border p-2.5 text-left transition ${value === o.v ? 'border-accent/60 bg-accent/10' : 'border-ink-700 hover:border-ink-500'}`}>
-            <div className={`text-[12.5px] font-semibold ${value === o.v ? 'text-white' : 'text-ink-100'}`}>{o.t}</div>
-            <div className="text-[10.5px] text-ink-400">{o.d}</div>
+          <button key={o.v} role="radio" aria-checked={value === o.v} onClick={() => onChange(o.v)} className={`rounded-lg border p-2.5 text-left transition-colors ${value === o.v ? 'border-accent bg-accent/10' : 'border-ink-700 hover:border-ink-500'}`}>
+            <div className="text-dense font-semibold text-white">{o.t}</div>
+            <div className="mt-0.5 text-micro leading-snug text-ink-300">{o.d}</div>
           </button>
         ))}
       </div>

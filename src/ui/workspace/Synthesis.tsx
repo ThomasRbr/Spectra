@@ -42,7 +42,7 @@ export function flowDiagramSvg(res: TraceResult, opts: { light?: boolean; source
   const usable = H - gap * (list.length - 1)
   const fg = opts.light ? '#111' : '#e2e8f0'
   const muted = opts.light ? '#555' : '#94a3b8'
-  const srcColor = opts.light ? '#0e7490' : '#22d3ee'
+  const srcColor = opts.light ? '#3a5a9e' : '#7ea6ff'
   const x0 = 150
   const x1 = 430
   let ySrc = 0
@@ -124,7 +124,7 @@ export function BalanceChart({ w, id }: { w: World; id: string }) {
   const h = hover !== null ? pts[hover] : null
   return (
     <div className="mb-2 rounded-lg border border-ink-700/60 bg-ink-850/40 p-2">
-      <button className="flex w-full items-center justify-between text-[10.5px] uppercase tracking-wide text-ink-400 hover:text-white" onClick={() => setOpen((v) => !v)}>
+      <button className="flex w-full items-center justify-between text-micro uppercase tracking-wide text-ink-400 hover:text-white" onClick={() => setOpen((v) => !v)}>
         <span className="flex items-center gap-1.5"><Icon name="ChartLine" size={11} /> Solde dans le temps (USD)</span>
         <span className="font-mono normal-case tracking-normal text-ink-300">{h ? `${fmtTime(h.t)} · ${fmtUsd(h.usd)}` : `max ${fmtUsd(max)}`}</span>
       </button>
@@ -136,9 +136,9 @@ export function BalanceChart({ w, id }: { w: World; id: string }) {
           for (let i = 0; i < pts.length; i++) if (pts[i].t <= t) k = i
           setHover(k)
         }}>
-          <path d={`${d} L${x(t1)},${y(0)} Z`} fill="#22d3ee" fillOpacity={0.12} />
-          <path d={d} fill="none" stroke="#22d3ee" strokeWidth={1.4} />
-          {h && <circle cx={x(h.t)} cy={y(h.usd)} r={3} fill="#22d3ee" />}
+          <path d={`${d} L${x(t1)},${y(0)} Z`} fill="#7ea6ff" fillOpacity={0.12} />
+          <path d={d} fill="none" stroke="#7ea6ff" strokeWidth={1.4} />
+          {h && <circle cx={x(h.t)} cy={y(h.usd)} r={3} fill="#7ea6ff" />}
           {clock && <line x1={x(t1)} x2={x(t1)} y1={0} y2={H} stroke="#fb7185" strokeDasharray="2 2" strokeWidth={1} />}
         </svg>
       )}

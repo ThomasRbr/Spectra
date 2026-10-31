@@ -75,11 +75,11 @@ export default function FeeMempool() {
     <div className="space-y-3">
       <Instr>Choisissez l'état du réseau, la taille de la transaction et le taux de frais proposé. Les mineurs remplissent chaque bloc (≈ 1 vMB) avec les transactions les mieux payées.</Instr>
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 text-[12px] text-ink-300">
+        <div className="flex items-center gap-2 text-meta text-ink-300">
           Mempool
           <Seg<Level> value={level} onChange={setLevel} options={(Object.keys(LEVELS) as Level[]).map((l) => ({ id: l, label: LEVELS[l].label }))} />
         </div>
-        <div className="flex items-center gap-2 text-[12px] text-ink-300">
+        <div className="flex items-center gap-2 text-meta text-ink-300">
           Taille
           <Seg<number> value={size} onChange={setSize} options={SIZES.map((s) => ({ id: s.id, label: s.label }))} />
         </div>
@@ -87,8 +87,8 @@ export default function FeeMempool() {
       <Slider label="Taux de frais proposé" value={rate} min={1} max={200} onChange={setRate} display={`${rate} sat/vB`} />
 
       <div className="rounded-xl border border-ink-700 bg-ink-850/80 p-3">
-        <div className="mb-2 flex items-center justify-between text-[11px] text-ink-300">
-          <span className="label !text-[10px]">Blocs projetés (prochain bloc à gauche)</span>
+        <div className="mb-2 flex items-center justify-between text-micro text-ink-300">
+          <span className="label !text-micro">Blocs projetés (prochain bloc à gauche)</span>
           <span className="font-mono">{m.total.toFixed(1)} vMB en attente</span>
         </div>
         <div className="flex gap-2 overflow-hidden">
@@ -99,17 +99,17 @@ export default function FeeMempool() {
                 <div
                   className="flex aspect-square flex-col items-center justify-center rounded-lg border text-center transition-all duration-300"
                   style={{
-                    borderColor: mine ? C.cyan : '#1f2b47',
-                    background: b.empty ? '#090d18' : `linear-gradient(180deg, ${C.violet}${k === 0 ? '55' : '30'}, ${C.violet}10)`,
+                    borderColor: mine ? C.cyan : '#2f353e',
+                    background: b.empty ? '#121418' : `linear-gradient(180deg, ${C.violet}${k === 0 ? '55' : '30'}, ${C.violet}10)`,
                     boxShadow: mine ? `0 0 18px -4px ${C.cyan}` : undefined,
                   }}
                 >
-                  <div className="text-[10px] text-ink-300">+{(k + 1) * 10} min</div>
-                  <div className="font-mono text-[11px] font-semibold text-white">{b.empty ? '—' : `~${Math.max(1, Math.round(b.min))}`}</div>
-                  <div className="text-[9.5px] text-ink-400">{b.empty ? 'vide' : `à ${Math.round(b.max)} sat/vB`}</div>
+                  <div className="text-micro text-ink-300">+{(k + 1) * 10} min</div>
+                  <div className="font-mono text-micro font-semibold text-white">{b.empty ? '—' : `~${Math.max(1, Math.round(b.min))}`}</div>
+                  <div className="text-micro text-ink-400">{b.empty ? 'vide' : `à ${Math.round(b.max)} sat/vB`}</div>
                 </div>
                 {mine && (
-                  <div className="mt-1 flex items-center justify-center gap-1 text-[10.5px] font-semibold text-accent">
+                  <div className="mt-1 flex items-center justify-center gap-1 text-micro font-semibold text-accent">
                     <Icon name="ArrowUp" size={11} /> vous
                   </div>
                 )}
@@ -118,7 +118,7 @@ export default function FeeMempool() {
           })}
         </div>
         {m.blocks > 6 && (
-          <div className="mt-2 text-[11.5px] text-orange-300">
+          <div className="mt-2 text-meta text-orange-300">
             Votre transaction est au-delà des 6 prochains blocs (bloc n° {m.blocks}).
           </div>
         )}
@@ -126,21 +126,21 @@ export default function FeeMempool() {
 
       <div className="grid grid-cols-3 gap-2 text-center">
         <div className="rounded-xl border border-ink-700 bg-ink-850/80 p-2">
-          <div className="text-[10.5px] text-ink-300">Frais payés</div>
-          <div className="font-mono text-[13px] font-semibold text-white">{feeSats.toLocaleString('fr-FR')} sats</div>
-          <div className="text-[10.5px] text-ink-400">{fmtUsd(feeUsd)}</div>
+          <div className="text-micro text-ink-300">Frais payés</div>
+          <div className="font-mono text-dense font-semibold text-white">{feeSats.toLocaleString('fr-FR')} sats</div>
+          <div className="text-micro text-ink-400">{fmtUsd(feeUsd)}</div>
         </div>
         <div className="rounded-xl border border-ink-700 bg-ink-850/80 p-2">
-          <div className="text-[10.5px] text-ink-300">Devant vous</div>
-          <div className="font-mono text-[13px] font-semibold text-white">{m.a.toFixed(2)} vMB</div>
-          <div className="text-[10.5px] text-ink-400">mieux payés</div>
+          <div className="text-micro text-ink-300">Devant vous</div>
+          <div className="font-mono text-dense font-semibold text-white">{m.a.toFixed(2)} vMB</div>
+          <div className="text-micro text-ink-400">mieux payés</div>
         </div>
         <div className="rounded-xl border border-ink-700 bg-ink-850/80 p-2">
-          <div className="text-[10.5px] text-ink-300">Confirmation estimée</div>
-          <div className="font-mono text-[13px] font-semibold" style={{ color: m.blocks <= 1 ? C.green : m.blocks <= 3 ? C.cyan : C.orange }}>
+          <div className="text-micro text-ink-300">Confirmation estimée</div>
+          <div className="font-mono text-dense font-semibold" style={{ color: m.blocks <= 1 ? C.green : m.blocks <= 3 ? C.cyan : C.orange }}>
             {eta < 60 ? `~${eta} min` : `~${(eta / 60).toFixed(1).replace('.', ',')} h`}
           </div>
-          <div className="text-[10.5px] text-ink-400">bloc n° {m.blocks}</div>
+          <div className="text-micro text-ink-400">bloc n° {m.blocks}</div>
         </div>
       </div>
 

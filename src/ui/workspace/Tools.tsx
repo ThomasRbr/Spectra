@@ -59,7 +59,7 @@ export function Correlator() {
 
   return (
     <Modal open={st.open} onClose={close} title="Corrélateur montant / temps" icon="Radar" width="max-w-4xl">
-      <div className="mb-3 rounded-xl border border-ink-700/60 bg-ink-850/50 p-3 text-[12px] leading-relaxed text-ink-300">
+      <div className="mb-3 rounded-xl border border-ink-700/60 bg-ink-850/50 p-3 text-meta leading-relaxed text-ink-300">
         Quand un service coupe le lien on-chain (échangeur instantané, mixeur, passage par Monero), on cherche les paiements sortants du même service dans une fenêtre de temps, pour un montant équivalent (moins les frais). Le résultat est <span className="text-white">probabiliste</span> : une corrélation doit être corroborée (réquisition au service, OSINT, comportement ultérieur).
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -83,11 +83,11 @@ export function Correlator() {
         </label>
         <label className="block">
           <span className="label">Fenêtre : {windowH} h</span>
-          <input className="mt-2 w-full accent-cyan-400" type="range" min={1} max={240} value={windowH} onChange={(e) => setWindowH(Number(e.target.value))} />
+          <input className="mt-2 w-full accent-accent" type="range" min={1} max={240} value={windowH} onChange={(e) => setWindowH(Number(e.target.value))} />
         </label>
         <label className="block">
           <span className="label">Tolérance montant : ±{tol} %</span>
-          <input className="mt-2 w-full accent-cyan-400" type="range" min={1} max={40} value={tol} onChange={(e) => setTol(Number(e.target.value))} />
+          <input className="mt-2 w-full accent-accent" type="range" min={1} max={40} value={tol} onChange={(e) => setTol(Number(e.target.value))} />
         </label>
         <div>
           <span className="label">Chaînes de sortie</span>
@@ -110,10 +110,10 @@ export function Correlator() {
         <div className="mt-4">
           <div className="label mb-2">{hits.length} candidat(s)</div>
           {hits.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-ink-600 p-4 text-center text-[12px] text-ink-400">Aucun paiement compatible. Élargissez la fenêtre ou la tolérance, ou retirez le filtre d'émetteur.</div>
+            <div className="rounded-lg border border-dashed border-ink-600 p-4 text-center text-meta text-ink-400">Aucun paiement compatible. Élargissez la fenêtre ou la tolérance, ou retirez le filtre d'émetteur.</div>
           ) : (
             <div className="overflow-hidden rounded-xl border border-ink-700/60">
-              <table className="w-full text-[11.5px]">
+              <table className="w-full text-meta">
                 <thead className="bg-ink-850 text-left text-ink-400">
                   <tr>
                     <th className="px-2.5 py-2 font-medium">Score</th>
@@ -138,7 +138,7 @@ export function Correlator() {
                       <td className="px-2 py-1.5 font-mono text-ink-100">{fmtAsset(h.value, h.asset as AssetId)} <span className="text-ink-400">({fmtUsd(h.usd)})</span></td>
                       <td className="max-w-[220px] px-2 py-1.5"><AddrLine w={w} id={h.to} compact /></td>
                       <td className="px-2 py-1.5">
-                        <button className="btn-ghost !px-2 !py-1 text-[11px]" title="Ajouter au graphe avec un lien de corrélation" onClick={() => {
+                        <button className="btn-ghost !px-2 !py-1 text-micro" title="Ajouter au graphe avec un lien de corrélation" onClick={() => {
                           const g = useGame.getState()
                           g.revealTx(h.txId, true)
                           const src = referenceAddress(w, st.preset?.excludeTx, entityId || undefined)
@@ -220,8 +220,8 @@ export function SearchPalette() {
                 close()
               }}>
                 <ChainBadge chain={w.tx(id).chain} compact />
-                <span className="font-mono text-[11.5px] text-ink-100">{shortAddr(w.tx(id).hash, 14)}</span>
-                <span className="ml-auto text-[10.5px] text-ink-400">{fmtTime(w.tx(id).time)}</span>
+                <span className="font-mono text-meta text-ink-100">{shortAddr(w.tx(id).hash, 14)}</span>
+                <span className="ml-auto text-micro text-ink-400">{fmtTime(w.tx(id).time)}</span>
               </button>
             ))}
           </div>
@@ -231,13 +231,13 @@ export function SearchPalette() {
             <div className="label mb-1">Entités (adresses publiques connues)</div>
             {results.ents.map((e) => (
               <div key={e.id} className="mb-2">
-                <div className="px-2 text-[12px] font-medium text-white">{w.entities.get(e.id)!.name}</div>
+                <div className="px-2 text-meta font-medium text-white">{w.entities.get(e.id)!.name}</div>
                 {e.addrs.map((id) => <div key={id} onClick={close}><AddrLine w={w} id={id} /></div>)}
               </div>
             ))}
           </div>
         )}
-        {q.trim().length >= 4 && !results.addrs.length && !results.txs.length && !results.ents.length && <div className="py-6 text-center text-[12px] text-ink-400">Aucun résultat dans le périmètre de l'affaire.</div>}
+        {q.trim().length >= 4 && !results.addrs.length && !results.txs.length && !results.ents.length && <div className="py-6 text-center text-meta text-ink-400">Aucun résultat dans le périmètre de l'affaire.</div>}
       </div>
     </Modal>
   )
@@ -293,33 +293,33 @@ export function RequisitionModal() {
               <input className="input mt-1" value={magistrate} onChange={(e) => setMagistrate(e.target.value)} />
             </label>
           )}
-          <label className="flex items-center gap-2 text-[12.5px] text-ink-100">
-            <input type="checkbox" className="accent-cyan-400" checked={freeze} onChange={(e) => setFreeze(e.target.checked)} /> Demander un blocage conservatoire
+          <label className="flex items-center gap-2 text-dense text-ink-100">
+            <input type="checkbox" className="accent-accent" checked={freeze} onChange={(e) => setFreeze(e.target.checked)} /> Demander un blocage conservatoire
           </label>
           <div>
             <span className="label">Transactions citées</span>
             <div className="mt-1 max-h-44 space-y-1 overflow-y-auto">
-              {relatedTx.length === 0 && <div className="text-[11px] text-ink-400">Ajoutez au graphe les dépôts concernés pour les citer.</div>}
+              {relatedTx.length === 0 && <div className="text-micro text-ink-400">Ajoutez au graphe les dépôts concernés pour les citer.</div>}
               {relatedTx.map((t) => (
-                <label key={t} className="flex items-center gap-2 text-[11px]">
-                  <input type="checkbox" className="accent-cyan-400" checked={txSel.includes(t)} onChange={(e) => setTxSel((s) => (e.target.checked ? [...s, t] : s.filter((x) => x !== t)))} />
+                <label key={t} className="flex items-center gap-2 text-micro">
+                  <input type="checkbox" className="accent-accent" checked={txSel.includes(t)} onChange={(e) => setTxSel((s) => (e.target.checked ? [...s, t] : s.filter((x) => x !== t)))} />
                   <span className="font-mono text-ink-200">{shortAddr(w.tx(t).hash, 10)}</span>
                 </label>
               ))}
             </div>
           </div>
-          <div className="rounded-lg border border-violet-400/30 bg-violet-400/5 p-2.5 text-[11px] leading-relaxed text-ink-200">
-            <Icon name="Scale" size={12} className="mr-1 inline text-violet-glow" />
+          <div className="rounded-lg border border-violet-400/30 bg-violet-400/5 p-2.5 text-micro leading-relaxed text-ink-200">
+            <Icon name="Scale" size={12} className="mr-1 inline text-violet-300" />
             Modèle pédagogique. Vérifiez toujours les textes en vigueur et utilisez les trames de votre service.
           </div>
         </div>
         <div className="relative">
           <div className="absolute right-2 top-2 flex gap-1">
-            <button className="btn-outline !py-1 text-xs" onClick={() => navigator.clipboard?.writeText(text).catch(() => undefined)}>
+            <button className="btn-outline !py-1 text-meta" onClick={() => navigator.clipboard?.writeText(text).catch(() => undefined)}>
               <Icon name="Copy" size={13} /> Copier
             </button>
           </div>
-          <pre className="max-h-[62vh] overflow-auto whitespace-pre-wrap rounded-xl border border-ink-700 bg-[#f7f5ef] p-6 font-serif text-[12.5px] leading-relaxed text-[#1a1a1a]">{text}</pre>
+          <pre className="max-h-[62vh] overflow-auto whitespace-pre-wrap rounded-xl border border-ink-700 bg-[#f7f5ef] p-6 font-serif text-dense leading-relaxed text-[#1a1a1a]">{text}</pre>
         </div>
       </div>
     </Modal>
@@ -339,7 +339,7 @@ export function HintModal() {
     <Modal open={open} onClose={close} title="Indices" icon="Lightbulb" width="max-w-lg">
       <div className="space-y-2">
         {shown.map((h, i) => (
-          <div key={i} className="flex gap-2 rounded-lg border border-yellow-400/25 bg-yellow-400/5 p-3 text-[12.5px] text-yellow-50">
+          <div key={i} className="flex gap-2 rounded-lg border border-yellow-400/25 bg-yellow-400/5 p-3 text-dense text-yellow-50">
             <span className="font-mono text-yellow-300">{i + 1}.</span> {h}
           </div>
         ))}
@@ -348,7 +348,7 @@ export function HintModal() {
             <Icon name="Lightbulb" size={14} className="text-yellow-300" /> Révéler l'indice suivant (−5 pts)
           </button>
         ) : (
-          <div className="text-center text-[12px] text-ink-400">Tous les indices ont été consultés.</div>
+          <div className="text-center text-meta text-ink-400">Tous les indices ont été consultés.</div>
         )}
       </div>
     </Modal>
@@ -367,9 +367,9 @@ export function ConfirmSubmit() {
   const close = () => useUi.getState().set({ confirmSubmit: false })
   return (
     <Modal open={open} onClose={close} title="Remettre le rapport ?" icon="Send" width="max-w-md">
-      <p className="text-[13px] text-ink-200">Une fois remis, vos réponses sont corrigées et ne peuvent plus être modifiées.</p>
+      <p className="text-dense text-ink-200">Une fois remis, vos réponses sont corrigées et ne peuvent plus être modifiées.</p>
       {missing.length > 0 && (
-        <div className="mt-3 rounded-lg border border-orange-400/30 bg-orange-400/5 p-3 text-[12px] text-orange-100">
+        <div className="mt-3 rounded-lg border border-orange-400/30 bg-orange-400/5 p-3 text-meta text-orange-100">
           <Icon name="TriangleAlert" size={13} className="mr-1 inline text-orange-300" />
           {missing.length} objectif(s) sans réponse : {missing.map((o) => inst.objectives.indexOf(o) + 1).join(', ')}
         </div>
@@ -402,7 +402,7 @@ export function Briefing() {
   const close = () => useUi.getState().set({ briefingOpen: false })
   return (
     <Modal open={open} onClose={close} title="Ordre de mission" icon="FileText" width="max-w-3xl">
-      <div className="relative overflow-hidden rounded-2xl border border-ink-700 hero-gradient p-5">
+      <div className="relative overflow-hidden rounded-xl border border-ink-700 p-5">
         <div className="flex flex-wrap items-center gap-2">
           <DifficultyBadge d={template.difficulty} />
           {template.chains.map((c) => <ChainBadge key={c} chain={c} />)}
@@ -411,8 +411,8 @@ export function Briefing() {
           {coverage === 'partial' && <span className="chip bg-orange-500/15 text-orange-300"><Icon name="EyeOff" size={11} /> Attribution partielle</span>}
           {!cert && <span className="chip ml-auto bg-ink-800 font-mono text-ink-300">graine {seed}</span>}
         </div>
-        <h2 className="mt-3 text-2xl font-bold text-white">{inst.title}</h2>
-        <p className="mt-1 text-[13px] text-ink-300">{template.tagline}</p>
+        <h2 className="mt-3 text-section font-bold text-white">{inst.title}</h2>
+        <p className="mt-1 text-dense text-ink-300">{template.tagline}</p>
       </div>
       <div className="mt-4">
         <RichText text={inst.briefing} />
@@ -422,13 +422,13 @@ export function Briefing() {
           <div className="label mb-2">Objectifs ({inst.objectives.length})</div>
           <ol className="space-y-1.5">
             {inst.objectives.map((o, i) => (
-              <li key={o.id} className="flex gap-2 text-[12px] text-ink-200"><span className="font-mono text-accent">{i + 1}.</span> {o.prompt}</li>
+              <li key={o.id} className="flex gap-2 text-meta text-ink-200"><span className="font-mono text-accent">{i + 1}.</span> {o.prompt}</li>
             ))}
           </ol>
         </div>
         <div className="rounded-xl border border-ink-700/60 bg-ink-850/50 p-3">
           <div className="label mb-2">Méthode conseillée</div>
-          <ul className="space-y-1.5 text-[12px] text-ink-200">
+          <ul className="space-y-1.5 text-meta text-ink-200">
             <li className="flex gap-2"><Icon name="FolderOpen" size={13} className="mt-0.5 shrink-0 text-accent" /> Lisez les pièces : les adresses surlignées s'ajoutent au graphe d'un clic.</li>
             <li className="flex gap-2"><Icon name="MousePointer2" size={13} className="mt-0.5 shrink-0 text-accent" /> Double-clic sur un nœud = déplier ses sorties. Clic droit = menu complet.</li>
             <li className="flex gap-2"><Icon name="Flag" size={13} className="mt-0.5 shrink-0 text-accent" /> Marquez suspects, victimes et impasses au fil de l'eau.</li>
@@ -437,7 +437,7 @@ export function Briefing() {
           </ul>
         </div>
       </div>
-      <button className="btn-primary mt-4 w-full !py-2.5 text-[14px]" onClick={close}>
+      <button className="btn-primary mt-4 w-full !py-2.5 text-body" onClick={close}>
         <Icon name="Play" size={16} /> Commencer l'enquête
       </button>
     </Modal>
@@ -467,7 +467,7 @@ export function Debrief({ onReplay, onExit }: { onReplay: () => void; onExit: ()
   const lessons = (template.lessons ?? []).map((id) => LESSONS.find((l) => l.id === id)).filter(Boolean)
   if (!open) {
     return (
-      <button className="btn-primary absolute bottom-4 left-1/2 z-30 -translate-x-1/2 shadow-glow" onClick={() => setOpen(true)}>
+      <button className="btn-primary absolute bottom-4 left-1/2 z-30 -translate-x-1/2" onClick={() => setOpen(true)}>
         <Icon name="Trophy" size={15} /> Débriefing · {score.total}/{score.max}
       </button>
     )
@@ -475,17 +475,17 @@ export function Debrief({ onReplay, onExit }: { onReplay: () => void; onExit: ()
   return (
     <Modal open={open} onClose={() => setOpen(false)} title="Débriefing" icon="Trophy" width="max-w-4xl">
       <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-        <div className="flex flex-col items-center rounded-2xl border border-ink-700 hero-gradient p-5 text-center">
+        <div className="flex flex-col items-center rounded-xl border border-ink-700 p-5 text-center">
           <div className="relative grid h-32 w-32 place-items-center rounded-full border-4" style={{ borderColor: color, boxShadow: `0 0 40px ${color}55, inset 0 0 30px ${color}22` }}>
             <span className="text-6xl font-black" style={{ color }}>{score.grade}</span>
           </div>
-          <div className="mt-3 text-2xl font-bold text-white">{score.total}<span className="text-base text-ink-400">/{score.max}</span></div>
-          <div className="text-[12px] text-ink-300">{Math.round(score.pct * 100)} % · {fmtDuration(Math.round(((finishedAt ?? Date.now()) - startedAt) / 1000))}</div>
-          {score.penalties > 0 && <div className="mt-1 text-[11px] text-yellow-300">−{score.penalties} pts d'indices</div>}
+          <div className="mt-3 text-section font-bold text-white">{score.total}<span className="text-title text-ink-400">/{score.max}</span></div>
+          <div className="text-meta text-ink-300">{Math.round(score.pct * 100)} % · {fmtDuration(Math.round(((finishedAt ?? Date.now()) - startedAt) / 1000))}</div>
+          {score.penalties > 0 && <div className="mt-1 text-micro text-yellow-300">−{score.penalties} pts d'indices</div>}
           <div className="mt-4 w-full rounded-xl border border-accent/30 bg-accent/5 p-2.5">
-            <div className="text-[18px] font-bold text-accent">+{xpGained} XP</div>
-            {xpNote && <div className="mt-0.5 text-[10.5px] leading-snug text-ink-300">{xpNote}</div>}
-            <div className="text-[11px] text-ink-300">{rank.name} · niveau {rank.level}</div>
+            <div className="text-section font-bold text-accent">+{xpGained} XP</div>
+            {xpNote && <div className="mt-0.5 text-micro leading-snug text-ink-300">{xpNote}</div>}
+            <div className="text-micro text-ink-300">{rank.name} · niveau {rank.level}</div>
             <ProgressBar value={rank.progress} className="mt-1.5" />
           </div>
         </div>
@@ -497,8 +497,8 @@ export function Debrief({ onReplay, onExit }: { onReplay: () => void; onExit: ()
               return (
                 <div key={r.id} className="flex items-center gap-2 rounded-lg border border-ink-700/60 px-2.5 py-1.5">
                   <Icon name={r.status === 'correct' ? 'CircleCheck' : r.status === 'partial' ? 'CircleDot' : 'CircleX'} size={14} color={c} />
-                  <span className="flex-1 truncate text-[12px] text-ink-100">{i + 1}. {inst.objectives[i].prompt}</span>
-                  <span className="font-mono text-[11.5px]" style={{ color: c }}>{r.earned}/{r.max}</span>
+                  <span className="flex-1 truncate text-meta text-ink-100">{i + 1}. {inst.objectives[i].prompt}</span>
+                  <span className="font-mono text-meta" style={{ color: c }}>{r.earned}/{r.max}</span>
                 </div>
               )
             })}
@@ -509,9 +509,9 @@ export function Debrief({ onReplay, onExit }: { onReplay: () => void; onExit: ()
           }} />
           <div className="label mb-2 mt-4">Ce qui s'est réellement passé</div>
           <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 p-3.5">
-            <RichText text={inst.truth.debrief} className="!text-[12.5px]" />
+            <RichText text={inst.truth.debrief} className="!text-dense" />
           </div>
-          <div className="mt-2 text-[11px] text-ink-400">Les corrections détaillées sont visibles dans l'onglet Objectifs du dossier.</div>
+          <div className="mt-2 text-micro text-ink-400">Les corrections détaillées sont visibles dans l'onglet Objectifs du dossier.</div>
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
@@ -568,36 +568,36 @@ function ExplorationCompare({ onShow }: { onShow: () => void }) {
       <div className="label mb-2">Votre enquête comparée au flux réel</div>
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
         <div className="rounded-xl border border-ink-700/60 bg-ink-850/40 p-2 text-center">
-          <div className="text-[18px] font-bold" style={{ color: pctColor }}>{Math.round(d.pct * 100)} %</div>
-          <div className="text-[10.5px] text-ink-400">du flux affiché ({d.truthFound}/{d.truthTotal} tx)</div>
+          <div className="text-section font-bold" style={{ color: pctColor }}>{Math.round(d.pct * 100)} %</div>
+          <div className="text-micro text-ink-400">du flux affiché ({d.truthFound}/{d.truthTotal} tx)</div>
         </div>
         <div className="rounded-xl border border-ink-700/60 bg-ink-850/40 p-2 text-center">
-          <div className="text-[18px] font-bold text-white">{d.keyFound}/{d.keyTotal}</div>
-          <div className="text-[10.5px] text-ink-400">adresses clés sur le graphe</div>
+          <div className="text-section font-bold text-white">{d.keyFound}/{d.keyTotal}</div>
+          <div className="text-micro text-ink-400">adresses clés sur le graphe</div>
         </div>
         <div className="rounded-xl border border-ink-700/60 bg-ink-850/40 p-2 text-center">
-          <div className="text-[18px] font-bold text-white">{d.offPath}</div>
-          <div className="text-[10.5px] text-ink-400">tx explorées hors flux</div>
+          <div className="text-section font-bold text-white">{d.offPath}</div>
+          <div className="text-micro text-ink-400">tx explorées hors flux</div>
         </div>
         <div className="rounded-xl border border-ink-700/60 bg-ink-850/40 p-2 text-center">
-          <div className="text-[18px] font-bold text-white">{tools}<span className="text-[12px] text-ink-400"> · {hints}</span></div>
-          <div className="text-[10.5px] text-ink-400">outils utilisés · indices</div>
+          <div className="text-section font-bold text-white">{tools}<span className="text-meta text-ink-400"> · {hints}</span></div>
+          <div className="text-micro text-ink-400">outils utilisés · indices</div>
         </div>
       </div>
-      <div className="mt-2 rounded-lg border border-ink-700/60 p-2.5 text-[12px] leading-relaxed text-ink-200">{d.verdict}</div>
+      <div className="mt-2 rounded-lg border border-ink-700/60 p-2.5 text-meta leading-relaxed text-ink-200">{d.verdict}</div>
       {d.lostAt && (
         <button className="mt-2 w-full rounded-lg border border-orange-400/40 bg-orange-400/[0.07] p-2.5 text-left hover:bg-orange-400/[0.12]" onClick={() => goTo(d.lostAt!.id)}>
-          <div className="flex items-center gap-1.5 text-[11.5px] font-semibold text-orange-200"><Icon name="MapPinOff" size={13} /> Là où vous avez perdu la piste</div>
-          <div className="mt-0.5 text-[11.5px] text-ink-100">{d.lostAt.text}</div>
-          <div className="text-[10.5px] text-ink-400">{fmtTime(d.lostAt.time)} · {fmtUsd(d.lostAt.usd)} · cliquer pour l'afficher</div>
+          <div className="flex items-center gap-1.5 text-meta font-semibold text-orange-200"><Icon name="MapPinOff" size={13} /> Là où vous avez perdu la piste</div>
+          <div className="mt-0.5 text-meta text-ink-100">{d.lostAt.text}</div>
+          <div className="text-micro text-ink-400">{fmtTime(d.lostAt.time)} · {fmtUsd(d.lostAt.usd)} · cliquer pour l'afficher</div>
         </button>
       )}
       {d.missed.length > 0 && (
         <details className="mt-2 rounded-lg border border-ink-700/60 p-2">
-          <summary className="cursor-pointer text-[11.5px] text-ink-300">Étapes du flux non affichées ({d.truthTotal - d.truthFound})</summary>
+          <summary className="cursor-pointer text-meta text-ink-300">Étapes du flux non affichées ({d.truthTotal - d.truthFound})</summary>
           <div className="mt-1 space-y-0.5">
             {d.missed.map((m) => (
-              <button key={m.id} className="block w-full truncate rounded px-1.5 py-1 text-left text-[11px] text-ink-200 hover:bg-ink-800" onClick={() => goTo(m.id)}>
+              <button key={m.id} className="block w-full truncate rounded px-1.5 py-1 text-left text-micro text-ink-200 hover:bg-ink-800" onClick={() => goTo(m.id)}>
                 <span className="text-ink-500">{fmtTime(m.time)}</span> {m.text}
               </button>
             ))}
@@ -605,10 +605,10 @@ function ExplorationCompare({ onShow }: { onShow: () => void }) {
         </details>
       )}
       {d.keyMissed.length > 0 && (
-        <div className="mt-2 text-[11px] text-ink-400">Adresses clés jamais ajoutées au graphe :</div>
+        <div className="mt-2 text-micro text-ink-400">Adresses clés jamais ajoutées au graphe :</div>
       )}
       {d.keyMissed.slice(0, 5).map((a) => <AddrLine key={a} w={w} id={a} compact />)}
-      <button className="btn-outline mt-2 w-full !py-1.5 text-xs" onClick={onShow}>
+      <button className="btn-outline mt-2 w-full !py-1.5 text-meta" onClick={onShow}>
         <Icon name="GitCompareArrows" size={13} className="text-amber-300" /> Superposer sur le graphe : <span className="text-amber-300">trouvé</span> / <span className="text-orange-400">manqué</span>
       </button>
     </div>
@@ -662,11 +662,11 @@ ${tr.result.stillHeld.length ? `<table><tr><th>Fonds encore détenus (non attrib
     const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Rapport d'analyse — ${esc(g.inst!.title)}</title>
 <style>
 body{font-family:Inter,Segoe UI,Arial,sans-serif;color:#111;margin:36px;font-size:12.5px;line-height:1.5}
-h1{font-size:20px;margin:0}h2{font-size:14px;border-bottom:2px solid #0e7490;padding-bottom:3px;margin-top:26px;color:#0e7490;text-transform:uppercase;letter-spacing:.06em}
+h1{font-size:20px;margin:0}h2{font-size:14px;border-bottom:2px solid #3a5a9e;padding-bottom:3px;margin-top:26px;color:#3a5a9e;text-transform:uppercase;letter-spacing:.06em}
 table{width:100%;border-collapse:collapse;margin-top:8px}td,th{border:1px solid #ccc;padding:5px 7px;vertical-align:top;text-align:left}th{background:#f1f5f9}
 .mono{font-family:Consolas,monospace;font-size:11px;word-break:break-all}.muted{color:#666}.head{display:flex;justify-content:space-between;border-bottom:3px solid #111;padding-bottom:10px}
 .box{border:1px solid #ccc;background:#fafafa;padding:10px 12px;margin-top:8px}img{max-width:100%;border:1px solid #ddd;margin-top:8px}
-.print{position:fixed;top:12px;right:12px;padding:8px 14px;background:#0e7490;color:white;border:0;border-radius:6px;cursor:pointer}
+.print{position:fixed;top:12px;right:12px;padding:8px 14px;background:#3a5a9e;color:white;border:0;border-radius:6px;cursor:pointer}
 @media print{.print{display:none}body{margin:12mm}}
 </style></head><body>
 <button class="print" onclick="window.print()">Imprimer / PDF</button>
@@ -685,7 +685,7 @@ table{width:100%;border-collapse:collapse;margin-top:8px}td,th{border:1px solid 
   }
   return (
     <Modal open={open} onClose={close} title="Rapport d'analyse" icon="Printer" width="max-w-lg">
-      <p className="text-[13px] text-ink-200">Le rapport reprend le contexte, la méthodologie, vos constatations, les adresses marquées avec vos notes, le graphe et le journal horodaté. Il s'ouvre dans un aperçu, prêt à imprimer ou à enregistrer en PDF.</p>
+      <p className="text-dense text-ink-200">Le rapport reprend le contexte, la méthodologie, vos constatations, les adresses marquées avec vos notes, le graphe et le journal horodaté. Il s'ouvre dans un aperçu, prêt à imprimer ou à enregistrer en PDF.</p>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <label className="block"><span className="label">Rédacteur</span><input className="input mt-1" value={profile.name} onChange={(e) => profile.setIdentity(e.target.value, profile.unit)} /></label>
         <label className="block"><span className="label">Unité</span><input className="input mt-1" value={profile.unit} onChange={(e) => profile.setIdentity(profile.name, e.target.value)} /></label>
@@ -722,8 +722,8 @@ export function ShortcutsModal() {
       <div className="divide-y divide-ink-700/60 overflow-hidden rounded-xl border border-ink-700/70">
         {SHORTCUTS.map(([k, d]) => (
           <div key={k} className="flex items-center gap-3 px-3 py-2">
-            <span className="kbd min-w-[92px] justify-center !py-0.5 !text-[11px]">{k}</span>
-            <span className="text-[12.5px] text-ink-200">{d}</span>
+            <span className="kbd min-w-[92px] justify-center !py-0.5 !text-micro">{k}</span>
+            <span className="text-dense text-ink-200">{d}</span>
           </div>
         ))}
       </div>

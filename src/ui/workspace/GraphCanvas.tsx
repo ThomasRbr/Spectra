@@ -22,9 +22,13 @@ export function fitGraph(cy: Core, duration = 300) {
   if (cy.elements().empty()) return
   const bb = cy.elements().boundingBox()
   const pad = 70
-  const zoom = Math.min(1.15, (cy.width() - pad * 2) / Math.max(1, bb.w), (cy.height() - pad * 2) / Math.max(1, bb.h))
+  // L'inspecteur flotte à droite : on cadre dans la zone restée libre.
+  const right = (document.querySelector('[data-inspector]') as HTMLElement | null)?.offsetWidth ?? 0
+  const inset = right ? right + 12 : 0
+  const W = cy.width() - inset
+  const zoom = Math.min(1.15, (W - pad * 2) / Math.max(1, bb.w), (cy.height() - pad * 2) / Math.max(1, bb.h))
   const z = Math.max(cy.minZoom(), zoom)
-  const pan = { x: cy.width() / 2 - z * (bb.x1 + bb.w / 2), y: cy.height() / 2 - z * (bb.y1 + bb.h / 2) }
+  const pan = { x: W / 2 - z * (bb.x1 + bb.w / 2), y: cy.height() / 2 - z * (bb.y1 + bb.h / 2) }
   cy.animate({ zoom: z, pan }, { duration })
 }
 
@@ -54,43 +58,56 @@ function compact(v: number): string {
   return v.toPrecision(3)
 }
 
+// Langage visuel du graphe : la forme dit le rôle (victime en cercle double,
+// suspect en losange, service en carré avec son logo, contrat en hexagone),
+// la couleur de l'arête dit l'actif, son épaisseur le montant.
+const ROLE = { victim: '#5ec8e5', suspect: '#ff8a4c', select: '#7ea6ff', trace: '#3fc7a4', truth: '#f3f5f7', missed: '#f97316' }
+
 const STYLE: cytoscape.Stylesheet[] = [
   {
     selector: 'node[kind="addr"]',
     style: {
       width: 'data(size)', height: 'data(size)', shape: 'ellipse',
-      'background-color': '#0c1120', 'border-width': 2.5, 'border-color': 'data(color)',
-      'background-image': 'data(icon)', 'background-width': '48%', 'background-height': '48%',
-      label: 'data(label)', color: '#d6dcea', 'font-size': 10, 'font-family': 'Inter', 'font-weight': 500,
-      'text-valign': 'bottom', 'text-margin-y': 6, 'text-wrap': 'wrap', 'text-max-width': '150px',
-      'text-background-color': '#05070d', 'text-background-opacity': 0.85, 'text-background-padding': '2px',
+      'background-color': '#1b1f25', 'border-width': 2, 'border-color': 'data(color)',
+      'background-image': 'data(icon)', 'background-width': '46%', 'background-height': '46%',
+      label: 'data(label)', color: '#dfe3e8', 'font-size': 10.5, 'font-family': 'Inter', 'font-weight': 500,
+      'text-valign': 'bottom', 'text-margin-y': 7, 'text-wrap': 'wrap', 'text-max-width': '160px', 'line-height': 1.35,
+      'text-background-color': '#0e1013', 'text-background-opacity': 0.88, 'text-background-padding': '2px',
       'text-background-shape': 'roundrectangle',
-      'underlay-color': 'data(color)', 'underlay-opacity': 0.12, 'underlay-padding': 5, 'underlay-shape': 'ellipse',
-      'transition-property': 'underlay-opacity, underlay-padding, opacity', 'transition-duration': 0.15,
+      'transition-property': 'border-width, border-color, opacity', 'transition-duration': 0.15,
       'min-zoomed-font-size': 7,
     } as never,
   },
-  // Logo de marque : il remplit le disque, la bordure garde la couleur de la catégorie.
-  { selector: 'node[kind="addr"][?logo]', style: { 'background-width': '100%', 'background-height': '100%', 'background-clip': 'node' } as never },
+  // Service attribué : carré arrondi ; le logo de marque remplit la forme.
+  { selector: 'node[role="entity"]', style: { shape: 'round-rectangle' } as never },
+  { selector: 'node[kind="addr"][?logo]', style: { 'background-width': '100%', 'background-height': '100%', 'background-clip': 'node', 'border-width': 2.5 } as never },
+  { selector: 'node[role="contract"]', style: { shape: 'round-hexagon' } as never },
+  // Marquages : forme et couleur de rôle, en plus du libellé.
+  { selector: 'node[flag="suspect"]', style: { shape: 'round-diamond', 'border-color': ROLE.suspect, 'border-width': 2.5, 'background-color': '#33200f' } as never },
+  { selector: 'node[flag="victim"]', style: { 'border-color': ROLE.victim, 'border-style': 'double', 'border-width': 6, 'background-color': '#10262d' } as never },
+  { selector: 'node[flag="interest"]', style: { 'border-color': '#facc15', 'border-width': 2.5 } as never },
+  { selector: 'node[flag="service"]', style: { shape: 'round-rectangle', 'border-color': '#b4bbc5' } as never },
+  { selector: 'node[flag="dead-end"]', style: { 'border-style': 'dashed', 'border-color': '#7a8290', opacity: 0.75 } as never },
+  { selector: 'node[?seed]', style: { 'outline-color': '#5d6572', 'outline-width': 1.5, 'outline-offset': 4, 'outline-style': 'solid' } as never },
   {
     selector: 'node[kind="tx"]',
     style: {
-      width: 16, height: 16, shape: 'round-diamond', 'background-color': '#172036', 'border-width': 1.5, 'border-color': '#4a5a80',
-      label: 'data(label)', color: '#7a88a8', 'font-size': 8, 'font-family': 'JetBrains Mono', 'text-valign': 'top', 'text-margin-y': -4,
-    },
+      width: 14, height: 14, shape: 'round-rectangle', 'background-color': '#23272e', 'border-width': 1.5, 'border-color': '#5d6572',
+      label: 'data(label)', color: '#959da9', 'font-size': 8.5, 'font-family': 'JetBrains Mono', 'text-valign': 'top', 'text-margin-y': -5,
+      'min-zoomed-font-size': 8,
+    } as never,
   },
-  { selector: 'node[kind="tx"][?coinjoin]', style: { 'border-color': '#fb7185', 'background-color': '#3b0a1a', width: 20, height: 20 } },
-  { selector: 'node[flag]', style: { 'underlay-color': 'data(flagColor)', 'underlay-opacity': 0.45, 'underlay-padding': 7 } as never },
-  { selector: 'node[?seed]', style: { 'border-style': 'double', 'border-width': 4 } },
-  { selector: 'node:selected', style: { 'underlay-color': '#22d3ee', 'underlay-opacity': 0.55, 'underlay-padding': 9, color: '#ffffff' } as never },
+  { selector: 'node[kind="tx"][?coinjoin]', style: { 'border-color': '#fb7185', 'background-color': '#3b1520', width: 20, height: 20 } },
+  { selector: 'node:selected', style: { 'outline-color': ROLE.select, 'outline-width': 2, 'outline-offset': 5, 'outline-style': 'solid', color: '#ffffff' } as never },
   {
     selector: 'edge',
     style: {
       'curve-style': 'bezier', width: 'data(w)', 'line-color': 'data(color)', 'target-arrow-shape': 'triangle',
-      'target-arrow-color': 'data(color)', 'arrow-scale': 0.75, opacity: 0.8,
-      label: 'data(label)', 'font-size': 8.5, 'font-family': 'JetBrains Mono', color: '#a9b4cc',
-      'text-rotation': 'autorotate', 'text-background-color': '#05070d', 'text-background-opacity': 0.9,
-      'text-background-padding': '1.5px', 'text-background-shape': 'roundrectangle',
+      'target-arrow-color': 'data(color)', 'arrow-scale': 0.7, opacity: 0.72, 'line-cap': 'round',
+      label: 'data(label)', 'font-size': 9, 'font-family': 'JetBrains Mono', color: '#b4bbc5',
+      'text-rotation': 'autorotate', 'text-background-color': '#15181d', 'text-background-opacity': 0.95,
+      'text-background-padding': '2px', 'text-background-shape': 'roundrectangle',
+      'text-border-width': 1, 'text-border-color': '#2f353e', 'text-border-opacity': 1,
       'min-zoomed-font-size': 8,
     } as never,
   },
@@ -103,15 +120,15 @@ const STYLE: cytoscape.Stylesheet[] = [
     selector: 'edge[kind="corr"]',
     style: { 'line-style': 'dashed', 'line-dash-pattern': [3, 4], 'line-color': '#fbbf24', 'target-arrow-color': '#fbbf24', width: 2.2, color: '#fde68a', opacity: 0.95 } as never,
   },
-  { selector: 'edge:selected', style: { 'line-color': '#22d3ee', 'target-arrow-color': '#22d3ee', opacity: 1, color: '#fff' } },
-  { selector: 'edge.traced', style: { 'line-color': '#2dd4bf', 'target-arrow-color': '#2dd4bf', opacity: 1, 'line-style': 'solid', 'z-index': 9, width: 'data(wt)' } as never },
-  { selector: 'node.tracednode', style: { 'underlay-color': '#2dd4bf', 'underlay-opacity': 0.45, 'underlay-padding': 7 } as never },
+  { selector: 'edge:selected', style: { 'line-color': ROLE.select, 'target-arrow-color': ROLE.select, opacity: 1, color: '#ffffff', 'text-border-color': ROLE.select } as never },
+  { selector: 'edge.traced', style: { 'line-color': ROLE.trace, 'target-arrow-color': ROLE.trace, opacity: 1, 'line-style': 'solid', 'z-index': 9, width: 'data(wt)' } as never },
+  { selector: 'node.tracednode', style: { 'outline-color': ROLE.trace, 'outline-width': 2, 'outline-offset': 4, 'outline-style': 'solid' } as never },
   { selector: 'node.watched', style: { 'outline-color': '#fb7185', 'outline-width': 2, 'outline-offset': 4, 'outline-style': 'dashed' } as never },
-  { selector: 'edge.truth', style: { 'line-color': '#fbbf24', 'target-arrow-color': '#fbbf24', opacity: 1, 'line-style': 'solid', 'z-index': 10, width: 'data(wt)' } as never },
-  { selector: 'node.truthnode', style: { 'underlay-color': '#fbbf24', 'underlay-opacity': 0.5, 'underlay-padding': 8 } as never },
+  { selector: 'edge.truth', style: { 'line-color': ROLE.truth, 'target-arrow-color': ROLE.truth, opacity: 1, 'line-style': 'solid', 'z-index': 10, width: 'data(wt)' } as never },
+  { selector: 'node.truthnode', style: { 'outline-color': ROLE.truth, 'outline-width': 2, 'outline-offset': 5, 'outline-style': 'solid' } as never },
   // Débrief : étapes du flux réel que l'enquêteur n'avait pas trouvées
-  { selector: 'edge.truthmissed', style: { 'line-color': '#f97316', 'target-arrow-color': '#f97316', opacity: 1, 'line-style': 'dashed', 'line-dash-pattern': [6, 4], 'z-index': 10, width: 'data(wt)' } as never },
-  { selector: 'node.truthmissed', style: { 'outline-color': '#f97316', 'outline-width': 2.5, 'outline-offset': 5, 'outline-style': 'dashed', 'underlay-color': '#f97316', 'underlay-opacity': 0.35, 'underlay-padding': 8 } as never },
+  { selector: 'edge.truthmissed', style: { 'line-color': ROLE.missed, 'target-arrow-color': ROLE.missed, opacity: 1, 'line-style': 'dashed', 'line-dash-pattern': [6, 4], 'z-index': 10, width: 'data(wt)' } as never },
+  { selector: 'node.truthmissed', style: { 'outline-color': ROLE.missed, 'outline-width': 2.5, 'outline-offset': 5, 'outline-style': 'dashed' } as never },
   { selector: '.dim', style: { opacity: 0.12 } },
 ]
 
@@ -121,7 +138,7 @@ interface Menu {
   key: string
 }
 
-export function GraphCanvas() {
+export function GraphCanvas({ inspectorOpen = false }: { inspectorOpen?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
   const cyRef = useRef<Core | null>(null)
   const [menu, setMenu] = useState<Menu | null>(null)
@@ -242,7 +259,7 @@ export function GraphCanvas() {
         const a = w.get(id)
         const at = attribution(w, id)
         const cat = at.entity ? CATEGORY[at.entity.category] : null
-        const color = cat?.color ?? (a.contract ? '#818cf8' : '#4a5a80')
+        const color = cat?.color ?? (a.contract ? '#818cf8' : '#7a8290')
         const iconName = cat?.icon ?? (a.contract ? 'FileCode2' : 'Wallet')
         const logo = entityLogo(at.entity?.id)
         const flag = flags[id] as Flag | undefined
@@ -253,7 +270,7 @@ export function GraphCanvas() {
           : ''
         const label = (name ? `${name}\n${shortAddr(a.addr, 5)}` : shortAddr(a.addr, 6)) + taint
         const data = {
-          id: key, kind: 'addr', label, color, icon: logo ?? iconUri(iconName, color), logo: !!logo || undefined, size: at.entity ? 50 : 42,
+          id: key, kind: 'addr', role: at.entity ? 'entity' : a.contract ? 'contract' : 'plain', label, color, icon: logo ?? iconUri(iconName, color), logo: !!logo || undefined, size: at.entity ? 46 : 38,
           flag: flag ?? undefined, flagColor: flag ? FLAG_META[flag].color : undefined, seed: seeds.has(id) || undefined,
           chain: CHAINS[a.chain].color,
         }
@@ -290,7 +307,7 @@ export function GraphCanvas() {
         wanted.add(e.id)
         const isIo = e.source.startsWith('t:') || e.target.startsWith('t:')
         const color = ASSETS[e.asset].color
-        const width = Math.max(1.2, Math.min(7, 1 + Math.log10(e.usd + 1) * 0.8))
+        const width = Math.max(1.2, Math.min(8, 0.8 + Math.log10(e.usd + 1) * 0.95))
         const label = isIo ? '' : `${compact(e.value)} ${e.asset}${e.count > 1 ? ` ×${e.count}` : ''}`
         const data = { id: e.id, source: e.source, target: e.target, color, w: width, wt: width + 1.5, label, txIds: e.txIds, kind: isIo ? 'io' : 'transfer', usd: e.usd }
         const el = cy.getElementById(e.id)
@@ -410,7 +427,7 @@ export function GraphCanvas() {
   const exportPng = () => {
     const c = cy()
     if (!c) return
-    const uri = c.png({ full: true, bg: '#05070d', scale: 2 })
+    const uri = c.png({ full: true, bg: '#0e1013', scale: 2 })
     const a = document.createElement('a')
     a.href = uri
     a.download = `spectra-graphe-${Date.now()}.png`
@@ -422,32 +439,8 @@ export function GraphCanvas() {
     <div className="relative h-full w-full grid-bg" onContextMenu={(e) => e.preventDefault()}>
       <div ref={ref} className="absolute inset-0" />
 
-      {/* Barre d'outils du graphe */}
-      <div className="absolute left-3 top-3 flex flex-col gap-1 rounded-xl panel p-1 shadow-panel">
-        <ToolBtn icon="Maximize2" title="Ajuster la vue — F" onClick={() => cy() && fitGraph(cy()!)} />
-        <ToolBtn icon="WandSparkles" title="Réorganiser (couches gauche → droite) — L" onClick={() => useGame.getState().relayout()} />
-        <ToolBtn icon="Undo2" title={canUndo ? 'Annuler la dernière opération — Ctrl Z' : 'Rien à annuler'} onClick={() => useGame.getState().undo()} />
-        <ToolBtn icon="ZoomIn" title="Zoom avant" onClick={() => cy()?.animate({ zoom: { level: cy()!.zoom() * 1.3, renderedPosition: { x: ref.current!.clientWidth / 2, y: ref.current!.clientHeight / 2 } } }, { duration: 150 })} />
-        <ToolBtn icon="ZoomOut" title="Zoom arrière" onClick={() => cy()?.animate({ zoom: { level: cy()!.zoom() / 1.3, renderedPosition: { x: ref.current!.clientWidth / 2, y: ref.current!.clientHeight / 2 } } }, { duration: 150 })} />
-        <div className="mx-1 my-0.5 h-px bg-ink-600" />
-        <ToolBtn icon="Layers" title="Légende" active={legend} onClick={() => setLegend((v) => !v)} />
-        <ToolBtn icon="Camera" title="Exporter le graphe (PNG)" onClick={exportPng} />
-        <ToolBtn icon="Trash2" title="Réinitialiser le graphe" onClick={() => confirm('Réinitialiser le graphe ? (les marquages et réponses sont conservés)') && useGame.getState().clearGraph()} />
-      </div>
-
-      {/* Filtre de montant */}
-      <div className="absolute right-3 top-3 flex items-center gap-2 rounded-xl panel px-3 py-1.5 text-xs shadow-panel">
-        <Icon name="Filter" size={13} className="text-ink-300" />
-        <span className="text-ink-300">Montant min.</span>
-        <select className="rounded-md border border-ink-600 bg-ink-950 px-1.5 py-0.5 text-xs text-ink-100 outline-none" value={minUsd} onChange={(e) => useGame.getState().setMinUsd(Number(e.target.value))}>
-          {[0, 10, 100, 500, 1000, 5000, 20000].map((v) => (
-            <option key={v} value={v}>{v === 0 ? 'Aucun' : `≥ ${fmtUsd(v)}`}</option>
-          ))}
-        </select>
-      </div>
-
       {(timeRange || minUsd > 0 || coverage === 'partial' || trace || pathHl) && (
-        <div className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-1.5 rounded-xl panel px-2 py-1 text-[11px] shadow-panel">
+        <div className="absolute top-3 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-lg border border-ink-600 bg-ink-850 px-2 py-1.5 text-meta shadow-panel" style={{ left: inspectorOpen ? 'calc((100% - 392px) / 2 + 180px)' : 'calc(50% + 180px)' }}>
           <Icon name="ListFilter" size={12} className="text-accent" />
           {timeRange && (
             <button className="chip bg-accent/15 text-accent hover:bg-accent/25" title="Retirer le filtre de période" onClick={() => useUi.getState().setTimeRange(null)}>
@@ -476,37 +469,59 @@ export function GraphCanvas() {
         </div>
       )}
 
-      {legend && legendCats.length > 0 && (
-        <div className="absolute bottom-3 left-3 max-w-[260px] rounded-xl panel px-3 py-2 shadow-panel animate-fadein">
-          <div className="label mb-1.5 !text-[10px]">Légende</div>
-          <div className="flex flex-col gap-1">
+      {/* Commandes du graphe, en bas à gauche */}
+      <div className="absolute bottom-3 left-3 z-10 flex flex-col items-start gap-2" style={{ maxWidth: inspectorOpen ? 'calc(100% - 410px)' : 'calc(100% - 24px)' }}>
+        {legend && legendCats.length > 0 && (
+          <div className="flex max-w-[640px] flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-ink-600 bg-ink-850 px-3.5 py-2.5 text-meta text-ink-200 shadow-panel animate-fadein">
+            <LegendShape kind="victim" label="Victime" />
+            <LegendShape kind="suspect" label="Suspect" />
+            <LegendShape kind="tx" label="Transaction" />
             {legendCats.map(([k, n]) => {
-              const m = k === '__unknown' ? { label: 'Non attribuée', color: '#4a5a80', icon: 'Wallet' } : k === '__contract' ? { label: 'Smart contract', color: '#818cf8', icon: 'FileCode2' } : CATEGORY[k as keyof typeof CATEGORY]
+              const m = k === '__unknown' ? { label: 'Non attribuée', color: '#7a8290', icon: 'Wallet' } : k === '__contract' ? { label: 'Smart contract', color: '#818cf8', icon: 'FileCode2' } : CATEGORY[k as keyof typeof CATEGORY]
               return (
-                <div key={k} className="flex items-center gap-2 text-[11px] text-ink-200">
-                  <span className="grid h-4 w-4 place-items-center rounded-full border" style={{ borderColor: m.color }}>
+                <span key={k} className="flex items-center gap-1.5">
+                  <span className={`grid h-4 w-4 place-items-center border-[1.5px] ${k === '__unknown' ? 'rounded-full' : 'rounded'}`} style={{ borderColor: m.color }}>
                     <Icon name={m.icon} size={9} color={m.color} />
                   </span>
-                  <span className="flex-1">{m.label}</span>
-                  <span className="mono text-ink-400">{n}</span>
-                </div>
+                  {m.label} <span className="font-mono text-ink-400">{n}</span>
+                </span>
               )
             })}
-            <div className="mt-1 flex items-center gap-2 text-[11px] text-ink-300">
-              <span className="h-3 w-3 rotate-45 rounded-[2px] border border-ink-400 bg-ink-700" /> Transaction UTXO
-            </div>
+            <span className="flex items-center gap-1.5 text-ink-300"><span className="h-[3px] w-5 rounded-full bg-ink-300" /> épaisseur = montant</span>
           </div>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-0.5 rounded-lg border border-ink-600 bg-ink-850 p-1 shadow-panel">
+            <ToolBtn icon="Maximize" title="Ajuster la vue — F" onClick={() => cy() && fitGraph(cy()!)} />
+            <ToolBtn icon="ZoomIn" title="Zoom avant" onClick={() => cy()?.animate({ zoom: { level: cy()!.zoom() * 1.3, renderedPosition: { x: ref.current!.clientWidth / 2, y: ref.current!.clientHeight / 2 } } }, { duration: 150 })} />
+            <ToolBtn icon="ZoomOut" title="Zoom arrière" onClick={() => cy()?.animate({ zoom: { level: cy()!.zoom() / 1.3, renderedPosition: { x: ref.current!.clientWidth / 2, y: ref.current!.clientHeight / 2 } } }, { duration: 150 })} />
+            <ToolBtn icon="Network" title="Réorganiser (couches gauche → droite) — L" onClick={() => useGame.getState().relayout()} />
+            <ToolBtn icon="Undo2" title={canUndo ? 'Annuler la dernière opération — Ctrl Z' : 'Rien à annuler'} disabled={!canUndo} onClick={() => useGame.getState().undo()} />
+            <span className="mx-0.5 my-1 w-px bg-ink-600" />
+            <ToolBtn icon="Shapes" title="Légende" active={legend} onClick={() => setLegend((v) => !v)} />
+            <ToolBtn icon="Camera" title="Exporter le graphe (PNG)" onClick={exportPng} />
+            <ToolBtn icon="Eraser" title="Réinitialiser le graphe" onClick={() => confirm('Réinitialiser le graphe ? (les marquages et réponses sont conservés)') && useGame.getState().clearGraph()} />
+          </div>
+          <label className="flex h-[42px] items-center gap-2 rounded-lg border border-ink-600 bg-ink-850 px-3 text-meta text-ink-300 shadow-panel">
+            <Icon name="Filter" size={14} />
+            Montant min.
+            <select className="rounded-md border border-ink-600 bg-ink-950 px-1.5 py-1 font-mono text-meta text-ink-100 outline-none focus:border-accent" value={minUsd} onChange={(e) => useGame.getState().setMinUsd(Number(e.target.value))}>
+              {[0, 10, 100, 500, 1000, 5000, 20000].map((v) => (
+                <option key={v} value={v}>{v === 0 ? 'aucun' : `≥ ${fmtUsd(v)}`}</option>
+              ))}
+            </select>
+          </label>
         </div>
-      )}
+      </div>
 
       {Object.keys(addrPos).length === 0 && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <div className="text-center">
-            <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl border border-ink-600 bg-ink-900/80 text-accent">
-              <Icon name="Crosshair" size={26} />
+            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-xl border border-ink-600 bg-ink-850 text-ink-200">
+              <Icon name="Crosshair" size={24} strokeWidth={1.75} />
             </div>
-            <div className="text-sm font-medium text-ink-100">Graphe vide</div>
-            <div className="mt-1 max-w-xs text-xs text-ink-300">Cliquez une adresse dans les pièces du dossier, ou recherchez-la avec <span className="kbd">Ctrl K</span>.</div>
+            <div className="text-title font-semibold text-white">Graphe vide</div>
+            <div className="mx-auto mt-1.5 max-w-xs text-dense leading-relaxed text-ink-300">Cliquez une adresse dans les pièces du dossier, ou recherchez-la avec <span className="kbd">Ctrl K</span>.</div>
           </div>
         </div>
       )}
@@ -517,11 +532,22 @@ export function GraphCanvas() {
   )
 }
 
-function ToolBtn({ icon, title, onClick, active }: { icon: string; title: string; onClick: () => void; active?: boolean }) {
+function ToolBtn({ icon, title, onClick, active, disabled }: { icon: string; title: string; onClick: () => void; active?: boolean; disabled?: boolean }) {
   return (
-    <button title={title} onClick={onClick} className={`grid h-8 w-8 place-items-center rounded-lg transition ${active ? 'bg-accent/15 text-accent' : 'text-ink-200 hover:bg-ink-700 hover:text-white'}`}>
-      <Icon name={icon} size={15} />
+    <button title={title} aria-label={title} aria-pressed={active} disabled={disabled} onClick={onClick} className={`grid h-8 w-8 place-items-center rounded-md transition-colors disabled:opacity-35 ${active ? 'bg-ink-700 text-white' : 'text-ink-300 hover:bg-ink-700 hover:text-white'}`}>
+      <Icon name={icon} size={16} strokeWidth={1.75} />
     </button>
+  )
+}
+
+function LegendShape({ kind, label }: { kind: 'victim' | 'suspect' | 'tx'; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      {kind === 'victim' && <span className="grid h-4 w-4 place-items-center rounded-full border-[1.5px]" style={{ borderColor: ROLE.victim }}><span className="h-2 w-2 rounded-full border" style={{ borderColor: ROLE.victim }} /></span>}
+      {kind === 'suspect' && <span className="mx-0.5 h-3 w-3 rotate-45 rounded-[2px] border-[1.5px]" style={{ borderColor: ROLE.suspect, background: '#33200f' }} />}
+      {kind === 'tx' && <span className="mx-0.5 h-2.5 w-2.5 rounded-[2px] border-[1.5px] border-ink-400 bg-ink-700" />}
+      {label}
+    </span>
   )
 }
 
@@ -557,7 +583,7 @@ function NodeMenu({ menu, onClose }: { menu: Menu; onClose: () => void }) {
   const id = idOf(menu.key)
   const item = (icon: string, text: string, fn: () => void, color?: string) => (
     <button
-      className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12.5px] text-ink-100 hover:bg-ink-700"
+      className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-dense text-ink-100 hover:bg-ink-700"
       onClick={() => {
         fn()
         onClose()
@@ -568,10 +594,10 @@ function NodeMenu({ menu, onClose }: { menu: Menu; onClose: () => void }) {
     </button>
   )
   return (
-    <div ref={boxRef} className="absolute z-30 w-60 rounded-xl panel-solid p-1.5 shadow-panel animate-fadein" style={{ left: pos.x, top: pos.y }} onMouseDown={(e) => e.stopPropagation()}>
+    <div ref={boxRef} role="menu" className="absolute z-30 w-64 rounded-xl border border-ink-600 bg-ink-850 p-1.5 shadow-pop animate-fadein" style={{ left: pos.x, top: pos.y }} onMouseDown={(e) => e.stopPropagation()}>
       {isAddr ? (
         <>
-          <div className="truncate px-2.5 pb-1.5 pt-1 font-mono text-[11px] text-ink-300">{shortAddr(w.get(id).addr, 10)}</div>
+          <div className="truncate px-2.5 pb-1.5 pt-1 font-mono text-micro text-ink-300">{shortAddr(w.get(id).addr, 10)}</div>
           {item('ArrowUpRight', 'Déplier les sorties', () => g.expand(id, 'out'))}
           {item('ArrowDownLeft', 'Déplier les entrées', () => g.expand(id, 'in'))}
           {item('Route', 'Tracer les fonds reçus', () => openTracer({ address: id }), '#2dd4bf')}
@@ -593,7 +619,7 @@ function NodeMenu({ menu, onClose }: { menu: Menu; onClose: () => void }) {
         </>
       ) : (
         <>
-          <div className="truncate px-2.5 pb-1.5 pt-1 font-mono text-[11px] text-ink-300">{shortAddr(w.tx(id).hash, 10)}</div>
+          <div className="truncate px-2.5 pb-1.5 pt-1 font-mono text-micro text-ink-300">{shortAddr(w.tx(id).hash, 10)}</div>
           {item('Maximize2', 'Afficher toutes les entrées/sorties', () => g.revealTx(id, true))}
           {item('Route', 'Tracer depuis cette transaction', () => {
             g.select({ kind: 'tx', id })
@@ -622,9 +648,9 @@ function NodeTooltip({ hover }: { hover: { x: number; y: number; key: string } }
     const sum = w.summary(id)
     body = (
       <>
-        <div className="text-[12px] font-semibold text-white">{at.label ?? (a.contract ? a.label ?? a.contract.name : 'Adresse non attribuée')}</div>
-        <div className="mt-0.5 break-all font-mono text-[10.5px] text-ink-300">{a.addr}</div>
-        <div className="mt-1.5 grid grid-cols-2 gap-x-3 text-[10.5px]">
+        <div className="text-meta font-semibold text-white">{at.label ?? (a.contract ? a.label ?? a.contract.name : 'Adresse non attribuée')}</div>
+        <div className="mt-0.5 break-all font-mono text-micro text-ink-300">{a.addr}</div>
+        <div className="mt-1.5 grid grid-cols-2 gap-x-3 text-micro">
           <span className="text-ink-400">Reçu</span>
           <span className="text-right font-mono text-emerald-300">{fmtUsd(sum.inUsd)}</span>
           <span className="text-ink-400">Envoyé</span>
@@ -632,8 +658,8 @@ function NodeTooltip({ hover }: { hover: { x: number; y: number; key: string } }
           <span className="text-ink-400">Transactions</span>
           <span className="text-right font-mono text-ink-100">{sum.txCount}</span>
         </div>
-        {flag && <div className="mt-1 text-[10.5px]" style={{ color: FLAG_META[flag].color }}>⚑ {FLAG_META[flag].label}</div>}
-        {note && <div className="mt-1 line-clamp-2 text-[10.5px] italic text-ink-300">{note}</div>}
+        {flag && <div className="mt-1 text-micro" style={{ color: FLAG_META[flag].color }}>⚑ {FLAG_META[flag].label}</div>}
+        {note && <div className="mt-1 line-clamp-2 text-micro italic text-ink-300">{note}</div>}
       </>
     )
   } else {
@@ -641,10 +667,10 @@ function NodeTooltip({ hover }: { hover: { x: number; y: number; key: string } }
     const tx = w.tx(id)
     body = (
       <>
-        <div className="text-[12px] font-semibold text-white">Transaction {CHAINS[tx.chain].short}</div>
-        <div className="mt-0.5 font-mono text-[10.5px] text-ink-300">{shortAddr(tx.hash, 12)}</div>
-        <div className="mt-1 text-[10.5px] text-ink-300">{tx.inputs.length} entrée(s) → {tx.outputs.length} sortie(s) · {fmtUsd(w.txUsd(tx))}</div>
-        <div className="text-[10.5px] text-ink-400">{new Date(tx.time * 1000).toLocaleString('fr-FR')}</div>
+        <div className="text-meta font-semibold text-white">Transaction {CHAINS[tx.chain].short}</div>
+        <div className="mt-0.5 font-mono text-micro text-ink-300">{shortAddr(tx.hash, 12)}</div>
+        <div className="mt-1 text-micro text-ink-300">{tx.inputs.length} entrée(s) → {tx.outputs.length} sortie(s) · {fmtUsd(w.txUsd(tx))}</div>
+        <div className="text-micro text-ink-400">{new Date(tx.time * 1000).toLocaleString('fr-FR')}</div>
       </>
     )
   }

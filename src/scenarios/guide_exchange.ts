@@ -85,7 +85,7 @@ export const guideExchange: ScenarioTemplate = {
       briefing:
         `${victimName} (${city}) a cliqué sur une publicité pour « ${brand} », une plateforme de placement promettant 4 % de rendement mensuel. Un « conseiller » l'a ${g('guidé', 'guidée')} : acheter des USDT sur Coinhouse, puis les envoyer, sur le réseau Ethereum, à « son adresse de dépôt personnelle ». Le tableau de bord affichait des gains… jusqu'au jour où ${g('il', 'elle')} a voulu retirer.\n\n` +
         `Le ${fmtDate(pay.time, false)}, ${g('il', 'elle')} a envoyé ${amt(usdtAmt, 'USDT')}. Votre mission : suivre ces USDT jusqu'à la plateforme réelle où l'escroc les a déposés, identifier l'adresse à réquisitionner et préparer la réquisition.\n\n` +
-        `C'est une **mission guidée** : le guide pas à pas se trouve dans l'onglet **Objectifs** du Dossier (à gauche). Les étapes se valident d'elles-mêmes ; « Je bloque » donne le chemin exact. Les indices sont gratuits.`,
+        `C'est une **mission guidée** : le guide pas à pas flotte en haut à gauche du graphe. Les étapes se valident d'elles-mêmes ; « Je bloque » donne le chemin exact. Les indices sont gratuits.`,
       evidence: [
         {
           id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: w.at(3 * 24), author: victimName,
@@ -215,7 +215,7 @@ export const guideExchange: ScenarioTemplate = {
           `- Les ${amt(left, 'USDT')} restés sur l'adresse de l'escroc peuvent faire l'objet d'une demande de gel auprès de l'émetteur (Tether) : c'est l'objet du tutoriel 3.`,
       },
       hints: [
-        'Le guide est dans l\'onglet Objectifs du Dossier. Le bouton « Je bloque » de chaque étape donne le chemin exact.',
+        'Le guide flotte en haut à gauche du graphe. Le bouton « Je bloque » de chaque étape donne le chemin exact.',
         'Sur Ethereum, chaque montant est suivi de son actif (ETH ou USDT) : dans l\'Historique comme sur les flèches du graphe.',
         'Une adresse qui reçoit des USDT puis les reverse en totalité, quelques heures après, à un « Hot Wallet » étiqueté est une adresse de dépôt d\'exchange.',
         'Les entrées d\'une adresse (bouton « Entrées ») montrent qui l\'a alimentée : victimes, mais aussi le portefeuille qui lui fournit de l\'ETH pour les frais.',
@@ -241,7 +241,7 @@ export const guideExchange: ScenarioTemplate = {
           title: 'Dépliez les sorties de la victime',
           text:
             `Revenez à l'adresse de la victime (clic sur son nœud) et **dépliez ses sorties** : double-clic sur le nœud, ou bouton **Sorties**.\n\n` +
-            `Sur un modèle à comptes, il n'y a pas de losange de transaction : une **flèche** relie directement l'émetteur au destinataire, avec le montant et l'actif.`,
+            `Sur un modèle à comptes, il n'y a pas de carré de transaction : une **flèche** relie directement l'émetteur au destinataire, avec le montant et l'actif.`,
           tip: 'Double-cliquez le nœud de la victime. Autre chemin : clic droit ▸ « Déplier les sorties ».',
           check: { kind: 'txRevealed', tx: pay.id },
         },

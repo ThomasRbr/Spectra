@@ -18,6 +18,11 @@ export type AcademyView =
   | { kind: 'certs' }
   | { kind: 'certResult'; id: string }
 
+/** Ouverture ciblée depuis la recherche globale, consommée par la page visée. */
+export type Intent = { kind: 'mission'; id: string } | { kind: 'glossary'; term: string } | { kind: 'fiche'; id: string } | { kind: 'modele'; id: string }
+
+export type ReadingTheme = 'paper' | 'ink'
+
 export interface CorrelatorPreset {
   time: number
   usd: number
@@ -48,6 +53,12 @@ interface UiState {
   hintOpen: boolean
   confirmSubmit: boolean
   toast: { text: string; n: number } | null
+  /** Recherche globale (Ctrl K hors enquête). */
+  searchOpen: boolean
+  intent: Intent | null
+  /** Thème des pages de lecture : Académie, Terrain, Glossaire. */
+  readingTheme: ReadingTheme
+  setReadingTheme(t: ReadingTheme): void
   setPage(p: Page): void
   openLesson(id: string | null, pathId?: string): void
   openAcademy(v: AcademyView): void
@@ -61,6 +72,14 @@ function initialPage(): Page {
     return (sessionStorage.getItem('spectra-page') as Page) || 'dashboard'
   } catch {
     return 'dashboard'
+  }
+}
+
+function initialTheme(): ReadingTheme {
+  try {
+    return localStorage.getItem('spectra-reading-theme') === 'ink' ? 'ink' : 'paper'
+  } catch {
+    return 'paper'
   }
 }
 
@@ -94,6 +113,17 @@ export const useUi = create<UiState>()((set) => ({
   hintOpen: false,
   confirmSubmit: false,
   toast: null,
+  searchOpen: false,
+  intent: null,
+  readingTheme: initialTheme(),
+  setReadingTheme: (readingTheme) => {
+    try {
+      localStorage.setItem('spectra-reading-theme', readingTheme)
+    } catch {
+      /* stockage indisponible */
+    }
+    set({ readingTheme })
+  },
   setPage: (page) => {
     savePage(page)
     set({ page })

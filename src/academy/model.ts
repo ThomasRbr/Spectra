@@ -25,7 +25,7 @@ export const TRACKS: Record<Track, { label: string; icon: string; color: string 
   interchaines: { label: 'Inter-chaînes', icon: 'Waypoints', color: '#a78bfa' },
   confidentialite: { label: 'Confidentialité', icon: 'EyeOff', color: '#f43f5e' },
   typologies: { label: 'Typologies criminelles', icon: 'Siren', color: '#f97316' },
-  enquete: { label: 'Procédure & enquête', icon: 'Scale', color: '#22d3ee' },
+  enquete: { label: 'Procédure & enquête', icon: 'Scale', color: '#7ea6ff' },
   methodo: { label: 'Méthodologie d\'analyse', icon: 'Microscope', color: '#38bdf8' },
   affaires: { label: 'Affaires décryptées', icon: 'Newspaper', color: '#eab308' },
   contrats: { label: 'Smart contracts & DeFi', icon: 'FileCode2', color: '#c084fc' },

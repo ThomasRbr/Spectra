@@ -2,7 +2,9 @@ import { Component, useEffect, useState, type ReactNode } from 'react'
 import { useUi, type Page } from '../store/ui'
 import { useGame, loadSavedCase } from '../store/game'
 import { useProfile, rankOf } from '../store/profile'
-import { Icon, ProgressBar } from './common'
+import { Icon } from './common'
+import { SpectraMark, SpectraWordmark } from './brand'
+import { GlobalSearch } from './GlobalSearch'
 import { Dashboard } from './pages/Dashboard'
 import { Missions } from './pages/Missions'
 import { Glossary, Profile } from './pages/Academy'
@@ -11,24 +13,28 @@ import { Sandbox } from './pages/Sandbox'
 import { AcademyApp } from './academy/AcademyApp'
 import { Workspace } from './workspace/Workspace'
 
-const NAV: { id: Page; label: string; icon: string }[] = [
-  { id: 'dashboard', label: 'Tableau de bord', icon: 'LayoutDashboard' },
-  { id: 'missions', label: 'Missions', icon: 'Crosshair' },
-  { id: 'sandbox', label: 'Bac à sable', icon: 'FlaskConical' },
-  { id: 'academy', label: 'Académie', icon: 'GraduationCap' },
+// Quatre espaces : le Bureau, Enquêter (missions et bac à sable), Apprendre
+// (Académie et glossaire) et Terrain. Le profil se trouve sous l'avatar.
+const NAV: { id: Page; label: string; icon: string; sub?: { id: Page; label: string; icon: string }[] }[] = [
+  { id: 'dashboard', label: 'Bureau', icon: 'House' },
+  { id: 'missions', label: 'Enquêter', icon: 'Crosshair', sub: [{ id: 'sandbox', label: 'Bac à sable', icon: 'FlaskConical' }] },
+  { id: 'academy', label: 'Apprendre', icon: 'GraduationCap', sub: [{ id: 'glossary', label: 'Glossaire', icon: 'BookA' }] },
   { id: 'toolbox', label: 'Terrain', icon: 'BriefcaseBusiness' },
-  { id: 'glossary', label: 'Glossaire', icon: 'BookA' },
-  { id: 'profile', label: 'Profil', icon: 'UserRound' },
 ]
+
+/** Pages de lecture, affichées sur papier si le profil le veut. */
+const READING: Page[] = ['academy', 'toolbox', 'glossary']
+
+function go(id: Page) {
+  if (id === 'academy') useUi.getState().set({ lessonId: null, academy: { kind: 'home' } })
+  useUi.getState().setPage(id)
+}
 
 export function App() {
   const page = useUi((s) => s.page)
+  const readingTheme = useUi((s) => s.readingTheme)
   const inst = useGame((s) => s.inst)
-  const template = useGame((s) => s.template)
-  const xp = useProfile((s) => s.xp)
-  const name = useProfile((s) => s.name)
-  const rank = rankOf(xp)
-  const inCase = page === 'workspace' && inst
+  const inCase = page === 'workspace' && !!inst
 
   // Après un rechargement, on rouvre l'enquête en cours là où on l'avait laissée.
   useEffect(() => {
@@ -38,62 +44,24 @@ export function App() {
     }
   }, [page])
 
+  // Ctrl K : recherche globale partout, sauf en enquête où elle cherche dans l'affaire.
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'k') return
+      if (useUi.getState().page === 'workspace' && useGame.getState().inst) return
+      e.preventDefault()
+      useUi.getState().set({ searchOpen: true })
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [])
+
+  const paper = READING.includes(page) && readingTheme === 'paper'
+
   return (
     <div className="flex h-full">
-      <nav className={`flex shrink-0 flex-col border-r border-ink-700/70 bg-ink-900/90 transition-all ${inCase ? 'w-[60px]' : 'w-[230px]'}`}>
-        <div className={`flex items-center gap-2.5 ${inCase ? 'justify-center px-0' : 'px-5'} h-16`}>
-          <Logo />
-          {!inCase && (
-            <div>
-              <div className="text-[16px] font-extrabold tracking-[0.2em] text-white">SPECTRA</div>
-              <div className="-mt-0.5 text-[9.5px] uppercase tracking-[0.18em] text-ink-400">Crypto Tracing Lab</div>
-            </div>
-          )}
-        </div>
-        <div className="flex flex-1 flex-col gap-0.5 px-2.5 py-2">
-          {NAV.map((n) => {
-            const active = page === n.id || (n.id === 'academy' && page === 'academy')
-            return (
-              <button
-                key={n.id}
-                title={n.label}
-                onClick={() => {
-                  if (n.id === 'academy') useUi.getState().set({ lessonId: null, academy: { kind: 'home' } })
-                  useUi.getState().setPage(n.id)
-                }}
-                className={`group relative flex items-center gap-3 rounded-lg ${inCase ? 'justify-center px-0' : 'px-3'} py-2 text-[13px] font-medium transition ${active ? 'bg-accent/10 text-white' : 'text-ink-300 hover:bg-ink-800 hover:text-white'}`}
-              >
-                {active && <span className="absolute left-0 top-1.5 h-[calc(100%-12px)] w-[3px] rounded-r bg-accent shadow-glow" />}
-                <Icon name={n.icon} size={17} className={active ? 'text-accent' : ''} />
-                {!inCase && n.label}
-              </button>
-            )
-          })}
-          {inst && template && page !== 'workspace' && (
-            <button onClick={() => useUi.getState().setPage('workspace')} className="mt-3 flex items-center gap-3 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-left text-[12.5px] text-white animate-pulseRing">
-              <Icon name="FolderSearch" size={16} className="text-accent" />
-              <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wider text-accent">Enquête en cours</div>
-                <div className="truncate">{template.title}</div>
-              </div>
-            </button>
-          )}
-        </div>
-        {!inCase && (
-          <div className="m-3 rounded-xl border border-ink-700/70 bg-ink-850/70 p-3">
-            <div className="flex items-center gap-2.5">
-              <div className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-accent/30 to-violet-500/30 text-[13px] font-bold text-white">{rank.level}</div>
-              <div className="min-w-0">
-                <div className="truncate text-[12.5px] font-semibold text-white">{name}</div>
-                <div className="truncate text-[10.5px] text-ink-300">{rank.name}</div>
-              </div>
-            </div>
-            <ProgressBar value={rank.progress} className="mt-2.5" />
-            <div className="mt-1 text-right font-mono text-[10px] text-ink-400">{xp.toLocaleString('fr-FR')} XP</div>
-          </div>
-        )}
-      </nav>
-      <main className="relative min-w-0 flex-1 grid-bg">
+      {inCase ? <CaseRail /> : <Sidebar page={page} />}
+      <main className={`relative min-w-0 flex-1 bg-ink-950 ${paper ? 'theme-paper' : ''}`}>
         <Boundary key={page}>
           {page === 'dashboard' && <Dashboard />}
           {page === 'missions' && <Missions />}
@@ -106,19 +74,94 @@ export function App() {
         </Boundary>
         <Toast />
       </main>
+      <GlobalSearch />
     </div>
   )
 }
 
-function Logo() {
+function Sidebar({ page }: { page: Page }) {
+  const inst = useGame((s) => s.inst)
+  const template = useGame((s) => s.template)
+  const score = useGame((s) => s.score)
+  const xp = useProfile((s) => s.xp)
+  const name = useProfile((s) => s.name)
+  const rank = rankOf(xp)
+  const isActive = (id: Page) => page === id || (id === 'missions' && page === 'workspace')
+
   return (
-    <svg width="30" height="30" viewBox="0 0 32 32" className="shrink-0 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]">
-      <rect width="32" height="32" rx="9" fill="#0c1120" stroke="#22d3ee" strokeOpacity="0.5" />
-      <path d="M11 15.5l7-6M11 17l7 6M19 9.5l2 13" stroke="#22d3ee" strokeWidth="1.5" strokeOpacity="0.7" />
-      <circle cx="10" cy="16" r="3.5" fill="#22d3ee" />
-      <circle cx="20" cy="9" r="2.6" fill="#a78bfa" />
-      <circle cx="21.5" cy="23" r="2.6" fill="#f472b6" />
-    </svg>
+    <nav aria-label="Navigation principale" className="theme-ink flex w-[232px] shrink-0 flex-col border-r border-ink-700 bg-ink-900 px-3 pb-3 pt-[18px]">
+      <button className="mb-5 rounded-lg px-2 py-1 text-left" onClick={() => go('dashboard')} aria-label="Bureau">
+        <SpectraWordmark />
+      </button>
+
+      <div className="flex flex-col gap-0.5">
+        {NAV.map((n) => (
+          <div key={n.id}>
+            <button className={`nav-item ${isActive(n.id) ? 'nav-item-active' : ''}`} aria-current={isActive(n.id) ? 'page' : undefined} onClick={() => go(n.id)}>
+              <Icon name={n.icon} size={17} strokeWidth={1.75} className={isActive(n.id) ? 'text-white' : ''} />
+              {n.label}
+            </button>
+            {n.sub?.map((s) => (
+              <button key={s.id} className={`nav-item !h-8 pl-[38px] !text-dense ${page === s.id ? 'nav-item-active' : ''}`} aria-current={page === s.id ? 'page' : undefined} onClick={() => go(s.id)}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {inst && template && !score && page !== 'workspace' && (
+        <button onClick={() => useUi.getState().setPage('workspace')} className="mt-5 rounded-lg border border-ink-600 bg-ink-850 p-3 text-left transition-colors hover:border-ink-500">
+          <div className="flex items-center gap-2 text-micro font-semibold text-ink-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Enquête en cours
+          </div>
+          <div className="mt-1 line-clamp-2 text-dense font-medium text-white">{template.title}</div>
+        </button>
+      )}
+
+      <div className="flex-1" />
+
+      <button
+        className="flex h-10 items-center gap-2.5 rounded-lg border border-ink-700 bg-ink-950 px-2.5 text-left text-dense text-ink-300 transition-colors hover:border-ink-600 hover:text-ink-100"
+        onClick={() => useUi.getState().set({ searchOpen: true })}
+      >
+        <Icon name="Search" size={15} />
+        <span className="flex-1">Rechercher</span>
+        <span className="kbd">Ctrl K</span>
+      </button>
+
+      <button
+        className={`mt-2 flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover:bg-ink-800 ${page === 'profile' ? 'bg-ink-800' : ''}`}
+        onClick={() => go('profile')}
+        aria-label={`Profil de ${name}`}
+      >
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink-700 text-dense font-semibold text-white">{(name.trim()[0] ?? '?').toUpperCase()}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-dense font-semibold text-white">{name}</span>
+          <span className="block truncate text-meta text-ink-400">Niveau {rank.level} · {xp.toLocaleString('fr-FR')} XP</span>
+        </span>
+      </button>
+    </nav>
+  )
+}
+
+/** En enquête, la navigation se réduit à un rail : le graphe garde la place. */
+function CaseRail() {
+  return (
+    <nav aria-label="Navigation principale" className="theme-ink flex w-[56px] shrink-0 flex-col items-center gap-1 border-r border-ink-700 bg-ink-900 py-3">
+      <button className="mb-3 grid h-10 w-10 place-items-center rounded-lg text-white hover:bg-ink-800" onClick={() => go('dashboard')} title="Bureau" aria-label="Bureau">
+        <SpectraMark size={26} />
+      </button>
+      {NAV.map((n) => (
+        <button key={n.id} title={n.label} aria-label={n.label} onClick={() => go(n.id)} className={`grid h-10 w-10 place-items-center rounded-lg transition-colors ${n.id === 'missions' ? 'bg-ink-800 text-white' : 'text-ink-300 hover:bg-ink-800 hover:text-white'}`}>
+          <Icon name={n.icon} size={18} strokeWidth={1.75} />
+        </button>
+      ))}
+      <div className="flex-1" />
+      <button title="Profil" aria-label="Profil" onClick={() => go('profile')} className="grid h-10 w-10 place-items-center rounded-lg text-ink-300 hover:bg-ink-800 hover:text-white">
+        <Icon name="UserRound" size={18} strokeWidth={1.75} />
+      </button>
+    </nav>
   )
 }
 
@@ -132,7 +175,11 @@ function Toast() {
     return () => clearTimeout(t)
   }, [toast])
   if (!toast || !show) return null
-  return <div className="absolute bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl panel-solid px-4 py-2 text-[13px] text-white shadow-panel animate-fadein">{toast.text}</div>
+  return (
+    <div role="status" className="theme-ink absolute bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-ink-600 bg-ink-800 px-4 py-2.5 text-dense text-white shadow-pop animate-fadein">
+      {toast.text}
+    </div>
+  )
 }
 
 class Boundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -144,16 +191,16 @@ class Boundary extends Component<{ children: ReactNode }, { error: Error | null 
     if (!this.state.error) return this.props.children
     return (
       <div className="grid h-full place-items-center p-8">
-        <div className="max-w-lg rounded-2xl panel-solid p-6 text-center">
+        <div className="card max-w-lg p-6 text-center">
           <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-rose-500/15 text-rose-300"><Icon name="TriangleAlert" size={22} /></div>
-          <div className="text-lg font-semibold text-white">Une erreur est survenue</div>
-          <div className="mt-2 break-words font-mono text-[11.5px] text-ink-300">{this.state.error.message}</div>
+          <div className="text-title font-semibold text-white">Une erreur est survenue</div>
+          <div className="mt-2 break-words font-mono text-meta text-ink-300">{this.state.error.message}</div>
           <div className="mt-4 flex justify-center gap-2">
             <button className="btn-outline" onClick={() => this.setState({ error: null })}>Réessayer</button>
             <button className="btn-primary" onClick={() => {
               this.setState({ error: null })
               useUi.getState().setPage('dashboard')
-            }}>Tableau de bord</button>
+            }}>Bureau</button>
           </div>
         </div>
       </div>

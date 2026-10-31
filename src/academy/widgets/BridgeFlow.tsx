@@ -50,7 +50,7 @@ export default function BridgeFlow() {
       <Instr>Suivez 25 000 USDC passant d'Ethereum à BNB Chain via un bridge. Avancez étape par étape, puis retrouvez la transaction d'arrivée parmi les candidates.</Instr>
       <div className="flex items-center gap-1">
         {STEPS.map((s, i) => (
-          <button key={s.title} onClick={() => setStep(i)} className={`flex flex-1 items-center justify-center gap-1 rounded-md border px-1 py-1 text-[10.5px] transition ${i === step ? 'border-accent/70 bg-accent/10 text-white' : i < step ? 'border-ink-600 text-ink-200' : 'border-ink-700 text-ink-400'}`}>
+          <button key={s.title} onClick={() => setStep(i)} className={`flex flex-1 items-center justify-center gap-1 rounded-md border px-1 py-1 text-micro transition ${i === step ? 'border-accent/70 bg-accent/10 text-white' : i < step ? 'border-ink-600 text-ink-200' : 'border-ink-700 text-ink-400'}`}>
             <Icon name={s.icon} size={11} /> <span className="truncate">{s.title}</span>
           </button>
         ))}
@@ -60,21 +60,21 @@ export default function BridgeFlow() {
         <div className="rounded-xl border p-2.5" style={{ borderColor: '#8c9eff55', background: '#8c9eff0a' }}>
           <div className="mb-1.5 flex items-center justify-between">
             <ChainBadge chain="eth" />
-            <span className="font-mono text-[10px] text-ink-400">tx {short(SRC_TX, 6)}</span>
+            <span className="font-mono text-micro text-ink-400">tx {short(SRC_TX, 6)}</span>
           </div>
-          <div className="space-y-0.5 font-mono text-[11px]">
+          <div className="space-y-0.5 font-mono text-micro">
             <div className="text-ink-300">
               from <span className="text-white">{short(USER, 5)}</span>
             </div>
             <div className="text-ink-300">
-              to <span className="text-violet-300">{short(BRIDGE_SRC, 5)}</span> <span className="font-sans text-[10px]">(contrat bridge)</span>
+              to <span className="text-violet-300">{short(BRIDGE_SRC, 5)}</span> <span className="font-sans text-micro">(contrat bridge)</span>
             </div>
             <div className="text-ink-300">
               Transfer <span className="text-white">25 000 USDC</span> → contrat (verrouillés)
             </div>
           </div>
           {step >= 1 && (
-            <div className="mt-2 rounded-lg border border-violet-400/40 bg-violet-500/10 p-2 font-mono text-[10.5px] leading-relaxed animate-fadein">
+            <div className="mt-2 rounded-lg border border-violet-400/40 bg-violet-500/10 p-2 font-mono text-micro leading-relaxed animate-fadein">
               <div className="text-violet-300">event Deposit(</div>
               <div className="pl-3 text-ink-200">
                 destinationChainId: <span className="text-amber-300">56</span> <span className="font-sans text-ink-400">(BNB Chain)</span>
@@ -94,16 +94,16 @@ export default function BridgeFlow() {
         <div className="flex flex-row items-center justify-center gap-1 sm:flex-col">
           <Icon name="RadioTower" size={18} className={step >= 2 ? 'text-accent' : 'text-ink-600'} />
           <div className={`h-0.5 w-10 rounded sm:h-10 sm:w-0.5 ${step >= 2 ? 'bg-accent animate-pulse' : 'bg-ink-700'}`} />
-          <span className="text-center text-[9.5px] leading-tight text-ink-400">{step >= 2 ? 'relais observent l\'événement' : 'en attente'}</span>
+          <span className="text-center text-micro leading-tight text-ink-400">{step >= 2 ? 'relais observent l\'événement' : 'en attente'}</span>
         </div>
 
         <div className="rounded-xl border p-2.5" style={{ borderColor: '#f3ba2f55', background: '#f3ba2f0a' }}>
           <div className="mb-1.5 flex items-center justify-between">
             <ChainBadge chain="bsc" />
-            <span className="font-mono text-[10px] text-ink-400">contrat {short(BRIDGE_DST, 5)}</span>
+            <span className="font-mono text-micro text-ink-400">contrat {short(BRIDGE_DST, 5)}</span>
           </div>
           {step < 3 ? (
-            <div className="py-4 text-center text-[11.5px] text-ink-400">{step >= 2 ? 'Le contrat d\'arrivée va libérer les fonds au destinataire…' : 'Rien encore côté destination.'}</div>
+            <div className="py-4 text-center text-meta text-ink-400">{step >= 2 ? 'Le contrat d\'arrivée va libérer les fonds au destinataire…' : 'Rien encore côté destination.'}</div>
           ) : (
             <div className="space-y-1">
               {CANDIDATES.map((c, i) => {
@@ -114,7 +114,7 @@ export default function BridgeFlow() {
                   <button
                     key={c.hash}
                     onClick={() => setPick(i)}
-                    className={`w-full rounded-lg border px-2 py-1 text-left font-mono text-[10.5px] transition ${sel ? (good ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-rose-500/80 bg-rose-500/10') : 'border-ink-700 bg-ink-900/70 hover:border-ink-500'} ${vis ? '' : 'opacity-25'}`}
+                    className={`w-full rounded-lg border px-2 py-1 text-left font-mono text-micro transition ${sel ? (good ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-rose-500/80 bg-rose-500/10') : 'border-ink-700 bg-ink-900/70 hover:border-ink-500'} ${vis ? '' : 'opacity-25'}`}
                   >
                     <div className="flex justify-between gap-1">
                       <span className="text-ink-300">{c.time}</span>
@@ -169,11 +169,11 @@ export default function BridgeFlow() {
       )}
 
       <div className="flex gap-2">
-        <button className="btn-ghost !py-1 text-xs" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
+        <button className="btn-ghost !py-1 text-meta" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
           <Icon name="ArrowLeft" size={13} /> Précédent
         </button>
         <button
-          className="btn-primary !py-1 text-xs"
+          className="btn-primary !py-1 text-meta"
           onClick={() => {
             if (step === 3) {
               setStep(0)

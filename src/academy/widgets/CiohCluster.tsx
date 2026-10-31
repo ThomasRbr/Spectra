@@ -59,7 +59,7 @@ export default function CiohCluster() {
     let k = 0
     list.forEach((g) => {
       const tainted = forced && g.includes('H')
-      const col = g.length === 1 ? '#4a5a80' : tainted ? C.rose : PALETTE[k++ % PALETTE.length]
+      const col = g.length === 1 ? '#5d6572' : tainted ? C.rose : PALETTE[k++ % PALETTE.length]
       g.forEach((id) => (color[id] = col))
     })
     return { list, color }
@@ -95,7 +95,7 @@ export default function CiohCluster() {
                 <text x={n.x} y={n.y + 5} textAnchor="middle" fill="#fff" fontSize={15} fontWeight={700} fontFamily="Inter, system-ui, sans-serif">
                   {n.id}
                 </text>
-                <text x={n.x} y={n.y + 38} textAnchor="middle" fill="#7a88a8" fontSize={9.5} fontFamily="JetBrains Mono, ui-monospace, monospace">
+                <text x={n.x} y={n.y + 38} textAnchor="middle" fill="#959da9" fontSize={9.5} fontFamily="JetBrains Mono, ui-monospace, monospace">
                   {short(n.address, 5)}
                 </text>
               </g>
@@ -109,7 +109,7 @@ export default function CiohCluster() {
           const on = applied.includes(t.id)
           return (
             <button key={t.id} onClick={() => apply(t)} aria-pressed={on} className={`rounded-lg border px-2.5 py-2 text-left transition ${on ? (t.coinjoin ? 'border-rose-500/70 bg-rose-500/10' : 'border-accent/70 bg-accent/10') : 'border-ink-700 bg-ink-850 hover:border-ink-500'}`}>
-              <div className="flex items-center gap-2 text-[12px]">
+              <div className="flex items-center gap-2 text-meta">
                 <span className="font-mono font-semibold text-white">{t.id}</span>
                 <span className="text-ink-300">
                   entrées : <span className="font-mono text-ink-100">{t.ins.map((i) => i.a).join(' + ')}</span>
@@ -118,7 +118,7 @@ export default function CiohCluster() {
                 <span className="flex-1" />
                 <Icon name={on ? 'Link' : 'Unlink'} size={13} className={on ? 'text-accent' : 'text-ink-500'} />
               </div>
-              <div className="mt-0.5 text-[10.5px] text-ink-400">
+              <div className="mt-0.5 text-micro text-ink-400">
                 {t.note} <span className="font-mono">frais {fee(t).toFixed(4)}</span>
               </div>
             </button>
@@ -127,17 +127,17 @@ export default function CiohCluster() {
       </div>
 
       {cjWarn && !forced && (
-        <div className="rounded-xl border border-orange-400/50 bg-orange-500/10 p-3 text-[12px] text-orange-100 animate-fadein">
+        <div className="rounded-xl border border-orange-400/50 bg-orange-500/10 p-3 text-meta text-orange-100 animate-fadein">
           <div className="mb-1 flex items-center gap-2 font-semibold text-orange-300">
             <Icon name="ShieldAlert" size={14} /> T5 ressemble à un CoinJoin : CIOH non applicable
           </div>
           Sorties de montant identique (4 × 0,1 BTC), autant de participants que de sorties égales, un rendu par participant : ces entrées appartiennent à <strong>{T5_COUNT} personnes différentes</strong> qui ont signé ensemble. Fusionner rattacherait des inconnus (H, I, J) au portefeuille de D.
           <div className="mt-2 flex gap-2">
-            <button className="btn-outline !py-1 text-xs" onClick={() => setCjWarn(false)}>
+            <button className="btn-outline !py-1 text-meta" onClick={() => setCjWarn(false)}>
               Ne pas fusionner
             </button>
             <button
-              className="btn-danger !py-1 text-xs"
+              className="btn-danger !py-1 text-meta"
               onClick={() => {
                 setApplied((a) => [...a, 'T5'])
                 setCjWarn(false)

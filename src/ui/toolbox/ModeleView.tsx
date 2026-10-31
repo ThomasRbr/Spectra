@@ -3,7 +3,7 @@ import { NOTICE, TOOLBOX_CATEGORIES, initialValues, lessonTitle, type FieldValue
 import { openPrintable } from '../../lib/printable'
 import { useProfile } from '../../store/profile'
 import { useUi } from '../../store/ui'
-import { Icon } from '../common'
+import { Icon, tint } from '../common'
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -40,23 +40,23 @@ export function ModeleView({ modele, onBack }: { modele: Modele; onBack: () => v
 
   return (
     <div className="mx-auto max-w-[1500px] px-8 py-8 animate-fadein">
-      <button className="btn-ghost -ml-2 !px-2 text-[12.5px]" onClick={onBack}>
+      <button className="btn-ghost -ml-2 !px-2 text-dense" onClick={onBack}>
         <Icon name="ArrowLeft" size={15} /> Boîte à outils
       </button>
 
       <div className="mt-3 flex flex-wrap items-start gap-4">
-        <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border" style={{ color: cat.color, borderColor: `${cat.color}55`, background: `${cat.color}14` }}>
+        <span className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border" style={{ color: tint(cat.color), borderColor: `${cat.color}55`, background: `${cat.color}14` }}>
           <Icon name={modele.icon} size={26} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="chip" style={{ color: cat.color, background: `${cat.color}18` }}>
+            <span className="chip" style={{ color: tint(cat.color), background: `${cat.color}18` }}>
               <Icon name={cat.icon} size={11} /> {cat.label}
             </span>
             <span className="chip bg-ink-800 text-ink-300">Modèle de document</span>
           </div>
-          <h1 className="mt-1.5 text-[26px] font-bold leading-tight text-white">{modele.title}</h1>
-          <p className="mt-1.5 max-w-3xl text-[13.5px] leading-relaxed text-ink-200">{modele.description}</p>
+          <h1 className="mt-1.5 text-page font-semibold leading-tight tracking-tight text-white">{modele.title}</h1>
+          <p className="mt-1.5 max-w-3xl text-body leading-relaxed text-ink-200">{modele.description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button className="btn-primary" onClick={() => openPrintable(modele.render(values), `${modele.id}.html`)}>
@@ -74,7 +74,7 @@ export function ModeleView({ modele, onBack }: { modele: Modele; onBack: () => v
         </div>
       </div>
 
-      <div className="mt-4 flex gap-2.5 rounded-xl border border-violet-400/30 bg-violet-400/5 px-4 py-2.5 text-[12.5px] leading-relaxed text-ink-100">
+      <div className="mt-4 flex gap-2.5 rounded-xl border border-violet-400/30 bg-violet-400/5 px-4 py-2.5 text-dense leading-relaxed text-ink-100">
         <Icon name="Scale" size={15} className="mt-0.5 shrink-0 text-violet-300" />
         <span>
           <strong className="text-violet-200">{NOTICE}</strong> Les références juridiques sont indicatives : vérifiez-les avant tout usage en procédure. Les champs saisis ne sont pas enregistrés.
@@ -83,11 +83,11 @@ export function ModeleView({ modele, onBack }: { modele: Modele; onBack: () => v
 
       <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
         <div className="min-w-0">
-          <div className="rounded-2xl border border-ink-700/70 bg-ink-900/70 p-4">
+          <div className="rounded-xl border border-ink-700/70 bg-ink-900/70 p-4">
             <div className="mb-3 flex items-center justify-between">
               <div className="label">Champs du document</div>
               <button
-                className="btn-ghost !px-2 !py-1 text-[12px]"
+                className="btn-ghost !px-2 !py-1 text-meta"
                 onClick={() => {
                   if (confirm('Effacer la saisie et revenir aux valeurs par défaut ?')) setValues(initialValues(modele, { name, unit }))
                 }}
@@ -100,17 +100,17 @@ export function ModeleView({ modele, onBack }: { modele: Modele; onBack: () => v
                 <FieldInput key={f.key} f={f} value={values[f.key] ?? ''} onChange={(val) => set(f.key, val)} />
               ))}
             </div>
-            <div className="mt-3 text-[11.5px] leading-relaxed text-ink-400">Un champ laissé vide apparaît comme une ligne à compléter à la main sur le document imprimé.</div>
+            <div className="mt-3 text-meta leading-relaxed text-ink-400">Un champ laissé vide apparaît comme une ligne à compléter à la main sur le document imprimé.</div>
           </div>
 
           {lessons.length > 0 && (
-            <div className="mt-4 rounded-2xl panel p-4">
+            <div className="mt-4 rounded-xl panel p-4">
               <div className="label flex items-center gap-1.5">
                 <Icon name="GraduationCap" size={13} /> Leçons liées
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {lessons.map((id) => (
-                  <button key={id} className="btn-outline !py-1 text-[12px]" onClick={() => useUi.getState().openLesson(id)}>
+                  <button key={id} className="btn-outline !py-1 text-meta" onClick={() => useUi.getState().openLesson(id)}>
                     <Icon name="BookOpen" size={12} /> {lessonTitle(id)}
                   </button>
                 ))}
@@ -122,7 +122,7 @@ export function ModeleView({ modele, onBack }: { modele: Modele; onBack: () => v
         <div className="min-w-0 xl:sticky xl:top-6 xl:self-start">
           <div className="mb-2 flex items-center gap-2">
             <div className="label">Aperçu</div>
-            <span className="text-[11px] text-ink-400">mis à jour pendant la saisie</span>
+            <span className="text-micro text-ink-400">mis à jour pendant la saisie</span>
           </div>
           <iframe title={`Aperçu — ${modele.title}`} srcDoc={html} className="h-[calc(100vh-150px)] min-h-[520px] w-full rounded-xl border border-ink-700 bg-white shadow-panel" sandbox="allow-modals allow-scripts" />
         </div>
@@ -136,9 +136,9 @@ function FieldInput({ f, value, onChange }: { f: ModeleField; value: string; onC
   const wide = f.wide || f.type === 'textarea'
   return (
     <label htmlFor={id} className={`block ${wide ? 'sm:col-span-2' : ''}`}>
-      <span className="mb-1 block text-[11.5px] font-medium text-ink-200">{f.label}</span>
+      <span className="mb-1 block text-meta font-medium text-ink-200">{f.label}</span>
       {f.type === 'textarea' ? (
-        <textarea id={id} className="input min-h-[84px] resize-y font-mono !text-[12.5px] leading-relaxed" placeholder={f.placeholder} value={value} onChange={(e) => onChange(e.target.value)} rows={4} />
+        <textarea id={id} className="input min-h-[84px] resize-y font-mono !text-dense leading-relaxed" placeholder={f.placeholder} value={value} onChange={(e) => onChange(e.target.value)} rows={4} />
       ) : f.type === 'select' ? (
         <select id={id} className="input" value={value} onChange={(e) => onChange(e.target.value)}>
           {(f.options ?? []).map((o) => (
@@ -150,7 +150,7 @@ function FieldInput({ f, value, onChange }: { f: ModeleField; value: string; onC
       ) : (
         <input id={id} type={f.type === 'date' ? 'date' : 'text'} className="input" placeholder={f.placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
       )}
-      {f.help && <span className="mt-1 block text-[11px] text-ink-400">{f.help}</span>}
+      {f.help && <span className="mt-1 block text-micro text-ink-400">{f.help}</span>}
     </label>
   )
 }

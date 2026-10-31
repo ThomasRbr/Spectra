@@ -92,7 +92,7 @@ export default function RiskExposure() {
                   return (
                     <g key={s.name} style={{ opacity: indirect ? 1 : 0.18, transition: 'opacity .4s' }}>
                       <path d={`M ${H2 + 56} ${ys} C ${H2 + 130} ${ys} ${H1 - 130} ${y1(i)} ${H1 - 62} ${y1(i)}`} stroke={CATEGORY[s.cat].color} strokeWidth={1 + s.share * 6} fill="none" opacity={0.55} />
-                      <rect x={H2 - 56} y={ys - 12} width={112} height={24} rx={6} fill="#0c1120" stroke={CATEGORY[s.cat].color} />
+                      <rect x={H2 - 56} y={ys - 12} width={112} height={24} rx={6} fill="#15181d" stroke={CATEGORY[s.cat].color} />
                       <text x={H2} y={ys + 4} textAnchor="middle" fill="#fff" fontSize={9.5} fontFamily="Inter, system-ui, sans-serif">
                         {s.name} · {Math.round(s.share * 100)} %
                       </text>
@@ -103,17 +103,17 @@ export default function RiskExposure() {
                 <text x={H1} y={y1(i) - 2} textAnchor="middle" fill="#fff" fontSize={10.5} fontWeight={600} fontFamily="Inter, system-ui, sans-serif">
                   {c.name}
                 </text>
-                <text x={H1} y={y1(i) + 10} textAnchor="middle" fill="#a9b4cc" fontSize={9} fontFamily="JetBrains Mono, ui-monospace, monospace">
+                <text x={H1} y={y1(i) + 10} textAnchor="middle" fill="#b4bbc5" fontSize={9} fontFamily="JetBrains Mono, ui-monospace, monospace">
                   {fmtUsd(c.amount)}
                 </text>
               </g>
             )
           })}
-          <rect x={TX - 44} y={106} width={88} height={48} rx={10} fill="#22d3ee1a" stroke="#22d3ee" strokeWidth={2} />
+          <rect x={TX - 44} y={106} width={88} height={48} rx={10} fill="#22d3ee1a" stroke="#7ea6ff" strokeWidth={2} />
           <text x={TX} y={127} textAnchor="middle" fill="#fff" fontSize={11} fontWeight={700} fontFamily="Inter, system-ui, sans-serif">Adresse</text>
-          <text x={TX} y={141} textAnchor="middle" fill="#22d3ee" fontSize={9} fontFamily="Inter, system-ui, sans-serif">analysée</text>
-          <text x={H2} y={276} textAnchor="middle" fill="#4a5a80" fontSize={9} fontFamily="Inter, system-ui, sans-serif">SAUT 2 (indirect)</text>
-          <text x={H1} y={276} textAnchor="middle" fill="#4a5a80" fontSize={9} fontFamily="Inter, system-ui, sans-serif">SAUT 1 (direct)</text>
+          <text x={TX} y={141} textAnchor="middle" fill="#7ea6ff" fontSize={9} fontFamily="Inter, system-ui, sans-serif">analysée</text>
+          <text x={H2} y={276} textAnchor="middle" fill="#5d6572" fontSize={9} fontFamily="Inter, system-ui, sans-serif">SAUT 2 (indirect)</text>
+          <text x={H1} y={276} textAnchor="middle" fill="#5d6572" fontSize={9} fontFamily="Inter, system-ui, sans-serif">SAUT 1 (direct)</text>
         </svg>
       </div>
 
@@ -128,8 +128,8 @@ export default function RiskExposure() {
         <div className="rounded-xl border border-ink-700 bg-ink-850/80 p-3">
           <div className="flex items-center gap-3">
             <RiskGauge score={res.score} size={76} />
-            <div className="text-[11.5px] text-ink-300">
-              <div className="label !text-[10px]">Score de risque</div>
+            <div className="text-meta text-ink-300">
+              <div className="label !text-micro">Score de risque</div>
               <div>{indirect ? 'direct + indirect' : 'direct uniquement'}</div>
               <div className="mt-1 text-rose-300">Sévère : {res.total ? Math.round((res.severe / res.total) * 100) : 0} %</div>
             </div>
@@ -140,7 +140,7 @@ export default function RiskExposure() {
               const pct = res.total ? v / res.total : 0
               return (
                 <div key={cat}>
-                  <div className="flex justify-between text-[11px]">
+                  <div className="flex justify-between text-micro">
                     <span style={{ color: m.color }}>{m.label}</span>
                     <span className="font-mono text-ink-200">
                       {fmtUsd(v)} · {(pct * 100).toFixed(1).replace('.', ',')} %
@@ -153,7 +153,7 @@ export default function RiskExposure() {
               )
             })}
           </div>
-          <div className="mt-2 text-[10.5px] leading-snug text-ink-400">Score = Σ (part de chaque catégorie × poids de risque : faible 10, moyen 45, élevé 75, sévère 95).</div>
+          <div className="mt-2 text-micro leading-snug text-ink-400">Score = Σ (part de chaque catégorie × poids de risque : faible 10, moyen 45, élevé 75, sévère 95).</div>
         </div>
       </div>
 

@@ -46,7 +46,7 @@ export interface CategoryMeta {
 }
 
 export const CATEGORY: Record<EntityCategory, CategoryMeta> = {
-  exchange: { label: 'Exchange centralisé', color: '#22d3ee', icon: 'Landmark', risk: 'low' },
+  exchange: { label: 'Exchange centralisé', color: '#6ea8fe', icon: 'Landmark', risk: 'low' },
   instant_exchanger: { label: 'Échangeur instantané', color: '#38bdf8', icon: 'Repeat', risk: 'high' },
   mixer: { label: 'Mixeur', color: '#f43f5e', icon: 'Blend', risk: 'severe' },
   coinjoin: { label: 'Coordinateur CoinJoin', color: '#fb7185', icon: 'Shuffle', risk: 'high' },
@@ -68,8 +68,8 @@ export const CATEGORY: Record<EntityCategory, CategoryMeta> = {
   token_issuer: { label: 'Émetteur de stablecoin', color: '#26a17b', icon: 'BadgeDollarSign', risk: 'low' },
   atm: { label: 'DAB crypto (distributeur)', color: '#f59e0b', icon: 'Banknote', risk: 'medium' },
   nft_marketplace: { label: 'Place de marché NFT', color: '#c084fc', icon: 'Image', risk: 'low' },
-  victim: { label: 'Victime', color: '#4ade80', icon: 'HeartHandshake', risk: 'low' },
-  suspect: { label: 'Suspect', color: '#f472b6', icon: 'UserX', risk: 'high' },
+  victim: { label: 'Victime', color: '#5ec8e5', icon: 'HeartHandshake', risk: 'low' },
+  suspect: { label: 'Suspect', color: '#ff8a4c', icon: 'UserX', risk: 'high' },
   individual: { label: 'Particulier', color: '#94a3b8', icon: 'User', risk: 'low' },
 }
 

@@ -52,7 +52,7 @@ export default function TimingCorrelation() {
     <div className="space-y-3">
       <Instr>Un suspect a déposé 2,5 BTC chez un échangeur instantané, qui l'a payé en ETH depuis son hot wallet. Réglez la fenêtre de temps, la tolérance sur le montant et la commission supposée pour classer les paiements candidats.</Instr>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ink-700 bg-ink-850/80 px-3 py-2 text-[12px]">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ink-700 bg-ink-850/80 px-3 py-2 text-meta">
         <ChainBadge chain="btc" />
         <span className="font-mono text-white">{DEPOSIT_BTC.toLocaleString('fr-FR', { maximumFractionDigits: 8 })} BTC</span>
         <span className="text-ink-300">déposés à 14:02 depuis</span>
@@ -70,7 +70,7 @@ export default function TimingCorrelation() {
       </div>
 
       <div className="rounded-xl border border-ink-700 bg-ink-850/80 p-2">
-        <div className="grid grid-cols-[52px_1fr_88px_64px_1.2fr] gap-2 border-b border-ink-700 px-1.5 pb-1 text-[10px] uppercase tracking-wider text-ink-400">
+        <div className="grid grid-cols-[52px_1fr_88px_64px_1.2fr] gap-2 border-b border-ink-700 px-1.5 pb-1 text-micro uppercase tracking-wider text-ink-400">
           <span>Heure</span>
           <span>Destinataire</span>
           <span className="text-right">Montant</span>
@@ -83,10 +83,10 @@ export default function TimingCorrelation() {
           const isTruth = reveal && r.truth
           const col = isTruth ? C.green : isBest ? C.cyan : C.violet
           return (
-            <div key={r.i} className={`grid grid-cols-[52px_1fr_88px_64px_1.2fr] items-center gap-2 rounded-md px-1.5 py-1 font-mono text-[11px] transition-all duration-300 ${out ? 'opacity-30' : ''} ${isBest ? 'bg-accent/10' : ''}`} style={isTruth ? { outline: `1px solid ${C.green}88` } : undefined}>
+            <div key={r.i} className={`grid grid-cols-[52px_1fr_88px_64px_1.2fr] items-center gap-2 rounded-md px-1.5 py-1 font-mono text-micro transition-all duration-300 ${out ? 'opacity-30' : ''} ${isBest ? 'bg-accent/10' : ''}`} style={isTruth ? { outline: `1px solid ${C.green}88` } : undefined}>
               <span className="text-ink-300">
                 {hhmm(r.delay)}
-                <span className="block text-[9.5px] text-ink-500">+{r.delay} min</span>
+                <span className="block text-micro text-ink-500">+{r.delay} min</span>
               </span>
               <span className="truncate text-ink-200">
                 {!out && <span className="mr-1 text-ink-500">#{rank + 1}</span>}
@@ -101,16 +101,16 @@ export default function TimingCorrelation() {
                 <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink-700">
                   <span className="block h-full rounded-full transition-all duration-500" style={{ width: `${r.score * 100}%`, background: col }} />
                 </span>
-                <span className="w-7 text-right text-[10px]" style={{ color: out ? '#4a5a80' : col }}>
+                <span className="w-7 text-right text-micro" style={{ color: out ? '#5d6572' : col }}>
                   {Math.round(r.score * 100)}
                 </span>
               </span>
             </div>
           )
         })}
-        <div className="mt-1 flex items-center justify-between px-1.5 text-[10.5px] text-ink-400">
+        <div className="mt-1 flex items-center justify-between px-1.5 text-micro text-ink-400">
           <span>score = proximité du montant × proximité temporelle</span>
-          <button className="btn-ghost !px-2 !py-0.5 text-[11px]" onClick={() => setReveal((v) => !v)}>
+          <button className="btn-ghost !px-2 !py-0.5 text-micro" onClick={() => setReveal((v) => !v)}>
             <Icon name={reveal ? 'EyeOff' : 'Eye'} size={12} /> {reveal ? 'Masquer' : 'Révéler la vérité'}
           </button>
         </div>

@@ -113,7 +113,7 @@ export function TracerModal() {
 
   return (
     <Modal open={st.open} onClose={close} title="Traçage des fonds" icon="Route" width="max-w-5xl">
-      <div className="mb-3 rounded-xl border border-ink-700/60 bg-ink-850/50 p-3 text-[12px] leading-relaxed text-ink-300">
+      <div className="mb-3 rounded-xl border border-ink-700/60 bg-ink-850/50 p-3 text-meta leading-relaxed text-ink-300">
         Suit des fonds précis (par exemple le versement d'une victime) d'adresse en adresse, à travers les swaps et les bridges, jusqu'aux services identifiés. Quand des fonds se mélangent, la <span className="text-white">méthode d'attribution</span> décide quelle part leur est imputée : le résultat dépend de ce choix, qui doit figurer dans le rapport.
       </div>
 
@@ -126,7 +126,7 @@ export function TracerModal() {
               <span className="label">Fonds à tracer</span>
               <div className="mt-1 rounded-lg border border-ink-700/60 p-1"><AddrLine w={w} id={src.address} compact /></div>
               <select
-                className="input mt-1.5 font-mono text-[11.5px]"
+                className="input mt-1.5 font-mono text-meta"
                 value={`${src.txId}|${src.asset ?? ''}|${src.from ?? ''}`}
                 onChange={(e) => {
                   const [txId, asset, from] = e.target.value.split('|')
@@ -145,19 +145,19 @@ export function TracerModal() {
               <span className="label">Méthode d'attribution</span>
               <div className="mt-1 grid grid-cols-2 gap-1">
                 {METHODS.map((m) => (
-                  <button key={m} onClick={() => setMethod(m)} className={`rounded-lg border px-2 py-1.5 text-left text-[11.5px] ${method === m ? 'border-accent bg-accent/10 text-white' : 'border-ink-700 text-ink-300 hover:border-ink-500'}`}>
+                  <button key={m} onClick={() => setMethod(m)} className={`rounded-lg border px-2 py-1.5 text-left text-meta ${method === m ? 'border-accent bg-accent/10 text-white' : 'border-ink-700 text-ink-300 hover:border-ink-500'}`}>
                     {TRACE_METHODS[m].label}
                   </button>
                 ))}
               </div>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-ink-400">{TRACE_METHODS[method].help}</p>
+              <p className="mt-1.5 text-micro leading-relaxed text-ink-400">{TRACE_METHODS[method].help}</p>
             </div>
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
             <label className="block">
               <span className="label">Profondeur : {maxHops} sauts</span>
-              <input className="mt-2 w-full accent-cyan-400" type="range" min={1} max={25} value={maxHops} onChange={(e) => setMaxHops(Number(e.target.value))} />
+              <input className="mt-2 w-full accent-accent" type="range" min={1} max={25} value={maxHops} onChange={(e) => setMaxHops(Number(e.target.value))} />
             </label>
             <label className="block">
               <span className="label">Seuil de suivi (USD)</span>
@@ -170,8 +170,8 @@ export function TracerModal() {
                 setUntil(Number.isFinite(t) ? t : undefined)
               }} />
             </label>
-            <label className="mt-5 flex items-center gap-2 text-[12px] text-ink-200">
-              <input type="checkbox" className="accent-cyan-400" checked={stopAtServices} onChange={(e) => setStop(e.target.checked)} />
+            <label className="mt-5 flex items-center gap-2 text-meta text-ink-200">
+              <input type="checkbox" className="accent-accent" checked={stopAtServices} onChange={(e) => setStop(e.target.checked)} />
               S'arrêter aux services identifiés
             </label>
           </div>
@@ -218,7 +218,7 @@ function TraceResultView({ w, res, onShow }: { w: World; res: TraceResult; onSho
     <div className="mt-4 space-y-4">
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <Card label="Fonds tracés" value={fmtUsd(res.sourceUsd)} sub={amountsLine(res.sourceAmounts)} />
-        <Card label="Arrivés chez des services" value={fmtUsd(endsUsd)} sub={pct(endsUsd, res.sourceUsd)} accent="#22d3ee" />
+        <Card label="Arrivés chez des services" value={fmtUsd(endsUsd)} sub={pct(endsUsd, res.sourceUsd)} accent="#7ea6ff" />
         <Card label="Encore détenus" value={fmtUsd(res.stillHeld.reduce((s, n) => s + n.heldUsd, 0))} sub={`${res.stillHeld.length} adresse(s) non attribuée(s)`} accent="#facc15" />
         <Card label="Non suivis" value={fmtUsd(lostUsd)} sub={`frais ${fmtUsd(res.lost.feesUsd)} · seuil ${fmtUsd(res.lost.belowThresholdUsd)}${res.lost.depthUsd ? ` · profondeur ${fmtUsd(res.lost.depthUsd)}` : ''}`} accent="#94a3b8" />
       </div>
@@ -228,10 +228,10 @@ function TraceResultView({ w, res, onShow }: { w: World; res: TraceResult; onSho
       <div>
         <div className="label mb-1.5">Destinations ({res.endpoints.length})</div>
         {res.endpoints.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-ink-600 p-3 text-center text-[12px] text-ink-400">Aucun service identifié atteint dans ces limites.</div>
+          <div className="rounded-lg border border-dashed border-ink-600 p-3 text-center text-meta text-ink-400">Aucun service identifié atteint dans ces limites.</div>
         ) : (
           <div className="overflow-hidden rounded-xl border border-ink-700/60">
-            <table className="w-full text-[11.5px]">
+            <table className="w-full text-meta">
               <thead className="bg-ink-850 text-left text-ink-400">
                 <tr><th className="px-2.5 py-2 font-medium">Service</th><th className="px-2 py-2 font-medium">Montant</th><th className="px-2 py-2 font-medium">Part</th><th className="px-2 py-2 font-medium">Adresses d'entrée</th><th className="px-2 py-2" /></tr>
               </thead>
@@ -239,26 +239,26 @@ function TraceResultView({ w, res, onShow }: { w: World; res: TraceResult; onSho
                 {res.endpoints.map((e) => (
                   <Fragment key={e.entity.id}>
                   <tr className="border-t border-ink-700/50 align-top hover:bg-ink-800/60">
-                    <td className="px-2.5 py-1.5"><EntityChip entity={e.entity} /><div className="mt-0.5 text-[10.5px] text-ink-400">{CATEGORY[e.entity.category].label}</div></td>
-                    <td className="px-2 py-1.5 font-mono text-ink-100">{fmtUsd(e.usd)}<div className="text-[10.5px] text-ink-400">{amountsLine(e.amounts)}</div></td>
+                    <td className="px-2.5 py-1.5"><EntityChip entity={e.entity} /><div className="mt-0.5 text-micro text-ink-400">{CATEGORY[e.entity.category].label}</div></td>
+                    <td className="px-2 py-1.5 font-mono text-ink-100">{fmtUsd(e.usd)}<div className="text-micro text-ink-400">{amountsLine(e.amounts)}</div></td>
                     <td className="px-2 py-1.5 font-mono text-ink-200">{pct(e.usd, res.sourceUsd)}</td>
                     <td className="max-w-[260px] px-2 py-1">
-                      {e.addresses.slice(0, 3).map((a) => <AddrLine key={a} w={w} id={a} compact />)}{e.addresses.length > 3 && <div className="px-2 text-[10.5px] text-ink-400">+ {e.addresses.length - 3} autre(s)</div>}
-                      {viaDeposit.get(e.entity.id)?.map((a) => <AddrLine key={a} w={w} id={a} compact right={<span className="chip bg-accent/10 !text-[9.5px] text-accent" title="Adresse non attribuée qui reverse tout vers ce service (onglet Dépôt de l'inspecteur)">dépôt probable</span>} />)}
+                      {e.addresses.slice(0, 3).map((a) => <AddrLine key={a} w={w} id={a} compact />)}{e.addresses.length > 3 && <div className="px-2 text-micro text-ink-400">+ {e.addresses.length - 3} autre(s)</div>}
+                      {viaDeposit.get(e.entity.id)?.map((a) => <AddrLine key={a} w={w} id={a} compact right={<span className="chip bg-accent/10 !text-micro text-accent" title="Adresse non attribuée qui reverse tout vers ce service (onglet Dépôt de l'inspecteur)">dépôt probable</span>} />)}
                     </td>
                     <td className="px-2 py-1.5">
                       {e.entity.compliance && (
-                        <button className="btn-ghost !px-2 !py-1 text-[11px]" onClick={() => req(e.entity.id, [...(viaDeposit.get(e.entity.id) ?? []), ...e.addresses])}><Icon name="FileText" size={12} /> Réquisition</button>
+                        <button className="btn-ghost !px-2 !py-1 text-micro" onClick={() => req(e.entity.id, [...(viaDeposit.get(e.entity.id) ?? []), ...e.addresses])}><Icon name="FileText" size={12} /> Réquisition</button>
                       )}
                       {e.entity.category === 'instant_exchanger' && (
-                        <button className={`btn-ghost !px-2 !py-1 text-[11px] ${swapOpen === e.entity.id ? 'text-orange-200' : ''}`} onClick={() => setSwapOpen(swapOpen === e.entity.id ? null : e.entity.id)}><Icon name="Repeat" size={12} /> Sorties probables</button>
+                        <button className={`btn-ghost !px-2 !py-1 text-micro ${swapOpen === e.entity.id ? 'text-orange-200' : ''}`} onClick={() => setSwapOpen(swapOpen === e.entity.id ? null : e.entity.id)}><Icon name="Repeat" size={12} /> Sorties probables</button>
                       )}
                     </td>
                   </tr>
                   {swapOpen === e.entity.id && (
                     <tr className="bg-orange-400/[0.04]">
                       <td colSpan={5} className="space-y-2 px-2.5 py-2">
-                        <div className="text-[11px] text-ink-300">Le lien on-chain s'arrête ici : rapprochement de chaque dépôt avec les paiements de {e.entity.name} (montant frais déduits, délai).</div>
+                        <div className="text-micro text-ink-300">Le lien on-chain s'arrête ici : rapprochement de chaque dépôt avec les paiements de {e.entity.name} (montant frais déduits, délai).</div>
                         {deposits(e).map((d) => <SwapMatchPanel key={d.txId + d.address} w={w} txId={d.txId} address={d.address} compact />)}
                       </td>
                     </tr>
@@ -276,7 +276,7 @@ function TraceResultView({ w, res, onShow }: { w: World; res: TraceResult; onSho
           <div className="label mb-1.5">Fonds encore détenus : pistes de gel ou de saisie</div>
           <div className="overflow-hidden rounded-xl border border-ink-700/60">
             {res.stillHeld.slice(0, 12).map((n) => (
-              <AddrLine key={n.id} w={w} id={n.id} compact right={<span className="font-mono text-[11px] text-yellow-200">{amountsLine(n.held)} <span className="text-ink-400">({fmtUsd(n.heldUsd)} · {n.hop} saut{n.hop > 1 ? 's' : ''})</span></span>} />
+              <AddrLine key={n.id} w={w} id={n.id} compact right={<span className="font-mono text-micro text-yellow-200">{amountsLine(n.held)} <span className="text-ink-400">({fmtUsd(n.heldUsd)} · {n.hop} saut{n.hop > 1 ? 's' : ''})</span></span>} />
             ))}
           </div>
         </div>
@@ -284,13 +284,13 @@ function TraceResultView({ w, res, onShow }: { w: World; res: TraceResult; onSho
 
       {res.collateral.length > 0 && (
         <div className="rounded-xl border border-fuchsia-400/30 bg-fuchsia-400/[0.05] p-3">
-          <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-fuchsia-100"><Icon name="Landmark" size={13} /> Emprunts garantis par des fonds marqués (lien indirect)</div>
-          <div className="mt-1 text-[11.5px] leading-relaxed text-ink-300">Ces fonds sortent du pool de prêt, pas des fonds de la victime : ils sont rattachés à proportion de la garantie marquée. Garantie et emprunt coexistent, d'où un total qui peut dépasser la source. À présenter comme un lien économique, distinct d'un flux.</div>
+          <div className="flex items-center gap-1.5 text-dense font-semibold text-fuchsia-100"><Icon name="Landmark" size={13} /> Emprunts garantis par des fonds marqués (lien indirect)</div>
+          <div className="mt-1 text-meta leading-relaxed text-ink-300">Ces fonds sortent du pool de prêt, pas des fonds de la victime : ils sont rattachés à proportion de la garantie marquée. Garantie et emprunt coexistent, d'où un total qui peut dépasser la source. À présenter comme un lien économique, distinct d'un flux.</div>
           <div className="mt-1.5 space-y-0.5">
             {res.collateral.map((c) => (
-              <button key={c.txId} className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[11.5px] text-ink-100 hover:bg-ink-800" onClick={() => useGame.getState().select({ kind: 'tx', id: c.txId })}>
+              <button key={c.txId} className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-meta text-ink-100 hover:bg-ink-800" onClick={() => useGame.getState().select({ kind: 'tx', id: c.txId })}>
                 <Icon name="ArrowRightLeft" size={11} className="text-fuchsia-300" />
-                <span className="flex-1 truncate font-mono text-[11px]">{w.tx(c.txId).hash.slice(0, 18)}…</span>
+                <span className="flex-1 truncate font-mono text-micro">{w.tx(c.txId).hash.slice(0, 18)}…</span>
                 <span className="font-mono text-fuchsia-100">{fmtUsd(c.usd)}</span>
               </button>
             ))}
@@ -298,7 +298,7 @@ function TraceResultView({ w, res, onShow }: { w: World; res: TraceResult; onSho
         </div>
       )}
 
-      {res.truncated && <div className="text-[11px] text-amber-300"><Icon name="TriangleAlert" size={11} className="mr-1 inline" /> Calcul interrompu : le flux est trop étendu. Réduisez la profondeur ou relevez le seuil.</div>}
+      {res.truncated && <div className="text-micro text-amber-300"><Icon name="TriangleAlert" size={11} className="mr-1 inline" /> Calcul interrompu : le flux est trop étendu. Réduisez la profondeur ou relevez le seuil.</div>}
 
       <div className="flex flex-wrap gap-2">
         <button className="btn-primary" onClick={onShow}><Icon name="Waypoints" size={14} /> Afficher le flux dans le graphe ({res.path.length} tx)</button>
@@ -315,7 +315,7 @@ function Comparison({ results }: { results: Record<TraceMethod, TraceResult> }) 
   const cell = (k: string, v: number) => <td key={k} className="px-2 py-1.5 text-right font-mono text-ink-100">{fmtUsd(v)} <span className="text-ink-400">{pct(v, src)}</span></td>
   return (
     <div className="mt-4 overflow-hidden rounded-xl border border-ink-700/60">
-      <table className="w-full text-[11.5px]">
+      <table className="w-full text-meta">
         <thead className="bg-ink-850 text-left text-ink-400">
           <tr><th className="px-2.5 py-2 font-medium">Comparaison des méthodes</th>{METHODS.map((m) => <th key={m} className="px-2 py-2 text-right font-medium">{TRACE_METHODS[m].short}</th>)}</tr>
         </thead>
@@ -332,7 +332,7 @@ function Comparison({ results }: { results: Record<TraceMethod, TraceResult> }) 
           </tr>
         </tbody>
       </table>
-      <div className="border-t border-ink-700/50 bg-ink-850/50 p-2 text-[10.5px] leading-relaxed text-ink-400">
+      <div className="border-t border-ink-700/50 bg-ink-850/50 p-2 text-micro leading-relaxed text-ink-400">
         La méthode « poison » compte en entier tout montant touché par les fonds : ses totaux peuvent dépasser 100 % et délimitent un périmètre, pas un préjudice.
       </div>
     </div>
@@ -342,9 +342,9 @@ function Comparison({ results }: { results: Record<TraceMethod, TraceResult> }) 
 export function Card({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
     <div className="rounded-xl border border-ink-700/60 bg-ink-850/50 p-2.5">
-      <div className="text-[10.5px] uppercase tracking-wide text-ink-400">{label}</div>
-      <div className="mt-0.5 font-mono text-[15px] font-semibold" style={{ color: accent ?? '#fff' }}>{value}</div>
-      {sub && <div className="mt-0.5 truncate text-[10.5px] text-ink-400" title={sub}>{sub}</div>}
+      <div className="text-micro uppercase tracking-wide text-ink-400">{label}</div>
+      <div className="mt-0.5 font-mono text-title font-semibold" style={{ color: accent ?? '#fff' }}>{value}</div>
+      {sub && <div className="mt-0.5 truncate text-micro text-ink-400" title={sub}>{sub}</div>}
     </div>
   )
 }
@@ -361,7 +361,7 @@ export function TracePanel({ w, id }: { w: World; id: string }) {
       ) : !n ? (
         <Empty icon="Route" title="Hors du flux tracé" sub={`Le traçage ${TRACE_METHODS[trace.opts.method].short} en cours n'atteint pas cette adresse.`} />
       ) : (
-        <div className="rounded-xl border border-ink-700/60 bg-ink-850/50 p-3 text-[12px]">
+        <div className="rounded-xl border border-ink-700/60 bg-ink-850/50 p-3 text-meta">
           <div className="label mb-1.5">Traçage {TRACE_METHODS[trace.opts.method].short} en cours</div>
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
             <dt className="text-ink-400">Distance</dt><dd className="text-ink-100">{n.hop} saut{n.hop > 1 ? 's' : ''} depuis la source</dd>
@@ -383,19 +383,19 @@ export function FundingPanel({ w, id }: { w: World; id: string }) {
   const last = steps[steps.length - 1]
   return (
     <div className="space-y-2">
-      <div className="rounded-lg border border-ink-700/60 bg-ink-850/40 p-2 text-[11px] leading-relaxed text-ink-300">
+      <div className="rounded-lg border border-ink-700/60 bg-ink-850/40 p-2 text-micro leading-relaxed text-ink-300">
         Remonte le <span className="text-white">premier financement</span> de chaque adresse (sur Ethereum, Tron ou Solana, c'est souvent l'apport de gaz), jusqu'à un service identifié. Un premier financeur issu d'un exchange est une piste d'identification par réquisition.
       </div>
       {steps.map((s, i) => (
         <div key={s.txId} className="rounded-lg border border-ink-700/60 p-1.5">
-          <div className="flex items-center gap-1.5 px-2 text-[10.5px] text-ink-400">
+          <div className="flex items-center gap-1.5 px-2 text-micro text-ink-400">
             <span className="font-mono text-ink-300">{i + 1}.</span> {fmtTime(s.time)} · {fmtAsset(s.value, s.asset)}{s.viaBridge ? ' · via un bridge' : ''}
             <button className="ml-auto text-ink-400 hover:text-accent" title="Ajouter la transaction au graphe" onClick={() => useGame.getState().revealTx(s.txId, true)}><Icon name="Plus" size={12} /></button>
           </div>
           <AddrLine w={w} id={s.funder} compact />
         </div>
       ))}
-      <div className="px-1 text-[11px] text-ink-400">
+      <div className="px-1 text-micro text-ink-400">
         {!last.entity
           ? 'Aucun service identifié dans la chaîne de financement.'
           : last.entity.compliance

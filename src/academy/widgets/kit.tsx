@@ -4,19 +4,19 @@ import { type ReactNode, useEffect, useState } from 'react'
 import { Icon } from '../../ui/common'
 
 export const C = {
-  cyan: '#22d3ee',
+  cyan: '#7ea6ff',
   rose: '#f43f5e',
   green: '#34d399',
   amber: '#facc15',
   orange: '#fb923c',
   violet: '#a78bfa',
-  slate: '#7a88a8',
+  slate: '#959da9',
 }
 
 /** Ligne de consigne (« Manipulez… »). */
 export function Instr({ children }: { children: ReactNode }) {
   return (
-    <div className="flex items-start gap-2 text-[12.5px] text-ink-200">
+    <div className="flex items-start gap-2 text-dense text-ink-200">
       <Icon name="MousePointerClick" size={14} className="mt-0.5 shrink-0 text-accent" />
       <div>{children}</div>
     </div>
@@ -30,8 +30,8 @@ export function Explain({ children, tone = 'info', title = 'Ce que vous voyez' }
   return (
     <div className="flex gap-2.5 rounded-xl border px-3.5 py-2.5 transition-colors duration-300" style={{ borderColor: `${col}44`, background: `${col}0c` }}>
       <Icon name={icon} size={15} color={col} className="mt-0.5 shrink-0" />
-      <div className="min-w-0 text-[12.5px] leading-relaxed text-ink-100">
-        <div className="mb-0.5 text-[10.5px] font-semibold uppercase tracking-wider" style={{ color: col }}>
+      <div className="min-w-0 text-dense leading-relaxed text-ink-100">
+        <div className="mb-0.5 text-micro font-semibold uppercase tracking-wider" style={{ color: col }}>
           {title}
         </div>
         {children}
@@ -45,7 +45,7 @@ export function Box({ children, className, title, right }: { children: ReactNode
     <div className={`rounded-xl border border-ink-700 bg-ink-850/80 p-3 ${className ?? ''}`}>
       {(title || right) && (
         <div className="mb-2 flex min-h-[24px] items-center justify-between gap-2">
-          {title && <div className="label !text-[10px]">{title}</div>}
+          {title && <div className="label !text-micro">{title}</div>}
           {right}
         </div>
       )}
@@ -57,11 +57,11 @@ export function Box({ children, className, title, right }: { children: ReactNode
 export function Slider({ label, value, min, max, step = 1, onChange, display, id }: { label: ReactNode; value: number; min: number; max: number; step?: number; onChange: (v: number) => void; display?: ReactNode; id?: string }) {
   return (
     <label className="block" htmlFor={id}>
-      <div className="mb-1 flex items-center justify-between gap-2 text-[12px]">
+      <div className="mb-1 flex items-center justify-between gap-2 text-meta">
         <span className="text-ink-300">{label}</span>
         <span className="font-mono text-accent">{display ?? value}</span>
       </div>
-      <input id={id} type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full cursor-pointer accent-cyan-400" />
+      <input id={id} type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full cursor-pointer accent-accent" />
     </label>
   )
 }
@@ -76,12 +76,12 @@ export function Toggle({ label, checked, onChange, hint, color = C.cyan }: { lab
       className={`flex w-full items-start gap-2.5 rounded-lg border px-2.5 py-2 text-left transition ${checked ? 'bg-ink-800' : 'border-ink-700 bg-ink-900/60 hover:border-ink-500'}`}
       style={checked ? { borderColor: `${color}66` } : undefined}
     >
-      <span className="relative mt-0.5 inline-block h-4 w-7 shrink-0 rounded-full transition" style={{ background: checked ? color : '#2c3a5c' }}>
+      <span className="relative mt-0.5 inline-block h-4 w-7 shrink-0 rounded-full transition" style={{ background: checked ? color : '#3d444f' }}>
         <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${checked ? 'left-3.5' : 'left-0.5'}`} />
       </span>
       <span className="min-w-0">
-        <span className="block text-[12.5px] font-medium text-ink-100">{label}</span>
-        {hint && <span className="block text-[11px] leading-snug text-ink-300">{hint}</span>}
+        <span className="block text-dense font-medium text-ink-100">{label}</span>
+        {hint && <span className="block text-micro leading-snug text-ink-300">{hint}</span>}
       </span>
     </button>
   )
@@ -95,7 +95,7 @@ export function Seg<T extends string | number>({ options, value, onChange }: { o
           key={String(o.id)}
           type="button"
           onClick={() => onChange(o.id)}
-          className={`rounded-md px-2.5 py-1 text-[11.5px] font-medium transition ${value === o.id ? 'bg-ink-700 text-white shadow' : 'text-ink-300 hover:text-white'}`}
+          className={`rounded-md px-2.5 py-1 text-meta font-medium transition ${value === o.id ? 'bg-ink-700 text-white shadow' : 'text-ink-300 hover:text-white'}`}
         >
           {o.label}
         </button>

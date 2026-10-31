@@ -89,7 +89,7 @@ export const guideRapport: ScenarioTemplate = {
       briefing:
         `${complainant.name} (${city}) a souscrit un « contrat de minage » sur le site ${brand}, qui promettait de doubler la mise en trente jours. ${g('Il', 'Elle')} a payé en bitcoins à l'adresse affichée sur le site ; le site a disparu depuis. ${g('Il', 'Elle')} ne dispose que d'une capture d'écran de son application, sur laquelle l'adresse de destination est **tronquée**.\n\n` +
         `Le site affichait sans doute la même adresse à tous ses clients : il y a probablement d'autres victimes. Votre mission : retrouver l'adresse de l'escroc, recenser toutes les victimes, chiffrer le préjudice, identifier la plateforme d'encaissement et produire un rapport d'analyse.\n\n` +
-        `C'est une **mission guidée** : le guide pas à pas se trouve dans l'onglet **Objectifs** du Dossier (à gauche). Les étapes se valident d'elles-mêmes ; « Je bloque » donne le chemin exact. Les indices sont gratuits.`,
+        `C'est une **mission guidée** : le guide pas à pas flotte en haut à gauche du graphe. Les étapes se valident d'elles-mêmes ; « Je bloque » donne le chemin exact. Les indices sont gratuits.`,
       evidence: [
         {
           id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: plainteT, author: complainant.name,
@@ -216,8 +216,8 @@ export const guideRapport: ScenarioTemplate = {
           `- Le **marquage**, les **notes** et le **journal** alimentent directement le rapport : marquer au fil de l'eau, c'est rédiger le rapport en avançant.`,
       },
       hints: [
-        'Le guide est dans l\'onglet Objectifs du Dossier. Le bouton « Je bloque » de chaque étape donne le chemin exact.',
-        'La recherche (loupe en haut à droite, ou Ctrl K) trouve une adresse à partir de quatre caractères consécutifs.',
+        'Le guide flotte en haut à gauche du graphe. Le bouton « Je bloque » de chaque étape donne le chemin exact.',
+        'La recherche (champ « Adresse, transaction, entité… » en haut, ou Ctrl K) trouve une adresse à partir de quatre caractères consécutifs.',
         'Les Entrées d\'une adresse montrent qui lui a envoyé des fonds. Une étiquette « Hot Wallet » désigne une plateforme, pas une victime.',
         'La date de chaque transaction figure dans son panneau (« Date (Paris) ») ; la frise (touche T) les place toutes sur un axe.',
       ],
@@ -226,8 +226,8 @@ export const guideRapport: ScenarioTemplate = {
           title: 'Ouvrez la recherche',
           text:
             `Dans les **Pièces**, la capture montre une adresse **tronquée** : « ${shown} ». Elle n'est pas cliquable, car incomplète.\n\n` +
-            `Ouvrez la **recherche** : icône loupe « Rechercher » en haut à droite, ou raccourci **Ctrl K**. Elle trouve les adresses, transactions et entités du dossier à partir d'un fragment d'au moins quatre caractères.`,
-          tip: 'Barre du haut ▸ icône loupe (« Rechercher »), ou appuyez sur Ctrl et K en même temps.',
+            `Ouvrez la **recherche** : champ « Adresse, transaction, entité… » dans la barre du haut, ou raccourci **Ctrl K**. Elle trouve les adresses, transactions et entités du dossier à partir d'un fragment d'au moins quatre caractères.`,
+          tip: 'Barre du haut ▸ champ de recherche (« Adresse, transaction, entité… »), ou appuyez sur Ctrl et K en même temps.',
           check: { kind: 'tool', tool: 'search' },
         },
         {
@@ -248,7 +248,7 @@ export const guideRapport: ScenarioTemplate = {
           title: 'Dépliez ses entrées',
           text:
             `Jusqu'ici, on dépliait les **sorties** (où va l'argent). Pour savoir **qui a payé** cette adresse, on déplie ses **entrées** : bouton **Entrées** du panneau, ou clic droit ▸ « Déplier les entrées ».\n\n` +
-            `Les expéditeurs apparaissent à gauche, chacun relié à l'adresse par sa transaction (losange).`,
+            `Les expéditeurs apparaissent à gauche, chacun relié à l'adresse par sa transaction (carré).`,
           tip: 'Sélectionnez l\'adresse de l\'escroc ▸ bouton **Entrées** (flèche verte) du panneau Analyse. Ou clic droit sur le nœud ▸ « Déplier les entrées ».',
           check: { kind: 'txRevealed', tx: victims[n - 1].txs[0] },
         },
@@ -256,8 +256,8 @@ export const guideRapport: ScenarioTemplate = {
           title: 'Repérez l\'intrus',
           text:
             `Parmi les expéditeurs, l'un porte une étiquette : **« ${exName} — Hot Wallet »**. Ce n'est pas une victime : c'est un **retrait** depuis ${exName} vers l'adresse de l'escroc, bien avant les faits. L'escroc a alimenté son adresse depuis son propre compte.\n\n` +
-            `Cliquez le losange de cette transaction pour la lire. À écarter du préjudice, mais à garder précieusement : c'est une piste d'identification.`,
-          tip: `Cliquez le petit losange relié au nœud « ${exName} — Hot Wallet ».`,
+            `Cliquez le carré de cette transaction pour la lire. À écarter du préjudice, mais à garder précieusement : c'est une piste d'identification.`,
+          tip: `Cliquez le petit carré relié au nœud « ${exName} — Hot Wallet ».`,
           check: { kind: 'selected', id: testTx.id },
         },
         {
@@ -287,7 +287,7 @@ export const guideRapport: ScenarioTemplate = {
         {
           title: 'Repérez la victime qui a payé deux fois',
           text:
-            `Une des adresses victimes est reliée à l'escroc par **deux** losanges : deux versements à quelques jours d'intervalle. Sélectionnez-la et utilisez-la dans l'objectif 4.\n\n` +
+            `Une des adresses victimes est reliée à l'escroc par **deux** carrés : deux versements à quelques jours d'intervalle. Sélectionnez-la et utilisez-la dans l'objectif 4.\n\n` +
             `Ces relances (« frais », « taxe » de retrait…) sont typiques des fausses plateformes : la victime paie une seconde fois pour récupérer la première mise.`,
           tip: 'Cherchez le nœud victime d\'où partent deux transactions vers l\'escroc (ou, dans l\'Historique de l\'escroc, deux lignes entrantes venant de la même adresse) ▸ objectif 4 ▸ « Utiliser l\'adresse sélectionnée ».',
           check: { kind: 'correct', objective: 'o7' },
@@ -303,7 +303,7 @@ export const guideRapport: ScenarioTemplate = {
         {
           title: 'Chiffrez le préjudice',
           text:
-            `Deux méthodes, qui doivent concorder : additionner les versements des victimes (cliquez chaque losange et lisez la sortie vers l'escroc), ou partir du **Total reçu** de l'adresse de l'escroc (onglet **Historique**, lignes entrantes) et retrancher le retrait venu de ${exName}.\n\n` +
+            `Deux méthodes, qui doivent concorder : additionner les versements des victimes (cliquez chaque carré et lisez la sortie vers l'escroc), ou partir du **Total reçu** de l'adresse de l'escroc (onglet **Historique**, lignes entrantes) et retrancher le retrait venu de ${exName}.\n\n` +
             `Saisissez le total en BTC dans l'objectif 6 (la virgule est acceptée).`,
           tip: 'Adresse de l\'escroc ▸ onglet **Historique** ▸ filtre « Entrantes » : additionnez les montants, sauf la ligne « ' + exName + ' — Hot Wallet ».',
           check: { kind: 'correct', objective: 'o2' },
@@ -324,16 +324,16 @@ export const guideRapport: ScenarioTemplate = {
         },
         {
           title: 'Relevez le montant encaissé',
-          text: `Cliquez le losange de la transaction d'encaissement : elle n'a qu'**une sortie**, vers l'adresse de dépôt (pas de rendu, l'adresse est vidée). Reportez son montant dans l'objectif 9.`,
-          tip: 'Clic sur le losange entre l\'adresse de l\'escroc et l\'adresse de dépôt ▸ section **Sorties** ▸ montant. Saisissez-le dans l\'objectif 9.',
+          text: `Cliquez le carré de la transaction d'encaissement : elle n'a qu'**une sortie**, vers l'adresse de dépôt (pas de rendu, l'adresse est vidée). Reportez son montant dans l'objectif 9.`,
+          tip: 'Clic sur le carré entre l\'adresse de l\'escroc et l\'adresse de dépôt ▸ section **Sorties** ▸ montant. Saisissez-le dans l\'objectif 9.',
           check: { kind: 'correct', objective: 'o9' },
         },
         {
           title: 'Mesurez le délai d\'encaissement',
           text:
-            `Retrouvez le **dernier** versement d'une victime (le plus récent des losanges d'entrée) et comparez sa **Date (Paris)** à celle de la transaction d'encaissement. Saisissez l'écart en heures dans l'objectif 10 (une marge d'une heure et demie est tolérée).\n\n` +
+            `Retrouvez le **dernier** versement d'une victime (le plus récent des carrés d'entrée) et comparez sa **Date (Paris)** à celle de la transaction d'encaissement. Saisissez l'écart en heures dans l'objectif 10 (une marge d'une heure et demie est tolérée).\n\n` +
             `Astuce : la **Frise** (touche T) place toutes les transactions du graphe sur un axe du temps, ce qui aide à repérer la plus récente.`,
-          tip: 'Ouvrez chaque losange d\'entrée et notez sa date ; gardez la plus récente. Puis losange d\'encaissement ▸ « Date (Paris) ». Calculez l\'écart en heures.',
+          tip: 'Ouvrez chaque carré d\'entrée et notez sa date ; gardez la plus récente. Puis carré d\'encaissement ▸ « Date (Paris) ». Calculez l\'écart en heures.',
           check: { kind: 'correct', objective: 'o10' },
         },
         {

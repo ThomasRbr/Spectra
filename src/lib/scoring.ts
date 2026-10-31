@@ -84,7 +84,7 @@ export function scoreCase(objectives: Objective[], answers: Record<string, Answe
 }
 
 export const GRADE_COLOR: Record<CaseScore['grade'], string> = {
-  S: '#22d3ee',
+  S: '#7ea6ff',
   A: '#34d399',
   B: '#a3e635',
   C: '#facc15',

@@ -105,10 +105,10 @@ export default function KeysDerivation() {
           ]}
         />
         <div className="flex-1" />
-        <button className="btn-outline !py-1 text-xs" onClick={flipOne}>
+        <button className="btn-outline !py-1 text-meta" onClick={flipOne}>
           <Icon name="PenLine" size={13} /> Modifier 1 caractère
         </button>
-        <button className="btn-primary !py-1 text-xs" onClick={newKey}>
+        <button className="btn-primary !py-1 text-meta" onClick={newKey}>
           <Icon name="Dices" size={13} /> Nouvelle clé
         </button>
       </div>
@@ -129,21 +129,21 @@ export default function KeysDerivation() {
                 <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg" style={{ background: `${s.color}1a`, color: s.color }}>
                   <Icon name={s.icon} size={14} />
                 </span>
-                <span className="text-[12.5px] font-semibold text-white">{s.title}</span>
+                <span className="text-dense font-semibold text-white">{s.title}</span>
                 {i === 0 && <span className="chip bg-rose-500/15 text-rose-300">SECRET</span>}
                 {i > 0 && <span className="chip bg-emerald-500/10 text-emerald-300">public</span>}
                 {i === 3 && <span className="chip" style={{ color: netCol, background: `${netCol}18` }}>{CHAINS[net].name}</span>}
               </div>
-              <div className={`mt-1.5 break-all font-mono text-[11.5px] leading-relaxed ${i === 3 ? 'text-[12.5px] text-white' : 'text-ink-200'}`}>
+              <div className={`mt-1.5 break-all font-mono text-meta leading-relaxed ${i === 3 ? 'text-dense text-white' : 'text-ink-200'}`}>
                 {values[i]}
-                {i === 3 && d?.checksum && <span className="ml-2 text-[10.5px] text-ink-400">(somme de contrôle : {d.checksum})</span>}
+                {i === 3 && d?.checksum && <span className="ml-2 text-micro text-ink-400">(somme de contrôle : {d.checksum})</span>}
               </div>
             </button>
             {i < 3 && (
               <div className="flex items-center gap-2 py-1 pl-4">
                 <Icon name="ArrowDown" size={14} className="text-accent" />
-                <span className="flex-1 text-[11px] text-ink-300">{ARROWS[net][i]}</span>
-                <button className={`btn-ghost !px-2 !py-0.5 text-[11px] ${reverse === i ? '!text-rose-300' : ''}`} onClick={() => setReverse(i)} aria-label={`Tenter de remonter de l'étape ${i + 2} à l'étape ${i + 1}`}>
+                <span className="flex-1 text-micro text-ink-300">{ARROWS[net][i]}</span>
+                <button className={`btn-ghost !px-2 !py-0.5 text-micro ${reverse === i ? '!text-rose-300' : ''}`} onClick={() => setReverse(i)} aria-label={`Tenter de remonter de l'étape ${i + 2} à l'étape ${i + 1}`}>
                   ← remonter
                 </button>
               </div>
@@ -165,7 +165,7 @@ export default function KeysDerivation() {
               Vous venez de changer la clé : l'adresse est passée de <span className="font-mono text-ink-300">{prevAddr.slice(0, 10)}…</span> à <span className="font-mono text-accent">{d.address.slice(0, 10)}…</span>, totalement différente.
             </>
           )}
-          <div className="mt-1 text-[11px] text-ink-400">Simplifié : la clé publique et les hachages sont ici simulés avec SHA-256 (le Base58Check est réel). Le principe — un seul sens de calcul — est identique.</div>
+          <div className="mt-1 text-micro text-ink-400">Simplifié : la clé publique et les hachages sont ici simulés avec SHA-256 (le Base58Check est réel). Le principe — un seul sens de calcul — est identique.</div>
         </Explain>
       )}
     </div>

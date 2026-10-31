@@ -101,7 +101,7 @@ export default function UtxoBuilder() {
         <Slider label="Taux de frais" value={rate} min={1} max={100} onChange={setRate} display={`${rate} sat/vB`} />
       </div>
 
-      <Box title={`Portefeuille — ${WALLET.length} UTXO`} right={<button className="btn-outline !px-2 !py-0.5 text-[11px]" onClick={auto}><Icon name="WandSparkles" size={12} /> Sélection auto</button>}>
+      <Box title={`Portefeuille — ${WALLET.length} UTXO`} right={<button className="btn-outline !px-2 !py-0.5 text-micro" onClick={auto}><Icon name="WandSparkles" size={12} /> Sélection auto</button>}>
         <div className="grid gap-1.5 sm:grid-cols-2">
           {WALLET.map((u) => {
             const on = sel.includes(u.id)
@@ -109,8 +109,8 @@ export default function UtxoBuilder() {
               <button key={u.id} onClick={() => toggle(u.id)} aria-pressed={on} className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition ${on ? 'border-accent/70 bg-accent/10' : 'border-ink-700 bg-ink-900/60 hover:border-ink-500'}`}>
                 <Icon name={on ? 'SquareCheck' : 'Square'} size={15} className={on ? 'text-accent' : 'text-ink-400'} />
                 <div className="min-w-0 flex-1">
-                  <div className="font-mono text-[12px] text-white">{fmt(u.sats)}</div>
-                  <div className="truncate text-[10.5px] text-ink-400">
+                  <div className="font-mono text-meta text-white">{fmt(u.sats)}</div>
+                  <div className="truncate text-micro text-ink-400">
                     <span className="font-mono">{short(u.address, 7)}</span> · {u.origin}
                   </div>
                 </div>
@@ -123,40 +123,40 @@ export default function UtxoBuilder() {
 
       <div className="grid items-stretch gap-2 sm:grid-cols-[1fr_auto_1fr]">
         <Box title={`Entrées (${r.ins.length})`}>
-          {r.ins.length === 0 && <div className="text-[12px] text-ink-400">Aucune pièce sélectionnée.</div>}
+          {r.ins.length === 0 && <div className="text-meta text-ink-400">Aucune pièce sélectionnée.</div>}
           {r.ins.map((u) => (
-            <div key={u.id} className="flex justify-between gap-2 font-mono text-[11.5px]">
+            <div key={u.id} className="flex justify-between gap-2 font-mono text-meta">
               <span className="text-ink-300">{short(u.address, 6)}</span>
               <span className="text-white">{fmt(u.sats)}</span>
             </div>
           ))}
-          {r.ins.length > 0 && <div className="mt-1 border-t border-ink-700 pt-1 text-right font-mono text-[11.5px] text-accent">{fmt(r.total)}</div>}
+          {r.ins.length > 0 && <div className="mt-1 border-t border-ink-700 pt-1 text-right font-mono text-meta text-accent">{fmt(r.total)}</div>}
         </Box>
         <div className="flex flex-col items-center justify-center gap-1 px-1 text-center">
           <Icon name="ArrowRight" size={18} className="hidden text-accent sm:block" />
           <Icon name="ArrowDown" size={18} className="text-accent sm:hidden" />
-          <div className="font-mono text-[10.5px] text-ink-300">{r.size} vB</div>
+          <div className="font-mono text-micro text-ink-300">{r.size} vB</div>
         </div>
         <Box title={`Sorties (${r.enough ? r.nOut : 0})`}>
           {!r.enough ? (
-            <div className="text-[12px] text-ink-400">{r.ins.length ? 'Transaction impossible.' : '—'}</div>
+            <div className="text-meta text-ink-400">{r.ins.length ? 'Transaction impossible.' : '—'}</div>
           ) : (
             <>
-              <div className="flex justify-between gap-2 font-mono text-[11.5px]">
-                <span className="text-ink-300">{short(DEST, 6)} <span className="font-sans text-[10px] text-ink-400">paiement</span></span>
+              <div className="flex justify-between gap-2 font-mono text-meta">
+                <span className="text-ink-300">{short(DEST, 6)} <span className="font-sans text-micro text-ink-400">paiement</span></span>
                 <span className="text-white">{fmt(pay)}</span>
               </div>
               {r.change > 0 && (
-                <div className="flex justify-between gap-2 font-mono text-[11.5px]">
-                  <span className="text-ink-300">{short(CHANGE, 6)} <span className="font-sans text-[10px]" style={{ color: C.violet }}>rendu</span></span>
+                <div className="flex justify-between gap-2 font-mono text-meta">
+                  <span className="text-ink-300">{short(CHANGE, 6)} <span className="font-sans text-micro" style={{ color: C.violet }}>rendu</span></span>
                   <span style={{ color: C.violet }}>{fmt(r.change)}</span>
                 </div>
               )}
-              <div className="flex justify-between gap-2 font-mono text-[11.5px]">
-                <span className="font-sans text-[10.5px] text-ink-400">frais mineur ({r.size} vB × {rate})</span>
+              <div className="flex justify-between gap-2 font-mono text-meta">
+                <span className="font-sans text-micro text-ink-400">frais mineur ({r.size} vB × {rate})</span>
                 <span style={{ color: C.amber }}>{fmt(r.fee)}</span>
               </div>
-              <div className="mt-1 border-t border-ink-700 pt-1 text-right font-mono text-[11.5px] text-accent">{fmt(pay + r.change + r.fee)}</div>
+              <div className="mt-1 border-t border-ink-700 pt-1 text-right font-mono text-meta text-accent">{fmt(pay + r.change + r.fee)}</div>
             </>
           )}
         </Box>
@@ -165,7 +165,7 @@ export default function UtxoBuilder() {
       {warnings.length > 0 && (
         <div className="space-y-1">
           {warnings.map((w, i) => (
-            <div key={i} className={`flex gap-2 text-[11.5px] leading-snug ${w.tone === 'bad' ? 'text-rose-300' : 'text-orange-300'}`}>
+            <div key={i} className={`flex gap-2 text-meta leading-snug ${w.tone === 'bad' ? 'text-rose-300' : 'text-orange-300'}`}>
               <Icon name="TriangleAlert" size={13} className="mt-0.5 shrink-0" /> {w.text}
             </div>
           ))}
