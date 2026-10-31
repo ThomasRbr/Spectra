@@ -80,6 +80,8 @@ const EXAM_LABELS: Record<string, string> = {
   'exam-interchaines': 'Certification QCM « Inter-chaînes et services »',
   'exam-confidentialite': 'Certification QCM « Confidentialité avancée »',
   'exam-procedure': 'Certification QCM « Enquêteur judiciaire crypto »',
+  'exam-contrats': 'Certification QCM « Smart contracts et DeFi »',
+  'exam-utxo-moderne': 'Certification QCM « Bitcoin moderne et UTXO »',
 }
 const examLabel = (id: string) => EXAM_LABELS[id] ?? id
 

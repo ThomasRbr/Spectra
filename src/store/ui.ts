@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { ChainId } from '../engine/chains'
 import type { TraceSource } from '../engine/tracing'
 
-export type Page = 'dashboard' | 'missions' | 'academy' | 'toolbox' | 'glossary' | 'profile' | 'workspace'
+export type Page = 'dashboard' | 'missions' | 'sandbox' | 'academy' | 'toolbox' | 'glossary' | 'profile' | 'workspace'
 
 export type AcademyView =
   | { kind: 'home' }

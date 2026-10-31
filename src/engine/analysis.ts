@@ -4,6 +4,7 @@ import { CHAINS, type ChainId, usd } from './chains'
 import { CATEGORY, RISK_META, type Entity, type EntityCategory, type RiskLevel } from './entities'
 import { WALLET_PROFILES, type Tx, type WalletProfile, type World } from './world'
 import type { AddrKind } from './addressgen'
+import { txSize } from './script'
 
 // ── CoinJoin ───────────────────────────────────────────────────────────────
 
@@ -199,6 +200,14 @@ export function clusters(w: World): ClusterIndex {
     const first = tx.inputs[0].address
     for (const i of tx.inputs) union(first, i.address)
   }
+  // Cardano : les adresses de base qui partagent une clé de staking appartiennent au même portefeuille
+  const byStake = new Map<string, string>()
+  for (const a of w.addresses.values()) {
+    if (!a.stake) continue
+    const f = byStake.get(a.stake)
+    if (f) union(f, a.id)
+    else byStake.set(a.stake, a.id)
+  }
   const of = new Map<string, string>()
   const members = new Map<string, string[]>()
   for (const id of w.addresses.keys()) {
@@ -277,7 +286,7 @@ export function txFingerprint(w: World, tx: Tx): Fingerprint | null {
     order = !sorted ? 'random' : outs.length >= 3 ? 'bip69' : 'unknown'
   }
   const locktimeKind = tx.fp.locktime > 0 ? 'height' : 'zero'
-  const vbytes = 11 + tx.inputs.length * 68 + tx.outputs.length * 31
+  const vbytes = txSize(w, tx)?.vsize ?? 11 + tx.inputs.length * 68 + tx.outputs.length * 31
   const cj = detectCoinjoin(tx).is
   const families = WALLET_PROFILES.filter((p) => (p.id === 'coinjoin') === cj &&
     p.version === tx.fp!.version && p.locktime === locktimeKind && p.rbf === tx.fp!.rbf && (order === 'unknown' || p.bip69 === (order === 'bip69')))
@@ -358,6 +367,9 @@ export function changeAnalysis(w: World, tx: Tx): ChangeCandidate[] {
     }
     const attr = attribution(w, o.address)
     if (attr.entity && attr.entity.category === 'exchange') reasons.push({ text: `Adresse attribuée à ${attr.entity.name}`, weight: -3 })
+    // Inscriptions et runes : la petite sortie qui les porte est un envoi d'actif, pas un rendu
+    if (tx.ord?.carrier === o.n && tx.ord.kind !== 'commit') reasons.push({ text: `Porte ${tx.ord.kind.startsWith('rune') ? `des runes (${tx.ord.rune})` : 'l\'inscription'} : sortie de ${Math.round(o.value * 1e8).toLocaleString('fr-FR')} sats, ce n'est pas un rendu`, weight: -5 })
+    if (tx.ord?.kind === 'sale' && o.n === 0) reasons.push({ text: 'Sortie « tampon » de l\'acheteur (vente par PSBT)', weight: -1 })
     const score = reasons.reduce((s, r) => s + r.weight, 0)
     return { n: o.n, address: o.address, value: o.value, score, prob: 0, reasons }
   })

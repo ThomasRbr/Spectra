@@ -17,6 +17,7 @@ import { ChainBadge, CopyButton, DifficultyBadge, Icon, Modal, ProgressBar, Rich
 import { AddrLine } from './Inspector'
 import { flowDiagramSvg } from './Synthesis'
 import { openPrintable } from '../../lib/printable'
+import { computeDebrief } from '../../lib/debrief'
 
 // ── Corrélateur montant / temps ──────────────────────────────────────────
 
@@ -502,6 +503,10 @@ export function Debrief({ onReplay, onExit }: { onReplay: () => void; onExit: ()
               )
             })}
           </div>
+          <ExplorationCompare onShow={() => {
+            if (!showTruth) useGame.getState().toggleTruth()
+            setOpen(false)
+          }} />
           <div className="label mb-2 mt-4">Ce qui s'est réellement passé</div>
           <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 p-3.5">
             <RichText text={inst.truth.debrief} className="!text-[12.5px]" />
@@ -541,6 +546,72 @@ export function Debrief({ onReplay, onExit }: { onReplay: () => void; onExit: ()
         </div>
       )}
     </Modal>
+  )
+}
+
+/** Comparaison entre ce que l'enquêteur a exploré et le flux réel de l'affaire. */
+function ExplorationCompare({ onShow }: { onShow: () => void }) {
+  const inst = useGame((s) => s.inst)
+  const explored = useGame((s) => s.explored)
+  const hints = useGame((s) => s.hintsUsed + s.objHints.length)
+  const tools = useGame((s) => s.log.filter((l) => l.kind === 'tool').length)
+  const d = useMemo(() => (inst && explored ? computeDebrief(inst, explored) : null), [inst, explored])
+  if (!inst || !d) return null
+  const w = inst.world
+  const goTo = (txId: string) => {
+    useGame.getState().revealTx(txId, true)
+    useGame.getState().select({ kind: 'tx', id: txId })
+  }
+  const pctColor = d.pct >= 0.85 ? '#34d399' : d.pct >= 0.5 ? '#facc15' : '#f97316'
+  return (
+    <div className="mt-4">
+      <div className="label mb-2">Votre enquête comparée au flux réel</div>
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        <div className="rounded-xl border border-ink-700/60 bg-ink-850/40 p-2 text-center">
+          <div className="text-[18px] font-bold" style={{ color: pctColor }}>{Math.round(d.pct * 100)} %</div>
+          <div className="text-[10.5px] text-ink-400">du flux affiché ({d.truthFound}/{d.truthTotal} tx)</div>
+        </div>
+        <div className="rounded-xl border border-ink-700/60 bg-ink-850/40 p-2 text-center">
+          <div className="text-[18px] font-bold text-white">{d.keyFound}/{d.keyTotal}</div>
+          <div className="text-[10.5px] text-ink-400">adresses clés sur le graphe</div>
+        </div>
+        <div className="rounded-xl border border-ink-700/60 bg-ink-850/40 p-2 text-center">
+          <div className="text-[18px] font-bold text-white">{d.offPath}</div>
+          <div className="text-[10.5px] text-ink-400">tx explorées hors flux</div>
+        </div>
+        <div className="rounded-xl border border-ink-700/60 bg-ink-850/40 p-2 text-center">
+          <div className="text-[18px] font-bold text-white">{tools}<span className="text-[12px] text-ink-400"> · {hints}</span></div>
+          <div className="text-[10.5px] text-ink-400">outils utilisés · indices</div>
+        </div>
+      </div>
+      <div className="mt-2 rounded-lg border border-ink-700/60 p-2.5 text-[12px] leading-relaxed text-ink-200">{d.verdict}</div>
+      {d.lostAt && (
+        <button className="mt-2 w-full rounded-lg border border-orange-400/40 bg-orange-400/[0.07] p-2.5 text-left hover:bg-orange-400/[0.12]" onClick={() => goTo(d.lostAt!.id)}>
+          <div className="flex items-center gap-1.5 text-[11.5px] font-semibold text-orange-200"><Icon name="MapPinOff" size={13} /> Là où vous avez perdu la piste</div>
+          <div className="mt-0.5 text-[11.5px] text-ink-100">{d.lostAt.text}</div>
+          <div className="text-[10.5px] text-ink-400">{fmtTime(d.lostAt.time)} · {fmtUsd(d.lostAt.usd)} · cliquer pour l'afficher</div>
+        </button>
+      )}
+      {d.missed.length > 0 && (
+        <details className="mt-2 rounded-lg border border-ink-700/60 p-2">
+          <summary className="cursor-pointer text-[11.5px] text-ink-300">Étapes du flux non affichées ({d.truthTotal - d.truthFound})</summary>
+          <div className="mt-1 space-y-0.5">
+            {d.missed.map((m) => (
+              <button key={m.id} className="block w-full truncate rounded px-1.5 py-1 text-left text-[11px] text-ink-200 hover:bg-ink-800" onClick={() => goTo(m.id)}>
+                <span className="text-ink-500">{fmtTime(m.time)}</span> {m.text}
+              </button>
+            ))}
+          </div>
+        </details>
+      )}
+      {d.keyMissed.length > 0 && (
+        <div className="mt-2 text-[11px] text-ink-400">Adresses clés jamais ajoutées au graphe :</div>
+      )}
+      {d.keyMissed.slice(0, 5).map((a) => <AddrLine key={a} w={w} id={a} compact />)}
+      <button className="btn-outline mt-2 w-full !py-1.5 text-xs" onClick={onShow}>
+        <Icon name="GitCompareArrows" size={13} className="text-amber-300" /> Superposer sur le graphe : <span className="text-amber-300">trouvé</span> / <span className="text-orange-400">manqué</span>
+      </button>
+    </div>
   )
 }
 

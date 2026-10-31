@@ -8,17 +8,23 @@ import { PACK_TERRAIN } from './pack_terrain'
 import { PACK_TYPO } from './pack_typo'
 import { PACK_GUIDES } from './pack_guides'
 import { PACK_DEBUTANT } from './pack_debutant'
+import { PACK_CONTRATS } from './pack_contrats'
+import { PACK_MODERNE } from './pack_moderne'
 import { certSpecialiste } from './cert_specialiste'
 import { certExpert } from './cert_expert'
+import { GENERATED } from './gen_affaire'
 
 /** Toutes les affaires, y compris celles réservées aux certifications. */
-export const ALL_SCENARIOS: ScenarioTemplate[] = [s01FirstTrace, s02PigButchering, ...PACK_BTC, ...PACK_ACCOUNT, ...PACK_OPS, ...PACK_TERRAIN, ...PACK_TYPO, ...PACK_GUIDES, ...PACK_DEBUTANT, certSpecialiste, certExpert].sort(
+export const ALL_SCENARIOS: ScenarioTemplate[] = [s01FirstTrace, s02PigButchering, ...PACK_BTC, ...PACK_ACCOUNT, ...PACK_OPS, ...PACK_TERRAIN, ...PACK_TYPO, ...PACK_GUIDES, ...PACK_DEBUTANT, ...PACK_CONTRATS, ...PACK_MODERNE, certSpecialiste, certExpert, ...GENERATED].sort(
   // Par difficulté, les missions guidées (tutoriels) en tête de leur niveau
   (a, b) => a.difficulty - b.difficulty || Number(!!b.guided) - Number(!!a.guided),
 )
 
 /** Missions proposées au joueur. */
-export const SCENARIOS: ScenarioTemplate[] = ALL_SCENARIOS.filter((s) => !s.certOnly)
+export const SCENARIOS: ScenarioTemplate[] = ALL_SCENARIOS.filter((s) => !s.certOnly && !s.generated)
+
+/** Affaires générées (difficultés 2 à 4). */
+export const GENERATED_SCENARIOS: ScenarioTemplate[] = GENERATED
 
 export function scenarioById(id: string): ScenarioTemplate | undefined {
   return ALL_SCENARIOS.find((s) => s.id === id)

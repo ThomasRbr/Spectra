@@ -130,6 +130,8 @@ export interface ScenarioTemplate {
   id: string
   /** Affaire réservée aux examens de certification (absente de la liste des missions). */
   certOnly?: boolean
+  /** Affaire composée par le générateur (jouable à l'infini, hors listes et parcours). */
+  generated?: boolean
   /** Mission guidée pas à pas (tutoriel) : indices gratuits, guide affiché. */
   guided?: boolean
   title: string

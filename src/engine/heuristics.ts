@@ -65,7 +65,7 @@ function outflows(w: World, id: string): Outflow {
 /** L'adresse reverse-t-elle (presque) tout vers `target`, sans rien garder ? */
 function sweepsTo(w: World, id: string, target: string): boolean {
   const a = w.addresses.get(id)
-  if (!a || a.contract) return false
+  if (!a || (a.contract && a.contract.type !== 'forwarder')) return false
   const o = outflows(w, id)
   const d = o.byDest.get(target)
   return !!d && o.totalUsd > 0 && d.usd / o.totalUsd >= 0.9
@@ -85,7 +85,8 @@ export function depositAnalysis(w: World, id: string): DepositVerdict {
   const a = w.get(id)
   const none: DepositVerdict = { role: 'none', score: 0, reasons: [], sweeps: [], siblings: [] }
   // XRP et TON : les plateformes partagent une adresse et distinguent les clients par destination tag ou commentaire.
-  if (CHAINS[a.chain].model !== 'account' || a.contract || a.chain === 'xrp' || a.chain === 'ton') return none
+  // Les contrats sont exclus, sauf les contrats de dépôt (forwarders) des plateformes.
+  if (CHAINS[a.chain].model !== 'account' || (a.contract && a.contract.type !== 'forwarder') || a.chain === 'xrp' || a.chain === 'ton') return none
 
   // 1. L'adresse elle-même reverse-t-elle tout vers un collecteur ?
   const o = outflows(w, id)
@@ -98,6 +99,10 @@ export function depositAnalysis(w: World, id: string): DepositVerdict {
       const reasons: string[] = []
       let score = 0.35
       reasons.push(`${Math.round(share * 100)} % des sorties partent vers la même adresse`)
+      if (a.contract?.type === 'forwarder') {
+        score += 0.1
+        reasons.push('Contrat de dépôt (forwarder) : reversement automatique en transaction interne (ETH) ou déclenché par la plateforme (flushTokens)')
+      }
       const sum = w.summary(id)
       const keptUsd = Object.entries(sum.balance).reduce((s, [as, v]) => s + usd(as as AssetId, v ?? 0), 0)
       if (sum.inUsd > 0 && keptUsd / sum.inUsd < 0.05) {

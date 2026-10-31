@@ -99,7 +99,7 @@ export function Timeline() {
         {range && <rect x={x(range[0])} width={Math.max(1, x(range[1]) - x(range[0]))} y={0} height={H} fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.5)" vectorEffect="non-scaling-stroke" />}
         {txs.map((t) => {
           const v = w.txUsd(t)
-          const h = 6 + (Math.log10(v + 1) / Math.log10(maxUsd + 1)) * (H - 10)
+          const h = 6 + (maxUsd > 0 ? Math.log10(v + 1) / Math.log10(maxUsd + 1) : 0) * (H - 10)
           const c = CHAINS[t.chain].color
           const inRange = !range || (t.time >= range[0] && t.time <= range[1])
           const sel = t.id === selTx

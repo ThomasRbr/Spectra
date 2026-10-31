@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CHAINS, type ChainId } from '../../engine/chains'
 import { hashSeed, randomSeed } from '../../engine/rng'
-import { SCENARIOS } from '../../scenarios'
+import { GENERATED_SCENARIOS, SCENARIOS } from '../../scenarios'
 import { DIFFICULTY, SKILLS, type Difficulty, type ScenarioTemplate } from '../../scenarios/types'
 import { useGame, loadSavedCase, type Coverage, type Mode } from '../../store/game'
 import { scenarioById } from '../../scenarios'
@@ -10,8 +10,9 @@ import { bestByTemplate, useProfile } from '../../store/profile'
 import { ChainBadge, DifficultyBadge, Icon, Modal, ProgressBar } from '../common'
 import { LESSONS, TRACKS } from '../../academy'
 import { missionPrereqs } from '../../academy/prereqs'
+import type { NoiseLevel } from '../../engine/noise'
 
-export function launchCase(templateId: string, seed: number, mode: Mode = 'standard', coverage: Coverage = 'full', live = false) {
+export function launchCase(templateId: string, seed: number, mode: Mode = 'standard', coverage: Coverage = 'full', live = false, noise: NoiseLevel = 'normal') {
   const g = useGame.getState()
   const saved = loadSavedCase()
   const running = (g.inst && !g.score) || saved
@@ -19,7 +20,7 @@ export function launchCase(templateId: string, seed: number, mode: Mode = 'stand
     const title = g.template?.title ?? (saved ? scenarioById(saved.templateId)?.title : undefined) ?? 'en cours'
     if (!confirm(`Une enquête est en cours (« ${title} »). L'abandonner pour ouvrir ce nouveau dossier ?`)) return
   }
-  g.start(templateId, seed, { mode, coverage, live })
+  g.start(templateId, seed, { mode, coverage, live, noise })
   useUi.getState().set({ page: 'workspace', briefingOpen: true, timeRange: null, leftTab: useGame.getState().template?.guided ? 'objectives' : 'evidence' })
 }
 
@@ -78,6 +79,8 @@ export function Missions() {
           </div>
         </div>
 
+        <GeneratedCases best={best} onOpen={setPick} />
+
         {groups.map((g) => (
           <section key={g.d} className="mt-8">
             <div className="mb-3 flex items-center gap-3">
@@ -95,6 +98,43 @@ export function Missions() {
       </div>
       <LaunchModal s={pick} onClose={() => setPick(null)} />
     </div>
+  )
+}
+
+/** Accès aux affaires composées par le générateur : une affaire inédite par graine. */
+function GeneratedCases({ best, onOpen }: { best: Record<string, number>; onOpen: (s: ScenarioTemplate) => void }) {
+  const today = (() => {
+    const d = new Date()
+    return hashSeed(`gen-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`)
+  })()
+  const [daily, setDaily] = useState<{ s: ScenarioTemplate; seed: number } | null>(null)
+  return (
+    <section className="mt-8 rounded-2xl border border-violet-400/25 bg-gradient-to-br from-violet-500/[0.07] via-ink-900/60 to-ink-900/40 p-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-500/15 text-violet-200"><Icon name="Sparkles" size={19} /></span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[16px] font-semibold text-white">Affaires générées</h2>
+          <p className="text-[12.5px] text-ink-300">Un générateur compose une affaire inédite à chaque partie : typologie, chaînes, techniques de blanchiment enchaînées, objectifs et débrief. Pour s'entraîner sans fin.</p>
+        </div>
+        <button className="btn-outline" onClick={() => setDaily({ s: GENERATED_SCENARIOS[1] ?? GENERATED_SCENARIOS[0], seed: today })}>
+          <Icon name="CalendarDays" size={14} /> Affaire générée du jour
+        </button>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        {GENERATED_SCENARIOS.map((s) => (
+          <button key={s.id} className="group rounded-xl border border-ink-700/70 bg-ink-900/70 p-3 text-left transition hover:border-violet-400/50" onClick={() => onOpen(s)}>
+            <div className="flex items-center gap-2">
+              <DifficultyBadge d={s.difficulty} />
+              <span className="text-[11.5px] text-ink-400">~{s.estMinutes} min</span>
+              {best[s.id] !== undefined && <span className="ml-auto text-[11px] font-semibold text-emerald-300"><Icon name="Trophy" size={11} /> {Math.round(best[s.id] * 100)} %</span>}
+            </div>
+            <div className="mt-1.5 text-[13.5px] font-semibold text-white group-hover:text-violet-200">{s.title.replace('Affaire générée — ', '')}</div>
+            <div className="mt-0.5 text-[11.5px] leading-snug text-ink-300">{s.difficulty === 2 ? 'Rebonds, peel chains, regroupements, swaps : une seule chaîne.' : s.difficulty === 3 ? 'Plus d\'étapes, agrégateurs, WETH, et un changement de chaîne (bridge ou échangeur).' : 'Jusqu\'à six techniques, deux changements de chaîne, mixeur, prêt avec garantie.'}</div>
+          </button>
+        ))}
+      </div>
+      <LaunchModal s={daily?.s ?? null} seed={daily?.seed} onClose={() => setDaily(null)} />
+    </section>
   )
 }
 
@@ -163,6 +203,7 @@ function LaunchModalInner({ s, onClose, seed: fixedSeed }: { s: ScenarioTemplate
   const [mode, setMode] = useState<Mode>('standard')
   const [coverage, setCoverage] = useState<Coverage>('full')
   const [timing, setTiming] = useState<'past' | 'live'>('past')
+  const [noise, setNoise] = useState<NoiseLevel>('normal')
   const [seedText, setSeedText] = useState('')
   if (!s) return null
   const byId = (id: string) => LESSONS.find((l) => l.id === id)
@@ -222,10 +263,15 @@ function LaunchModalInner({ s, onClose, seed: fixedSeed }: { s: ScenarioTemplate
           { v: 'partial', t: 'Partielle', d: '60 % des dépôts non étiquetés · XP ×1,25' },
         ]} />
       </div>
-      <div className="mt-3">
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
         <OptionGroup label="Déroulement" value={timing} onChange={setTiming} options={[
           { v: 'past', t: 'Rétrospectif', d: 'Toute l\'histoire est déjà sur la chaîne' },
           { v: 'live', t: 'Temps réel', d: 'Horloge simulée : les fonds bougent pendant l\'enquête' },
+        ]} />
+        <OptionGroup label="Densité du graphe" value={noise} onChange={setNoise} options={[
+          { v: 'normal', t: 'Normale', d: 'L\'affaire telle qu\'écrite' },
+          { v: 'dense', t: 'Dense', d: 'Plus de clients et de leurres autour des services' },
+          { v: 'extreme', t: 'Extrême', d: 'Activité massive : filtrer et corréler' },
         ]} />
       </div>
       {fixedSeed === undefined && (
@@ -237,7 +283,7 @@ function LaunchModalInner({ s, onClose, seed: fixedSeed }: { s: ScenarioTemplate
       <button className="btn-primary mt-5 w-full !py-2.5 text-[14px]" onClick={() => {
         const seed = fixedSeed ?? (seedText ? Number(seedText) : randomSeed())
         onClose()
-        launchCase(s.id, seed, mode, coverage, timing === 'live')
+        launchCase(s.id, seed, mode, coverage, timing === 'live', noise)
       }}>
         <Icon name="Play" size={16} /> Ouvrir le dossier
       </button>

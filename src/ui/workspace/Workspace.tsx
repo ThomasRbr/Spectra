@@ -35,6 +35,7 @@ export function Workspace() {
   const finishedAt = useGame((s) => s.finishedAt)
   const mode = useGame((s) => s.mode)
   const coverage = useGame((s) => s.coverage)
+  const noise = useGame((s) => s.noise)
   const live = useGame((s) => !!s.live)
   const score = useGame((s) => s.score)
   const timelineOpen = useUi((s) => s.timelineOpen)
@@ -105,7 +106,7 @@ export function Workspace() {
     else useUi.getState().setPage('missions')
   }
   const replay = () => {
-    useGame.getState().start(template.id, randomSeed(), { mode, coverage, live })
+    useGame.getState().start(template.id, randomSeed(), { mode, coverage, live, noise })
     useUi.getState().set({ briefingOpen: true, timeRange: null, leftTab: template.guided ? 'objectives' : 'evidence' })
   }
 
@@ -127,6 +128,7 @@ export function Workspace() {
           {mode === 'examen' && <span className="chip bg-rose-500/15 text-rose-300">Examen</span>}
           {coverage === 'partial' && <span className="chip bg-orange-500/15 text-orange-300">Attribution partielle</span>}
           {live && <span className="chip bg-rose-500/15 text-rose-300">Temps réel</span>}
+          {noise !== 'normal' && <span className="chip bg-violet-500/15 text-violet-200" title="Activité de fond ajoutée autour des services">Graphe {noise === 'dense' ? 'dense' : 'extrême'}</span>}
         </div>
         <div className="ml-auto flex items-center gap-1">
           <CertBanner />

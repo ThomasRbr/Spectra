@@ -112,7 +112,7 @@ export const btcChangeAnatomy: ScenarioTemplate = {
     const sumOutD = txD.outputs.reduce((s, o) => s + o.value, 0)
     const nameB = exB.entity.name
     const nameD = exD.entity.name
-    const kindLabel: Record<AddrKind, string> = { p2pkh: 'Legacy (1…)', p2sh: 'P2SH (3…)', p2wpkh: 'SegWit natif (bc1q…)', p2tr: 'Taproot (bc1p…)', eoa: '', contract: '', account: '', stealth: '', p2wsh: '', ton_wallet: '' }
+    const kindLabel: Record<AddrKind, string> = { p2pkh: 'Legacy (1…)', p2sh: 'P2SH (3…)', p2wpkh: 'SegWit natif (bc1q…)', p2tr: 'Taproot (bc1p…)', eoa: '', contract: '', account: '', stealth: '', p2wsh: '', ton_wallet: '', ada_base: '', ada_enterprise: '', ada_script: '' }
     const city2 = fakeCity(r)
 
     return {
