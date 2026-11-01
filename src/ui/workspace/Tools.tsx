@@ -18,6 +18,8 @@ import { AddrLine } from './Inspector'
 import { flowDiagramSvg } from './Synthesis'
 import { openPrintable } from '../../lib/printable'
 import { computeDebrief } from '../../lib/debrief'
+import { graphSvg } from './graphExport'
+import { useGraph } from '../../store/graph'
 
 // ── Corrélateur montant / temps ──────────────────────────────────────────
 
@@ -626,7 +628,10 @@ export function ReportModal() {
   const close = () => useUi.getState().set({ reportOpen: false })
   const build = () => {
     const cy = (window as unknown as { __spectraCy?: () => Core | null }).__spectraCy?.()
-    const png = cy ? cy.png({ full: true, bg: '#ffffff', scale: 1.5 }) : ''
+    // Graphe vectoriel, numéroté et annoté (repli sur une image si le canevas n'est pas disponible)
+    const figure = cy && cy.nodes().length ? graphSvg(cy, 'light', false).svg : ''
+    const png = !figure && cy ? cy.png({ full: true, bg: '#ffffff', scale: 1.5 }) : ''
+    const graphNotes = useGraph.getState().view().annotations.filter((a) => a.text.trim())
     const flagged = Object.entries(g.flags)
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     const rows = flagged.map(([id, f]) => {
@@ -677,7 +682,7 @@ table{width:100%;border-collapse:collapse;margin-top:8px}td,th{border:1px solid 
 <h2>3. Conclusions</h2><table><tr><th>#</th><th>Question</th><th>Constatation</th></tr>${answers}</table>
 <h2>4. Traçage des fonds</h2>${traceHtml}
 <h2>5. Adresses d'intérêt</h2>${rows ? `<table><tr><th>Qualification</th><th>Adresse</th><th>Réseau</th><th>Attribution</th><th>Observations</th></tr>${rows}</table>` : '<div class="muted">Aucune adresse marquée.</div>'}
-<h2>6. Graphe des flux</h2>${png ? `<img src="${png}">` : '<div class="muted">Graphe indisponible.</div>'}
+<h2>6. Graphe des flux</h2>${figure ? `<div class="box">${figure}</div>` : png ? `<img src="${png}">` : '<div class="muted">Graphe indisponible.</div>'}${graphNotes.length ? `<div class="box"><b>Annotations portées sur le graphe</b><ul>${graphNotes.map((a) => `<li>${esc(a.text)}</li>`).join('')}</ul></div>` : ''}
 <h2>7. Journal des opérations d'analyse</h2><ul>${journal}</ul>
 </body></html>`
     openPrintable(html, `rapport-${g.template!.id}-${g.seed}.html`)
@@ -708,7 +713,11 @@ const SHORTCUTS: [string, string][] = [
   ['R', 'Tracer les fonds reçus par l\'adresse ou la transaction sélectionnée'],
   ['P', 'Chercher un chemin entre les deux adresses sélectionnées'],
   ['F', 'Ajuster la vue au graphe'],
-  ['L', 'Réorganiser le graphe de gauche à droite'],
+  ['L', 'Réorganiser le graphe (couches, chronologique ou couloirs selon le mode choisi)'],
+  ['/', 'Chercher dans le graphe (adresse, hash, montant, groupe)'],
+  ['G', 'Grouper les adresses sélectionnées'],
+  ['N  /  B', 'Poser une note / tracer un cadre sur le graphe'],
+  ['Double-clic sur un groupe', 'Déplier un groupe ou des contreparties réunies'],
   ['T', 'Afficher / masquer la frise chronologique'],
   ['[  /  ]', 'Replier le dossier / le panneau d\'analyse'],
   ['Suppr', 'Retirer le ou les nœuds sélectionnés du graphe'],

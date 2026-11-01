@@ -18,6 +18,7 @@ import { FreezeButton, WatchButton } from './Live'
 import { CoinjoinDemixCard, openDemix } from './Demix'
 import { BalanceChart } from './Synthesis'
 import { AddressExtra, EvmDetails, LegChip, UtxoDetails } from './TxDetails'
+import { GroupInspector } from './GroupInspector'
 
 export function Inspector() {
   const selection = useGame((s) => s.selection)
@@ -28,6 +29,7 @@ export function Inspector() {
   if (!selection) return <Empty icon="MousePointerClick" title="Aucune sélection" sub="Cliquez un nœud ou une transaction du graphe pour afficher son analyse détaillée." />
   if (selection.kind === 'address') return <AddressInspector key={`${selection.id}@${clock}`} w={w} id={selection.id} />
   if (selection.kind === 'tx') return <TxInspector key={`${selection.id}@${clock}`} w={w} id={selection.id} />
+  if (selection.kind === 'group') return <GroupInspector key={selection.key} w={w} gkey={selection.key} />
   return <EdgeInspector w={w} txIds={selection.txIds} source={selection.source} target={selection.target} />
 }
 

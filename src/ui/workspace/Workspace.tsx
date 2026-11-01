@@ -195,7 +195,7 @@ export function Workspace() {
             {showInspector && (
               <aside data-inspector aria-label="Analyse de la sélection" className="absolute bottom-3 right-3 top-3 z-20 flex w-[380px] max-w-[calc(100%-24px)] flex-col overflow-hidden rounded-xl border border-ink-600 bg-ink-850 shadow-pop animate-slidein">
                 <div className="flex h-10 shrink-0 items-center gap-2 border-b border-ink-700 pl-4 pr-1.5">
-                  <span className="text-meta font-semibold text-ink-300">{selection?.kind === 'address' ? 'Adresse' : selection?.kind === 'tx' ? 'Transaction' : 'Flux'}</span>
+                  <span className="text-meta font-semibold text-ink-300">{selection?.kind === 'address' ? 'Adresse' : selection?.kind === 'tx' ? 'Transaction' : selection?.kind === 'group' ? 'Groupe' : 'Flux'}</span>
                   <span className="ml-auto hidden text-micro text-ink-400 sm:inline">Échap pour fermer</span>
                   <button className="icon-btn" aria-label="Fermer l'analyse" title="Fermer (Échap)" onClick={() => useGame.getState().select(null)}>
                     <Icon name="X" size={16} />
