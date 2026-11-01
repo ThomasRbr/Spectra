@@ -1,8 +1,16 @@
 import { World, type Tx } from '../engine/world'
 import { dex, exchange, peelChain, swapper, roundCoin, HOUR, DAY, type ExchangeKit, type SwapperKit } from '../engine/patterns'
 import { roundAsset, usd, fromUsd, type AssetId } from '../engine/chains'
+import { decoyBranches, dusting, type Branch } from '../engine/realism'
 import type { ScenarioTemplate } from './types'
-import { A, amt, choice, fakeCity, fakePerson, fmtDate, procedureFor } from './util'
+import { A, amt, choice, de, fakeCity, fakePerson, fmtDate, procedureFor } from './util'
+
+const BRANCH_FATE: Record<Branch['fate'], string> = {
+  dort: 'n\'a plus bougé',
+  'dépensée': 'a servi à de petits paiements',
+  retour: 'renvoyée plus tard au financeur de gaz',
+  'éclatée': 'ré-éclatée en petites sommes',
+}
 
 /** Arrondi par défaut (évite de dépenser une fraction de plus que le solde). */
 const floor8 = (v: number) => Math.floor(v * 1e8) / 1e8
@@ -11,6 +19,10 @@ const usd0 = (v: number) => `${Math.round(v).toLocaleString('fr-FR')} $`
 /** « de Paul » / « d'Inès ». */
 const deN = (n: string) => (/^[AEIOUYÉÈÊÀÂÎ]/i.test(n) ? `d'${n}` : `de ${n}`)
 const hhmm = (ts: number) => new Date(ts * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
+/** Heure de Paris (0–23) d'un horodatage. */
+const parisHour = (ts: number) => Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Paris' }).format(new Date(ts * 1000)))
+/** Même jour que `ts`, à `h` heures pile (heure de Paris) : pièces rédigées aux heures de bureau. */
+const atHour = (ts: number, h: number) => ts - (ts % HOUR) + (h - parisHour(ts)) * HOUR
 
 /**
  * Commande ChangeNOW depuis Bitcoin qui dépense TOUT le solde de `from`
@@ -49,11 +61,11 @@ export const btcLedgerPhishing: ScenarioTemplate = {
   title: 'Faux courrier Ledger : la phrase de récupération volée',
   tagline: 'Un courrier, un QR code, 24 mots saisis : BTC, ETH et USDT vidés dans l\'heure.',
   description:
-    'Une victime reçoit par la poste un faux courrier aux couleurs de Ledger l\'invitant à « vérifier » son portefeuille matériel. Elle saisit sa phrase de récupération sur un faux site : l\'attaquant vide aussitôt ses bitcoins et ses comptes Ethereum. Suivez les fonds sur les deux chaînes, servez-vous du financeur de gaz pour relier d\'autres victimes et retrouvez l\'exchange où tout converge.',
+    'Une victime reçoit par la poste un faux courrier aux couleurs de Ledger l\'invitant à « vérifier » son portefeuille matériel. Elle saisit sa phrase de récupération sur un faux site : l\'attaquant vide aussitôt ses bitcoins et ses comptes Ethereum. Suivez les fonds sur les deux chaînes, servez-vous du financeur de gaz pour mesurer la campagne (comptes vidés, tentatives sans suite), triez les sorties de l\'attaquant entre branches sans issue et dépôt non étiqueté, et retrouvez l\'exchange où tout converge.',
   difficulty: 2,
   chains: ['btc', 'eth'],
   skills: ['lecture_tx', 'utxo', 'evm', 'tokens', 'crosschain', 'osint', 'requisition'],
-  estMinutes: 50,
+  estMinutes: 55,
   lessons: ['cles-portefeuilles', 'typologies', 'suivre-flux', 'chain-hopping', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -133,6 +145,23 @@ export const btcLedgerPhishing: ScenarioTemplate = {
       others.push({ addr: v, drain, gasTx, value, asset, t })
     })
 
+    // ── Tentatives sans suite : phrases volées, comptes déjà vides ───────────
+    // Le script envoie du gaz à chaque compte dérivé d'une phrase récoltée ;
+    // quand le propriétaire avait déjà déplacé ses jetons, rien ne suit.
+    const nEmpty = r.int(4, 5)
+    const empties: { addr: string; gasTx: Tx }[] = []
+    for (let i = 0; i < nEmpty; i++) {
+      const v = w.addr('eth')
+      const k = ex(r.pick(['coinbase', 'kraken', 'binance', 'bitstamp']))
+      const old = Math.round(r.float(500, 6000) / 10) * 10
+      const tGasE = w.at(r.float(-40, 3) * 24)
+      const tOld = w.at(-r.float(120, 600) * 24)
+      k.withdraw(v, old, tOld, 'USDT')
+      // Le propriétaire a depuis déplacé ses jetons vers un autre portefeuille, au moins deux mois avant l'envoi de gaz
+      w.transfer({ time: Math.min(tOld + Math.round(r.float(5, 90) * DAY), tGasE - 60 * DAY), from: v, to: w.addr('eth'), value: old, asset: 'USDT' })
+      empties.push({ addr: v, gasTx: w.transfer({ time: tGasE, from: gas, to: v, value: roundAsset('ETH', r.float(0.003, 0.008)), asset: 'ETH' }) })
+    }
+
     // ── Le vol : tout part dans les mêmes minutes ────────────────────────────
     const tB = T + r.int(6, 14) * 60
     const nUtxo = victimBtc.reduce((s, a) => s + w.utxosOf(a, tB).length, 0)
@@ -152,10 +181,18 @@ export const btcLedgerPhishing: ScenarioTemplate = {
     const swp = uni.swap({ trader: e1, assetIn: 'USDT', amountIn: usdtStolen, assetOut: 'ETH', time: tSwap })
     const swapDelayMin = Math.round((tSwap - usdtSweep.time) / 60)
 
-    // Dépôt des ETH sur l'exchange
+    // Éclatement d'une partie de l'ETH vers des adresses neuves, avant le dépôt
+    const branches = decoyBranches(w, e1, { time: tSwap + r.int(5, 15) * 60, share: r.float(0.22, 0.32), branches: 3, asset: 'ETH', returnTo: gas })
+    const lastBranch = Math.max(...branches.map((b) => b.tx.time))
+
+    // Dépôt des ETH sur l'exchange. L'adresse de dépôt, récente, n'est pas
+    // encore étiquetée dans l'outil : elle se reconnaît à son balayage.
     const dep = dest.newDeposit()
+    w.hiddenAttribution.add(dep)
     const e1Dep = floor6(w.balanceOf(e1, 'ETH') - r.float(0.004, 0.012))
-    const d1 = dest.receive(e1, e1Dep, T + Math.round(r.float(1.5, 2.5) * HOUR), { asset: 'ETH', depositAddr: dep, sweepDelayH: r.float(0.3, 1) })
+    const d1 = dest.receive(e1, e1Dep, Math.max(T + Math.round(r.float(1.5, 2.5) * HOUR), lastBranch + r.int(10, 30) * 60), { asset: 'ETH', depositAddr: dep, sweepDelayH: r.float(0.3, 1) })
+    // Poussière d'empoisonnement reçue après le dépôt (sosies de l'adresse)
+    dusting(w, e1, { time: T + DAY, n: 2, spreadH: 18, min: d1.tx.time + HOUR })
 
     // BTC : peel chain courte, puis ChangeNOW (BTC → ETH)
     const peel = peelChain(w, { start: b1, steps: r.int(3, 4), time: T + Math.round(r.float(2, 3) * HOUR), stepH: [1, 1.8], peelFraction: [0.05, 0.12], peelTarget: () => w.addr('btc', { kind: 'p2wpkh' }) })
@@ -169,6 +206,8 @@ export const btcLedgerPhishing: ScenarioTemplate = {
     const e2Dep = floor6(w.balanceOf(e2, 'ETH') - r.float(0.003, 0.008))
     const d2 = dest.receive(e2, e2Dep, ord.payoutTx.time + Math.round(r.float(1, 3) * HOUR), { asset: 'ETH', depositAddr: dep, sweepDelayH: r.float(0.3, 1) })
     const totalDeposited = roundAsset('ETH', e1Dep + e2Dep)
+    // Délai de balayage observé (le plus long des deux), pour le texte
+    const sweepMin = Math.max(...[d1, d2].map((d) => (d.sweep ? Math.ceil((d.sweep.time - d.tx.time) / 60) : 0)))
 
     // ── Bruit ────────────────────────────────────────────────────────────────
     // Autres clients de ChangeNOW (BTC → ETH) autour de l'affaire
@@ -197,7 +236,13 @@ export const btcLedgerPhishing: ScenarioTemplate = {
     const firstMove = Math.min(tB, tA1, tGas)
     const lastMove = Math.max(tB, ethSweep.time, usdtSweep.time)
     const windowMin = Math.max(1, Math.round((lastMove - firstMove) / 60))
-    const letterDate = w.at(-r.float(3, 8) * 24)
+    // Courrier distribué en fin de matinée
+    const letterDate = atHour(w.at(-r.float(3, 8) * 24), 11) + 20 * 60
+    const letterDays = Math.max(1, Math.round((T - letterDate) / DAY))
+    // Le domaine existe avant l'envoi du courrier qui pointe vers lui
+    const domainAge = letterDays + r.int(4, 12)
+    // Plainte déposée le lendemain matin, aux heures d'ouverture
+    const plainteDate = atHour(T + DAY, 10) + 25 * 60
 
     return {
       world: w,
@@ -208,7 +253,7 @@ export const btcLedgerPhishing: ScenarioTemplate = {
         `Dans l'heure qui a suivi, tous les actifs de la victime ont été transférés : bitcoins, ETH et USDT. Objectifs : reconstituer le vol sur Bitcoin et sur Ethereum, exploiter le financement du gaz pour relier d'autres victimes, et retrouver l'exchange où les fonds convergent.`,
       evidence: [
         {
-          id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: w.at(1 * 24), author: victimName,
+          id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: plainteDate, author: victimName,
           body:
             `« J'ai reçu une lettre de Ledger, avec le logo, mon nom et mon adresse exacts. Elle disait qu'une mise à jour de sécurité était obligatoire. J'ai scanné le QR code avec mon téléphone ; la page ressemblait à Ledger Live et m'a demandé mes 24 mots pour "confirmer l'authenticité de l'appareil". Je les ai tapés le ${fmtDate(T)}.\n\n` +
             `Le lendemain matin, mes comptes étaient vides. Voici ce que j'avais, d'après l'export de Ledger Live :\n` +
@@ -230,14 +275,14 @@ export const btcLedgerPhishing: ScenarioTemplate = {
             `Le service Sécurité`,
         },
         {
-          id: 'osint', type: 'osint', title: 'Note OSINT sur le site de phishing', date: w.at(2 * 24), author: 'Section cyber',
+          id: 'osint', type: 'osint', title: 'Note OSINT sur le site de phishing', date: atHour(T + 2 * DAY, 11), author: 'Section cyber',
           body:
-            `Domaine ${domain}[.]example enregistré ${r.int(4, 12)} jours avant les faits, titulaire masqué, hébergement derrière un service de protection anti-DDoS. La page reproduit l'interface de Ledger Live et envoie les mots saisis à un serveur distant : c'est un kit de phishing générique, déjà observé contre d'autres marques de portefeuilles.\n` +
+            `Domaine ${domain}[.]example enregistré ${domainAge} jours avant les faits (le courrier a été reçu ${letterDays} jours avant), titulaire masqué, hébergement derrière un service de protection anti-DDoS. La page reproduit l'interface de Ledger Live et envoie les mots saisis à un serveur distant : c'est un kit de phishing générique, déjà observé contre d'autres marques de portefeuilles.\n` +
             `Ledger rappelle publiquement ne jamais demander la phrase de récupération, ni par courrier, ni par téléphone, ni en ligne. Les destinataires sont vraisemblablement tirés de fichiers clients ayant fuité : la marque est usurpée, l'entreprise n'est pas impliquée.\n` +
             `Demandes en cours : signalement PHAROS et blocage du domaine auprès du registraire.`,
         },
         {
-          id: 'rapprochement', type: 'email', title: 'Message d\'un autre service enquêteur', date: w.at(3 * 24), author: `Brigade de recherches de ${city2}`,
+          id: 'rapprochement', type: 'email', title: 'Message d\'un autre service enquêteur', date: atHour(T + 3 * DAY, 9) + 40 * 60, author: `Brigade de recherches ${de(city2)}`,
           body:
             `Bonjour,\n` +
             `Nous traitons la plainte ${deN(v2P.name)} (${city2}), destinataire du même faux courrier Ledger. Sa phrase de récupération a été saisie sur un site similaire ; son adresse Ethereum ${A(w, v2.addr)} a été vidée de ${amt(v2.value, v2.asset)} le ${fmtDate(v2.drain.time, false)} (transaction ${v2.drain.hash}).\n` +
@@ -245,7 +290,7 @@ export const btcLedgerPhishing: ScenarioTemplate = {
             `Cordialement`,
         },
         {
-          id: 'note', type: 'note', title: 'Note de l\'analyste : une phrase, toutes les chaînes', date: w.at(2 * 24), author: 'Cellule d\'appui',
+          id: 'note', type: 'note', title: 'Note de l\'analyste : une phrase, toutes les chaînes', date: atHour(T + 2 * DAY, 15), author: 'Cellule d\'appui',
           body:
             `• Les 24 mots permettent de dériver toutes les clés du portefeuille : chaque adresse Bitcoin, chaque compte Ethereum. L'attaquant importe la phrase dans un logiciel et vide tout, souvent avec un script.\n` +
             `• Sur Bitcoin, les UTXO de plusieurs adresses peuvent être dépensées dans une seule transaction : ici, ce regroupement désigne le portefeuille compromis, pas le voleur.\n` +
@@ -278,13 +323,20 @@ export const btcLedgerPhishing: ScenarioTemplate = {
         },
         {
           id: 'o3', type: 'addresses', points: 10,
-          prompt: 'Hormis le compte de la victime, quelles adresses de victimes ce financeur de gaz a-t-il alimentées ?',
+          prompt: 'Hormis le compte de la victime, quels comptes alimentés en gaz par ce financeur ont effectivement été vidés ?',
           answer: others.map((o) => o.addr),
-          hint: 'Dépliez les sorties du financeur de gaz : chaque petit envoi d\'ETH est suivi, quelques minutes plus tard, du départ des jetons du destinataire.',
+          hint: 'Dépliez les sorties du financeur de gaz. Pour chaque destinataire, regardez ce qui suit le petit envoi d\'ETH : un départ de jetons dans les minutes qui suivent, ou rien du tout ?',
           explanation:
-            `Le financeur ${A(w, gas)} a alimenté ${nOther + 1} comptes, toujours selon le même schéma (quelques millièmes d'ETH, puis départ de tous les jetons dans les minutes qui suivent) :\n` +
+            `Le financeur ${A(w, gas)} a vidé ${nOther} autres comptes selon le même schéma que celui de la victime (quelques millièmes d'ETH, puis départ de tous les jetons dans les minutes qui suivent) :\n` +
             others.map((o) => `• ${A(w, o.addr)} : ${amt(o.value, o.asset)} le ${fmtDate(o.drain.time, false)}${o === v2 ? ` (plainte ${deN(v2P.name)}, ${city2})` : ' (victime à identifier)'}`).join('\n') +
-            `\nC'est le pivot du rapprochement : une même infrastructure, plusieurs victimes. Les victimes non identifiées peuvent l'être par réquisition aux exchanges qui ont financé leurs adresses.`,
+            `\nLes ${nEmpty} autres destinataires de gaz n'ont rien perdu : leurs propriétaires avaient déplacé leurs jetons vers un autre portefeuille des mois plus tôt, et rien ne suit l'envoi d'ETH. Ce sont des phrases récoltées par la même campagne, sur des comptes déjà vides : des victimes de la collecte, sans préjudice financier. Les victimes vidées non identifiées peuvent l'être par réquisition aux exchanges qui ont financé leurs adresses.`,
+        },
+        {
+          id: 'o12', type: 'number', points: 8, unit: 'comptes',
+          prompt: 'À combien de comptes au total ce financeur a-t-il envoyé du gaz (compte « Ethereum 2 » de la victime compris, tentatives sans suite comprises) ?',
+          answer: 1 + nOther + nEmpty,
+          hint: 'Comptez les destinataires des sorties d\'ETH du financeur de gaz. Les ETH qu\'il reçoit en retour ne comptent pas.',
+          explanation: `${1 + nOther + nEmpty} comptes : celui de la victime, ${nOther} autres comptes vidés et ${nEmpty} comptes déjà vides. Chaque destinataire correspond à une phrase de récupération tombée entre les mains de l'attaquant : c'est la mesure de la campagne, au-delà du seul préjudice.${branches.some((b) => b.fate === 'retour') ? ' Le financeur reçoit aussi de l\'ETH en retour, depuis une branche issue de l\'adresse de réception : l\'attaquant recycle une partie du butin pour payer le gaz des prochains vidages.' : ''}`,
         },
         {
           id: 'o4', type: 'amount', points: 9, unit: 'ETH', tolerance: 0.02,
@@ -318,8 +370,11 @@ export const btcLedgerPhishing: ScenarioTemplate = {
           id: 'o11', type: 'address', points: 9,
           prompt: 'Quelle adresse de dépôt de l\'exchange de convergence reçoit les fonds des deux chaînes ?',
           answer: [dep],
-          hint: 'Ce n\'est pas le hot wallet : c\'est l\'adresse qui reçoit les ETH des deux adresses de l\'attaquant avant d\'être balayée.',
-          explanation: `${A(w, dep)} reçoit ${amt(e1Dep, 'ETH')} le ${fmtDate(d1.tx.time)} puis ${amt(e2Dep, 'ETH')} le ${fmtDate(d2.tx.time)}, et chaque dépôt est balayé vers le hot wallet de ${destName}. Une adresse de dépôt est propre à un compte client : c'est elle, avec les deux hash, qu'il faut citer dans la réquisition.`,
+          hint: 'L\'adresse de réception Ethereum a plusieurs sorties d\'ETH vers des adresses sans étiquette. Regardez ce que devient chacune : laquelle est balayée vers un hot wallet étiqueté, et reçoit aussi les ETH payés par ChangeNOW ?',
+          explanation:
+            `${A(w, dep)} reçoit ${amt(e1Dep, 'ETH')} le ${fmtDate(d1.tx.time)} puis ${amt(e2Dep, 'ETH')} le ${fmtDate(d2.tx.time)}, et chaque dépôt est balayé vers le hot wallet de ${destName} en ${sweepMin} minutes au plus. L'outil ne l'étiquette pas (adresse récente), mais ce balayage systématique et la convergence des deux flux la désignent. Les ${branches.length} autres sorties d'ETH de ${A(w, e1).slice(0, 10)}… sont des branches de moindre montant qui n'aboutissent à aucun service :\n` +
+            branches.map((b) => `• ${A(w, b.address).slice(0, 12)}… : ${amt(b.value, 'ETH')}, ${BRANCH_FATE[b.fate]}`).join('\n') +
+            `\nUne adresse de dépôt est propre à un compte client : c'est elle, avec les deux hash, qu'il faut citer dans la réquisition.`,
         },
         {
           id: 'o6', type: 'entity', points: 9,
@@ -347,7 +402,8 @@ export const btcLedgerPhishing: ScenarioTemplate = {
       ],
       truth: {
         path: [
-          gasFundTx.id, ...others.flatMap((o) => [o.gasTx.id, o.drain.id]),
+          // Les vidages d'autres victimes postérieurs aux faits restent hors du flux de l'affaire
+          gasFundTx.id, ...others.filter((o) => o.t < T).flatMap((o) => [o.gasTx.id, o.drain.id]),
           btcSweep.id, ethSweep.id, gasA2.id, usdtSweep.id, swp.tx.id, d1.tx.id, ...(d1.sweep ? [d1.sweep.id] : []),
           ...peel.map((p) => p.tx.id), ord.depositTx.id, ord.sweepTx.id, ord.payoutTx.id, d2.tx.id, ...(d2.sweep ? [d2.sweep.id] : []),
         ],
@@ -355,8 +411,8 @@ export const btcLedgerPhishing: ScenarioTemplate = {
         debrief:
           `1. ${victimName} saisit ses 24 mots sur ${domain}[.]example le ${fmtDate(T)}. Ledger n'y est pour rien : sa marque est usurpée.\n` +
           `2. Dans les minutes qui suivent, l'attaquant vide tout. Bitcoin : une transaction dépense les ${nUtxo} UTXO de la victime et envoie ${amt(btcStolen, 'BTC')} vers ${A(w, b1)}. Ethereum : ${amt(ethHeld, 'ETH')} partent du compte 1 vers ${A(w, e1)} ; le compte 2, sans ETH, reçoit du gaz de ${A(w, gas)}, puis ses ${amt(usdtStolen, 'USDT')} partent vers la même adresse.\n` +
-          `3. Le même financeur de gaz a servi pour ${nOther} autres victimes, dont ${v2P.name} (${city2}).\n` +
-          `4. ${swapDelayMin} minutes après le vol, les USDT sont échangés contre ${amt(swp.amountOut, 'ETH')} sur Uniswap, hors de portée d'un gel par ${tether.name}. ${A(w, e1)} dépose ensuite ${amt(e1Dep, 'ETH')} sur ${destName}.\n` +
+          `3. Le même financeur de gaz a servi pour ${nOther} autres victimes vidées, dont ${v2P.name} (${city2}), et pour ${nEmpty} comptes déjà vides (phrases récoltées sans préjudice).\n` +
+          `4. ${swapDelayMin} minutes après le vol, les USDT sont échangés contre ${amt(swp.amountOut, 'ETH')} sur Uniswap, hors de portée d'un gel par ${tether.name}. ${A(w, e1)} éclate une partie de l'ETH en ${branches.length} branches sans issue, puis dépose ${amt(e1Dep, 'ETH')} sur une adresse de dépôt ${destName} non étiquetée, reconnaissable à son balayage. Les poussières d'USDT reçues ensuite viennent de sosies de l'adresse (empoisonnement) et ne signifient rien.\n` +
           `5. Les bitcoins suivent une peel chain de ${peel.length} sauts (${amt(peeled, 'BTC')} détachés), puis ${amt(ord.value, 'BTC')} sont convertis chez ChangeNOW : ${amt(ord.payoutValue, 'ETH')} versés à ${A(w, e2)}, qui dépose ${amt(e2Dep, 'ETH')} sur la même adresse de dépôt ${destName}.\n` +
           `6. Préjudice de la victime : ≈ ${usd0(lossUsd)}.\n\n` +
           `À retenir : la phrase de récupération est le portefeuille. Celui qui la détient vide toutes les chaînes à la fois, et ce synchronisme relie les flux BTC et ETH. Sur Ethereum, le financement du gaz est un pivot précieux : une adresse qui « prépare » des comptes avant de les vider relie souvent toute une campagne. Les sauts sans lien on-chain (échangeur instantané) se franchissent par corrélation, à confirmer par la convergence des flux et par réquisition.`,
@@ -365,6 +421,7 @@ export const btcLedgerPhishing: ScenarioTemplate = {
         'Partez des adresses de la plainte : dépliez les sorties des adresses Bitcoin et du compte « Ethereum 2 ». Notez les heures.',
         'Le compte qui ne détenait que des USDT a dû recevoir de l\'ETH avant d\'être vidé : dépliez les sorties de l\'adresse qui le lui a envoyé.',
         'Côté Bitcoin, suivez la grosse sortie de chaque saut jusqu\'au dépôt ChangeNOW, puis utilisez l\'outil de corrélation vers Ethereum. Comparez l\'adresse de dépôt atteinte avec celle de l\'autre flux.',
+        'L\'adresse de réception Ethereum éclate une partie de l\'ETH vers plusieurs adresses neuves : une seule de ses sorties est balayée vers un hot wallet étiqueté, et c\'est aussi là qu\'arrivent les ETH payés par ChangeNOW.',
         'Tenez une chronologie à la minute : saisie des mots, vidages, swap, dépôts. Les écarts entre ces heures sont des éléments d\'enquête.',
       ],
     }

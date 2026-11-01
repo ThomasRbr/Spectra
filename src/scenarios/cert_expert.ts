@@ -2,7 +2,8 @@ import { World } from '../engine/world'
 import { bridge, dex, exchange, peelChain, swapper, roundCoin, HOUR, type ExchangeKit } from '../engine/patterns'
 import { roundAsset, usd } from '../engine/chains'
 import type { ScenarioTemplate } from './types'
-import { A, amt, choice, fakeCity, fakeName, fmtDate, procedureFor } from './util'
+import { A, amt, choice, de, fakeCity, fakePerson, fmtDate, procedureFor } from './util'
+import { dusting, lookalikeFlows, personalSpending, priorHistory, twinTransfers } from '../engine/realism'
 
 /**
  * Affaire d'examen (certification « Expert », jouée en temps réel) : une
@@ -25,7 +26,8 @@ export const certExpert: ScenarioTemplate = {
     const w = new World(seed)
     const r = w.rng
     const city = fakeCity(r)
-    const director = fakeName(r)
+    const dir = fakePerson(r)
+    const director = dir.name
 
     const sw = swapper(w, 'changenow')
     const br = bridge(w, 'arcbridge')
@@ -36,7 +38,7 @@ export const certExpert: ScenarioTemplate = {
     const binB = exchange(w, 'binance', 'bsc')
     w.entity('tether')
     const suspect = w.customEntity({ name: 'Groupe « Hydre » (inconnu)', category: 'suspect' })
-    const victimE = w.customEntity({ name: `Centre hospitalier de ${city}`, category: 'victim' })
+    const victimE = w.customEntity({ name: `Centre hospitalier ${de(city)}`, category: 'victim' })
 
     // ── Rançon ───────────────────────────────────────────────────────────────
     const P = roundCoin(w, 1.2, 2.4, 0.01)
@@ -73,9 +75,12 @@ export const certExpert: ScenarioTemplate = {
     const usdtOut = Math.round(usd('BTC', orderBtc) * (1 - r.float(0.008, 0.015)) * 100) / 100
     const payT = restT + r.int(10, 40) * 60
     const payoutTx = w.transfer({ time: payT, from: sw.hot('tron'), to: t1, value: usdtOut, asset: 'USDT', method: 'payout' })
+    // Autres clients de ChangeNOW : montants voisins mais toujours décalés d'au moins 3 % du bon paiement
     for (let i = 0; i < r.int(6, 9); i++) {
       const close = i < 3
-      const v = close ? usdtOut * r.float(0.9, 1.1) : r.float(200, usdtOut * 2)
+      const sign = r.chance(0.5) ? 1 : -1
+      let v = close ? usdtOut * (1 + sign * r.float(0.03, 0.1)) : r.float(200, usdtOut * 2)
+      if (!close && Math.abs(v / usdtOut - 1) < 0.1) v = usdtOut * (1 + sign * r.float(0.12, 0.6))
       w.transfer({ time: payT + r.int(-3 * 3600, 4 * 3600), from: sw.hot('tron'), to: w.addr('tron'), value: Math.round(v * 100) / 100, asset: 'USDT', method: 'payout' })
     }
 
@@ -115,6 +120,35 @@ export const certExpert: ScenarioTemplate = {
       br.send({ from: u, value: v, asset: 'USDT', time: tb, toChain: 'eth', recipient: w.addr('eth') })
     }
 
+    // ── Habillage et fausses pistes (examen expert : l'affaire la plus complète) ─
+    // Empoisonnement des adresses du suspect sur chaque chaîne, vie propre des
+    // portefeuilles de réception, transferts jumeaux (même montant, même heure)
+    // et branches mortes. Apports « propres » : ils n'entrent pas dans le traçage
+    // de la rançon mais multiplient les pistes à écarter. On ne touche pas à t2,
+    // l'adresse dont le solde gelable est au cœur de l'exercice.
+    dusting(w, s0, { time: ransomTx.time, n: 6, spreadH: 20, min: ransomTx.time + 600 })
+    dusting(w, t1, { time: payT, n: 6, spreadH: 20 })
+    dusting(w, e1, { time: br1.inTx.time, n: 5, spreadH: 20 })
+    dusting(w, b1, { time: br2.inTx.time, n: 5, spreadH: 20 })
+    priorHistory(w, t1, { start: w.at(-120 * 24), end: w.at(-10 * 24), nIn: 5, nOut: 4, maxUsd: 5000, asset: 'USDT' })
+    priorHistory(w, e1, { start: w.at(-110 * 24), end: w.at(-10 * 24), nIn: 5, nOut: 4, maxUsd: 5000, asset: 'ETH' })
+    priorHistory(w, b1, { start: w.at(-100 * 24), end: w.at(-8 * 24), nIn: 5, nOut: 4, maxUsd: 4000, asset: 'BNB' })
+    personalSpending(w, t1, { start: w.at(-60 * 24), end: w.at(-5 * 24), n: 3, asset: 'USDT', merchants: [
+      w.customEntity({ name: 'Rapidcharge (recharges mobiles)', category: 'merchant', known: true, description: 'Vente en ligne (fictive) de recharges de téléphone prépayé payables en USDT : conserve le numéro rechargé.' }),
+      w.customEntity({ name: 'Brelan (poker en ligne)', category: 'gambling', known: true, description: 'Salle de poker en ligne (fictive) acceptant l\'USDT sur Tron, licence offshore, KYC au-delà d\'un seuil de retrait.' }),
+    ] })
+    // Transferts jumeaux de la part « en attente » : même demi-heure, montant décalé de 0,8 à 1,4 %
+    // (indiscernable à l'œil, mais jamais confondu avec le bon montant), chacun financé juste avant
+    // par un apport extérieur du montant exact : simples transits, étrangers au paiement de ChangeNOW.
+    const twinsT1 = Array.from({ length: 4 }, () => {
+      const v = Math.round(partHold * (1 + (r.chance(0.5) ? 1 : -1) * r.float(0.008, 0.014)) * 100) / 100
+      const t = toT2.time + r.int(-25, 25) * 60
+      const fund = w.fundAccount(t1, v, 'USDT', t - r.int(10 * 60, 3 * 3600))
+      return { fund, tx: w.transfer({ time: t, from: t1, to: w.addr('tron'), value: v, asset: 'USDT' }) }
+    })
+    lookalikeFlows(w, { chain: 'tron', value: usdtOut, time: payT, n: 3, asset: 'USDT' })
+    lookalikeFlows(w, { chain: 'eth', value: br1.received, time: br1.inTx.time, n: 2, asset: 'USDT' })
+
     const freezableUsd = partHold + br1.received
     return {
       world: w,
@@ -129,8 +163,8 @@ export const certExpert: ScenarioTemplate = {
           body: `Vos données sont chiffrées et copiées. Paiement : ${amt(P, 'BTC')} sur ${A(w, s0)} avant 48 heures.`,
         },
         {
-          id: 'pv', type: 'pv', title: 'PV d\'audition du directeur (extrait)', date: w.at(1),
-          body: `« ${director}, directeur. La rançon a été payée le ${fmtDate(ransomTx.time)}. Transaction : ${ransomTx.hash}. »`,
+          id: 'pv', type: 'pv', title: `PV d'audition ${dir.g('du directeur', 'de la directrice')} (extrait)`, date: w.at(1),
+          body: `« ${director}, ${dir.g('directeur', 'directrice')}. La rançon a été payée le ${fmtDate(ransomTx.time)}. Transaction : ${ransomTx.hash}. »`,
         },
         {
           id: 'note', type: 'note', title: 'Note de la cellule d\'appui', date: w.at(1.5), author: 'Cellule d\'appui crypto',
@@ -153,9 +187,9 @@ export const certExpert: ScenarioTemplate = {
         },
         {
           id: 'o3', type: 'address', points: 15,
-          prompt: 'Quelle adresse Tron conserve des USDT plusieurs heures, ce qui laissait le temps d\'un gel par Tether ?',
+          prompt: 'Une part du paiement de ChangeNOW attend plusieurs heures sur une adresse Tron avant de rejoindre un exchange, ce qui laissait le temps d\'un gel par Tether. Quelle adresse ?',
           answer: [t2],
-          explanation: `${A(w, t2)} reçoit ${amt(partHold, 'USDT')} et ne les envoie chez OKX que ${holdH.toFixed(0)} heures plus tard : une demande à Tether dès le paiement de ChangeNOW les aurait bloqués.`,
+          explanation: `${A(w, t1).slice(0, 12)}… répartit le paiement en deux envois dont la somme vaut exactement les ${amt(usdtOut, 'USDT')} reçus : ${amt(partHold, 'USDT')} vers ${A(w, t2)} et le reste vers ${A(w, t3).slice(0, 12)}…, qui l'envoie au bridge ${Math.round((br1.outTx.time - toT3.time) / 60)} minutes plus tard. ${A(w, t2).slice(0, 12)}… n'envoie ses USDT chez OKX que ${holdH.toFixed(0)} heures plus tard : une demande à Tether dès le paiement de ChangeNOW les aurait bloqués. Les ${twinsT1.length} autres envois de montant voisin (${twinsT1.map((x) => amt(x.tx.transfers[0].value, 'USDT')).join(', ')}), dans la même demi-heure, sont des leurres : chacun est précédé d'un apport extérieur du montant exact sur ${A(w, t1).slice(0, 12)}… (simple transit, étranger au paiement de ChangeNOW), et leurs destinataires ne rejoignent aucun exchange.`,
         },
         {
           id: 'o4', type: 'address', points: 15,
@@ -187,6 +221,42 @@ export const certExpert: ScenarioTemplate = {
             ]),
           explanation: `L'USDT est un jeton centralisé : son contrat permet à Tether d'inscrire une adresse sur liste noire, même auto-hébergée. ChangeNOW n'a plus la main une fois le paiement effectué, et les validateurs ne censurent pas des adresses sur réquisition.`,
         },
+        {
+          id: 'o8', type: 'address', points: 10,
+          prompt: 'Quelle est l\'adresse de rançon, point de départ du traçage ?',
+          answer: [s0],
+          explanation: `${A(w, s0)} reçoit les ${amt(P, 'BTC')} de la victime (${ransomTx.hash.slice(0, 12)}…). Son historique est encombré de micro-envois d'adresses sosies (empoisonnement) : à ignorer, ils ne font pas partie du flux.`,
+        },
+        {
+          id: 'o9', type: 'number', points: 10, tolerance: 0, unit: 'pelures',
+          prompt: 'En combien de pelures (peel chain) la rançon est-elle détachée vers les exchanges avant la conversion ?',
+          answer: steps.length,
+          explanation: `${steps.length} pelures détachent à chaque saut une petite part vers une adresse de dépôt de Kraken ou de Coinbase, le gros continuant vers le saut suivant. La dernière pelure laisse le reliquat qui part chez ChangeNOW.`,
+        },
+        {
+          id: 'o10', type: 'address', points: 12,
+          prompt: 'Quelle adresse de dépôt de l\'échangeur instantané (ChangeNOW) reçoit le reliquat de bitcoins ?',
+          answer: [swDeposit],
+          explanation: `${A(w, swDeposit)} reçoit ${amt(orderBtc, 'BTC')} de la dernière adresse de la peel chain (${orderTx.hash.slice(0, 12)}…), puis est balayée vers le hot wallet de ChangeNOW. C'est l'adresse à citer dans la réquisition à l'échangeur.`,
+        },
+        {
+          id: 'o11', type: 'amount', points: 12, unit: 'USDT', tolerance: 0.002,
+          prompt: "Quel montant d'USDT attend sur cette adresse avant de partir chez l'exchange (montant à viser dans la demande de gel à Tether) ?",
+          answer: partHold,
+          explanation: `${amt(partHold, 'USDT')} attendent ${holdH.toFixed(0)} h sur ${A(w, t2).slice(0, 12)}… avant de partir chez OKX. C'est le montant exact à viser dans la demande de gel à Tether, obtenue avant ce départ.`,
+        },
+        {
+          id: 'o12', type: 'choice', points: 12,
+          prompt: 'ChangeNOW émet, au même moment, plusieurs paiements de montant proche. Comment reconnaître celui qui revient au suspect ?',
+          ...choice(r,
+            'Celui dont le montant vaut le dépôt moins ~1 % de commission ET qui suit le dépôt de quelques minutes ; les autres précèdent le dépôt ou n\'ont pas la bonne valeur',
+            [
+              'Le plus gros paiement de la fenêtre, car le suspect a déposé le plus',
+              'Le premier paiement de la journée, car l\'échangeur traite dans l\'ordre d\'arrivée',
+              'N\'importe lequel : tous les paiements de ChangeNOW de ce jour reviennent au suspect',
+            ]),
+          explanation: `Un échangeur instantané paie de nombreux clients : seul le rapprochement montant (dépôt − commission) et délai (paiement postérieur de quelques minutes au dépôt) isole le bon. Les paiements antérieurs au dépôt du suspect, ou de valeur différente, sont des clients tiers. Ce lien reste une corrélation, à confirmer par réquisition à ChangeNOW.`,
+        },
       ],
       truth: {
         path: [
@@ -201,6 +271,7 @@ export const certExpert: ScenarioTemplate = {
           `3. ${amt(partHold, 'USDT')} attendent ${holdH.toFixed(0)} h sur ${A(w, t2)} avant d'aller chez OKX : fenêtre de gel par Tether.\n` +
           `4. Le reste est bridgé vers ${A(w, e1)} (Ethereum), y reste ${Math.round((swapT - br1.inTx.time) / 3600)} h en USDT (seconde fenêtre de gel), puis est échangé en ETH.\n` +
           `5. Les ETH sont bridgés vers BNB Smart Chain et ${amt(depBnb, 'BNB')} sont déposés chez Binance.\n\n` +
+          `Leurres : les paiements de ChangeNOW à d'autres clients (montants décalés d'au moins 3 %), les envois de montant voisin venus d'adresses tierces, les ${twinsT1.length} envois jumeaux de ${A(w, t1).slice(0, 12)}… (chacun précédé d'un apport extérieur du montant exact, sans exchange au bout), et la poussière d'adresses sosies sur chaque chaîne.\n\n` +
           `Fonds gelables pendant l'affaire : environ ${Math.round(freezableUsd).toLocaleString('fr-FR')} $ en USDT, plus les comptes clients des exchanges (Kraken, Coinbase, OKX, Binance) une fois les dépôts identifiés.`,
       },
       hints: [],

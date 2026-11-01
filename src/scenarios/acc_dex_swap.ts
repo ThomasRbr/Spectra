@@ -1,19 +1,32 @@
 import { World } from '../engine/world'
-import { dex, exchange } from '../engine/patterns'
-import { roundAsset } from '../engine/chains'
+import { dex, exchange, swapper, HOUR, DAY } from '../engine/patterns'
+import { fromUsd, roundAsset } from '../engine/chains'
+import { decoyBranches, dusting, personalSpending, type Branch } from '../engine/realism'
 import type { ScenarioTemplate } from './types'
-import { A, amt, choice, fakeCity, fakeHandle, fakeName, fakePerson, fmtDate, procedureFor } from './util'
+import { A, amt, choice, de, fakeCity, fakeHandle, fakeName, fakePerson, fmtDate, procedureFor } from './util'
+
+/** Heure de Paris (0–23) d'un horodatage. */
+const parisHour = (ts: number) => Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Paris' }).format(new Date(ts * 1000)))
+/** Même jour que `ts`, à `h` heures pile (heure de Paris). */
+const atHour = (ts: number, h: number) => ts - (ts % HOUR) + (h - parisHour(ts)) * HOUR
+
+const FATE: Record<Branch['fate'], string> = {
+  dort: 'n\'a plus bougé',
+  'dépensée': 'a servi à de petits paiements',
+  retour: 'n\'a plus bougé',
+  'éclatée': 'a été ré-éclatée en petites sommes',
+}
 
 export const accDexSwap: ScenarioTemplate = {
   id: 'dex-swap',
   title: 'Drainer et swaps sur DEX',
-  tagline: 'Des ETH volés par un drainer, convertis en stablecoins sur Uniswap : suivez les jambes du swap.',
+  tagline: 'Des ETH volés par un drainer, convertis en stablecoins sur Uniswap : suivez les jambes du swap, et l\'affilié jusqu\'à son hébergeur.',
   description:
-    'Un collectionneur de NFT a signé une transaction « Claim » sur un faux site d\'airdrop. Ses ETH ont été aspirés par un contrat drainer, puis convertis en stablecoins sur un DEX avant d\'être envoyés sur un exchange. Apprenez à lire un swap (routeur, pool, jetons reçus), mesurez l\'activité de l\'affilié et du fournisseur du kit, et suivez chaque jeton jusqu\'à sa destination.',
+    'Un collectionneur de NFT a signé une transaction « Claim » sur un faux site d\'airdrop. Ses ETH ont été aspirés par un contrat drainer, puis convertis en stablecoins sur un DEX avant d\'être envoyés sur un exchange. Apprenez à lire un swap (routeur, pool, jetons reçus), mesurez l\'activité de l\'affilié et du fournisseur du kit, triez les sorties de l\'affilié (branches, poussière, dépenses), suivez chaque jeton jusqu\'à sa destination et retrouvez comment l\'affilié a lancé sa campagne.',
   difficulty: 2,
   chains: ['eth'],
-  skills: ['evm', 'tokens', 'dex', 'defi', 'exchange_id'],
-  estMinutes: 40,
+  skills: ['evm', 'tokens', 'dex', 'defi', 'exchange_id', 'requisition'],
+  estMinutes: 50,
   lessons: ['comptes-evm', 'tokens-erc20', 'dex-defi', 'typologies', 'exchanges'],
   generate(seed) {
     const w = new World(seed)
@@ -27,6 +40,13 @@ export const accDexSwap: ScenarioTemplate = {
     const cv = exchange(w, 'coinhouse', 'eth')
     const destKey = r.pick(['binance', 'okx', 'huobex', 'bitstamp'] as const)
     const dest = exchange(w, destKey, 'eth')
+    const sw = swapper(w, 'changenow')
+    const hostE = w.customEntity({
+      name: 'NordHost', category: 'merchant', known: true, country: 'Islande',
+      description: 'Hébergeur web et registraire de noms de domaine offshore (fictif) acceptant les paiements en ETH. Conserve les comptes clients, adresses électroniques, journaux de connexion et factures.',
+      compliance: { contact: 'abuse@nordhost.example', cooperation: 'mlat', responseDays: [45, 120], canFreeze: false, kyc: 'faible' },
+    })
+    const hostAddr = w.addr('eth', { entity: hostE, label: 'NordHost — Paiements' })
 
     const kitE = w.customEntity({ name: 'Kit de drainage « PhantomClaim »', category: 'scam', description: 'Drainer-as-a-service : le fournisseur prélève une commission sur chaque vol.' })
     const operatorE = w.customEntity({ name: 'Affilié du drainer (inconnu)', category: 'suspect' })
@@ -35,12 +55,31 @@ export const accDexSwap: ScenarioTemplate = {
     const operator = w.addr('eth', { entity: operatorE })
     const cold = w.addr('eth', { entity: operatorE })
 
+    // ── Lancement de la campagne par l'affilié ───────────────────────────────
+    // Premiers ETH (gaz) obtenus par une commande ChangeNOW, origine hors chaîne
+    const seedTx = w.transfer({ time: w.at(-r.float(14, 21) * 24), from: sw.hot('eth'), to: operator, value: roundAsset('ETH', fromUsd('ETH', r.float(380, 700))), asset: 'ETH', method: 'payout' })
+    // Nom de domaine puis serveur du faux site, payés chez un hébergeur offshore
+    const hostTxs = [
+      w.transfer({ time: seedTx.time + Math.round(r.float(3, 30) * HOUR), from: operator, to: hostAddr, value: roundAsset('ETH', fromUsd('ETH', r.float(12, 25))), asset: 'ETH' }),
+      w.transfer({ time: seedTx.time + Math.round(r.float(2, 4) * DAY), from: operator, to: hostAddr, value: roundAsset('ETH', fromUsd('ETH', r.float(60, 140))), asset: 'ETH' }),
+    ]
+    // Autres clients de l'hébergeur : des particuliers qui paient une partie de leur solde
+    for (let i = 0; i < r.int(6, 10); i++) {
+      const client = w.addr('eth')
+      const tC = w.at(r.float(-40, 10) * 24)
+      w.fundAccount(client, roundAsset('ETH', fromUsd('ETH', r.float(400, 5000))), 'ETH', tC - r.int(2, 90) * DAY)
+      w.transfer({ time: tC, from: client, to: hostAddr, value: roundAsset('ETH', fromUsd('ETH', r.float(10, 300))), asset: 'ETH' })
+      w.transfer({ time: tC + r.int(1, 20) * DAY, from: client, to: w.addr('eth'), value: roundAsset('ETH', fromUsd('ETH', r.float(50, 350))), asset: 'ETH' })
+    }
+    // Autres clients de ChangeNOW autour de la commande
+    for (let i = 0; i < r.int(4, 7); i++) w.transfer({ time: seedTx.time + r.int(-6, 6) * HOUR, from: sw.hot('eth'), to: w.addr('eth'), value: roundAsset('ETH', fromUsd('ETH', r.float(100, 3000))), asset: 'ETH', method: 'payout' })
+
     // Victime : portefeuille actif depuis longtemps
     const victimE = w.customEntity({ name: victimName, category: 'victim' })
     const victim = w.addr('eth', { entity: victimE })
-    const stolen = roundAsset('ETH', r.float(4, 16))
-    cv.withdraw(victim, roundAsset('ETH', stolen * r.float(0.6, 0.7)), w.at(-r.int(120, 300) * 24))
-    cv.withdraw(victim, roundAsset('ETH', stolen * r.float(0.45, 0.6)), w.at(-r.int(20, 90) * 24))
+    const target = roundAsset('ETH', r.float(4, 16))
+    cv.withdraw(victim, roundAsset('ETH', target * r.float(0.6, 0.7)), w.at(-r.int(120, 300) * 24))
+    cv.withdraw(victim, roundAsset('ETH', target * r.float(0.45, 0.6)), w.at(-r.int(20, 90) * 24))
     omni.swap({ trader: victim, assetIn: 'ETH', amountIn: roundAsset('ETH', r.float(0.05, 0.2)), assetOut: 'USDC', time: w.at(-r.int(5, 15) * 24) })
 
     // Le drain : la victime signe « Claim » ; le contrat répartit 80 % / 20 %
@@ -56,7 +95,9 @@ export const accDexSwap: ScenarioTemplate = {
         ],
       })
     }
+    const stolen = Math.floor((w.balanceOf(victim, 'ETH') - 0.004) * 1e6) / 1e6
     const tDrain = drainTx(victim, stolen, w.at(0))
+    const leftAfter = roundAsset('ETH', w.balanceOf(victim, 'ETH'))
 
     // Autres victimes du même affilié
     const others: string[] = []
@@ -71,18 +112,31 @@ export const accDexSwap: ScenarioTemplate = {
       otherVictims.push({ addr: v, value: val, tx: t.hash, time: t.time })
     }
     // Le fournisseur du kit encaisse aussi des commissions d'autres affiliés
-    for (let i = 0; i < r.int(3, 6); i++) {
+    // (deux affiliés concurrents, chacun avec son adresse de réception)
+    const rivals = [w.addr('eth'), w.addr('eth')]
+    for (let i = 0; i < r.int(5, 8); i++) {
       const v = w.addr('eth')
       const val = roundAsset('ETH', r.float(0.2, 5))
       w.fundAccount(v, roundAsset('ETH', val * 1.02), 'ETH', w.at(-r.int(5, 40) * 24))
       w.multi({
-        time: w.at(r.float(-72, 72)), signer: v, method: 'Claim',
+        time: w.at(r.float(-96, 72)), signer: v, method: 'Claim',
         legs: [
           { from: v, to: drainer, value: val, asset: 'ETH' },
-          { from: drainer, to: w.addr('eth'), value: roundAsset('ETH', val * share), asset: 'ETH' },
+          { from: drainer, to: r.pick(rivals), value: roundAsset('ETH', val * share), asset: 'ETH' },
           { from: drainer, to: kitFee, value: roundAsset('ETH', val * (1 - share)), asset: 'ETH' },
         ],
       })
+    }
+    // Le fournisseur vide périodiquement ses commissions vers un autre portefeuille
+    // (montant calculé sur ce qui est effectivement arrivé avant chaque retrait)
+    const kitVault = w.addr('eth', { entity: kitE })
+    let kitOut = 0
+    for (const t of [w.at(r.float(-30, -6)), w.at(r.float(80, 110))]) {
+      const inBefore = w.txsOf(kitFee).filter((x) => x.time < t).reduce((a, x) => a + w.flowIn(x, kitFee).reduce((b, f) => b + f.value, 0), 0)
+      const v = roundAsset('ETH', (inBefore - kitOut) * r.float(0.5, 0.8))
+      if (v <= 0) continue
+      w.transfer({ time: t, from: kitFee, to: kitVault, value: v, asset: 'ETH', autoFund: false })
+      kitOut += v
     }
 
     // Swaps de l'affilié : ETH → USDC (deux fois) et ETH → DAI
@@ -92,9 +146,15 @@ export const accDexSwap: ScenarioTemplate = {
     const sw3 = omni.swap({ trader: operator, assetIn: 'ETH', amountIn: roundAsset('ETH', opEth * r.float(0.12, 0.2)), assetOut: 'USDC', time: w.at(r.float(31, 34)) })
     const usdcTotal = roundAsset('USDC', sw1.amountOut + sw3.amountOut)
 
-    // USDC → exchange ; DAI → portefeuille froid ; reste d'ETH conservé
-    const dep = dest.receive(operator, w.balanceOf(operator, 'USDC'), w.at(r.float(36, 48)), { asset: 'USDC' })
-    const daiTx = w.transfer({ time: w.at(r.float(38, 60)), from: operator, to: cold, value: w.balanceOf(operator, 'DAI'), asset: 'DAI' })
+    // DAI → portefeuille froid ; une partie de l'ETH éclatée en branches ; USDC → exchange
+    const daiTx = w.transfer({ time: w.at(r.float(34, 36)), from: operator, to: cold, value: w.balanceOf(operator, 'DAI'), asset: 'DAI' })
+    const branches = decoyBranches(w, operator, { time: w.at(r.float(36, 39)), share: r.float(0.35, 0.5), branches: 3, asset: 'ETH' })
+    const dep = dest.receive(operator, w.balanceOf(operator, 'USDC'), w.at(r.float(41, 48)), { asset: 'USDC' })
+    // Poussière d'empoisonnement (sosies de l'adresse) et dépenses courantes après la campagne
+    const dust = dusting(w, operator, { time: w.at(30), n: r.int(2, 3), spreadH: 20 })
+    const giftE = w.customEntity({ name: 'GiftChain', category: 'merchant', known: true, country: 'Malte', description: "Revendeur en ligne (fictif) de cartes cadeaux et de recharges de jeux vidéo payables en crypto-actifs. Conserve l'adresse e-mail de livraison des codes." })
+    const casinoE = w.customEntity({ name: 'Spin Royale', category: 'gambling', known: true, country: 'Curaçao', description: "Casino en ligne (fictif) acceptant l'ETH, KYC déclenché au-delà d'un seuil de retrait." })
+    const spend = personalSpending(w, operator, { start: w.at(4 * 24), end: w.at(9 * 24), n: r.int(2, 3), merchants: [giftE, casinoE], maxUsd: 250, asset: 'ETH' })
     const ethKept = roundAsset('ETH', w.balanceOf(operator, 'ETH'))
 
     // Bruit de fond
@@ -108,18 +168,25 @@ export const accDexSwap: ScenarioTemplate = {
     const nAffVictims = others.length + 1
     const daiOut = daiTx.transfers[0].value
     const v2 = otherVictims[0]
-    const city2 = fakeCity(r)
+    let city2 = fakeCity(r)
+    if (city2 === city) city2 = fakeCity(r)
+    // Bénéficiaires réels des petites dépenses (commerçant tiré au hasard ou particulier)
+    const spendNames = [...new Set(spend.addresses.map((a) => w.ownerOf(a)?.name ?? 'des particuliers'))]
+    const dustH = dust.txs.map((t) => Math.round((t.time - tDrain.time) / HOUR))
+    const branchTotal = roundAsset('ETH', branches.reduce((x, b) => x + b.value, 0))
+    const hostTotal = roundAsset('ETH', hostTxs.reduce((x, t) => x + t.transfers[0].value, 0))
+    const domain = r.pick(['holders-airdrop', 'claim-holders', 'airdrop-season2', 'holders-rewards'])
 
     return {
       world: w,
       title: `Drainer « Claim » — ${city}`,
       briefing:
-        `${victimName} (${city}), ${g('collectionneur', 'collectionneuse')} de NFT, a cliqué sur un lien annonçant un « airdrop » réservé aux détenteurs d'une collection. Le site lui a demandé de connecter son portefeuille puis de signer une transaction « Claim ». Quelques secondes plus tard, son solde d'ETH était vide.\n\n` +
+        `${victimName} (${city}), ${g('collectionneur', 'collectionneuse')} de NFT, a cliqué sur un lien annonçant un « airdrop » réservé aux détenteurs d'une collection. Le site lui a demandé de connecter son portefeuille puis de signer une transaction « Claim ». Quelques secondes plus tard, il ne lui restait que ${amt(leftAfter, 'ETH')}.\n\n` +
         `Les drainers sont des kits vendus « clé en main » : un contrat malveillant aspire les fonds et les répartit entre l'affilié qui a mené la campagne et le fournisseur du kit. Les fonds volés passent souvent par un DEX pour être convertis en stablecoins.\n\n` +
-        `Objectifs : identifier l'adresse de l'affilié et celle du fournisseur du kit, mesurer l'ampleur de la campagne de l'affilié, reconstituer ses swaps (actifs et montants obtenus), puis suivre chaque jeton jusqu'à sa destination.`,
+        `Objectifs : identifier l'adresse de l'affilié et celle du fournisseur du kit, mesurer l'ampleur de la campagne de l'affilié, reconstituer ses swaps (actifs et montants obtenus), suivre chaque jeton jusqu'à sa destination, et remonter la préparation de la campagne (financement de départ, hébergement du faux site).`,
       evidence: [
         {
-          id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: w.at(2 * 24), author: victimName,
+          id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: atHour(w.at(2 * 24), 10) + 30 * 60, author: victimName,
           body:
             `« J'ai signé une seule transaction, qui s'appelait "Claim". Mon portefeuille affichait "+ 1 200 jetons", je n'ai pas fait attention au montant d'ETH.\n\n` +
             `Mon adresse : ${A(w, victim)}\n` +
@@ -127,7 +194,7 @@ export const accDexSwap: ScenarioTemplate = {
         },
         {
           id: 'capture', type: 'capture', title: 'Capture du faux site d\'airdrop', date: w.at(-0.1),
-          body: `🎁 Holders Airdrop — Season 2\nVotre portefeuille est éligible !\n[ Connect Wallet ]  →  [ Claim ]\nRéseau : Ethereum · Frais estimés : 0,002 ETH`,
+          body: `hxxps://${domain}[.]example/claim\n🎁 Holders Airdrop — Season 2\nVotre portefeuille est éligible !\n[ Connect Wallet ]  →  [ Claim ]\nRéseau : Ethereum · Frais estimés : 0,002 ETH`,
         },
         {
           id: 'forum', type: 'forum', title: 'Signalement communautaire (forum sécurité Web3)', author: handle, date: w.at(30),
@@ -135,15 +202,21 @@ export const accDexSwap: ScenarioTemplate = {
             `Alerte : drainer actif derrière les faux sites « Holders Airdrop ». Le contrat ${A(w, drainer)} reçoit l'ETH des victimes et le redistribue immédiatement, environ ${Math.round(share * 100)} % / ${Math.round((1 - share) * 100)} %. Ne signez rien.`,
         },
         {
-          id: 'rapprochement', type: 'email', title: 'Message d\'un commissariat (plainte similaire)', date: w.at(3 * 24), author: `Commissariat de ${city2}`,
+          id: 'osint', type: 'osint', title: 'Note OSINT sur le faux site', date: atHour(w.at(2 * 24), 16), author: 'Section cyber',
+          body:
+            `Domaine ${domain}[.]example enregistré le ${fmtDate(hostTxs[0].time, false)} chez NordHost (registraire et hébergeur offshore, paiements en crypto-actifs acceptés). Le site est hébergé sur un serveur du même prestataire, mis en ligne le ${fmtDate(hostTxs[1].time, false)}.\n` +
+            `Le code de la page charge le script du kit « PhantomClaim » ; l'adresse du contrat appelé est celle signalée sur les forums. Demande de suspension adressée au prestataire, sans réponse à ce jour.`,
+        },
+        {
+          id: 'rapprochement', type: 'email', title: 'Message d\'un commissariat (plainte similaire)', date: atHour(w.at(3 * 24), 9) + 45 * 60, author: `Commissariat ${de(city2)}`,
           body:
             `Bonjour,\n` +
-            `Nous avons reçu la plainte de ${v2Name}, victime d'un faux airdrop après avoir signé une transaction « Claim ». Son adresse ${A(w, v2.addr)} a perdu ${amt(v2.value, 'ETH')} le ${fmtDate(v2.time, false)} (transaction ${v2.tx}).\n` +
+            `Nous avons reçu la plainte ${de(v2Name)}, victime d'un faux airdrop après avoir signé une transaction « Claim ». Son adresse ${A(w, v2.addr)} a perdu ${amt(v2.value, 'ETH')} le ${fmtDate(v2.time, false)} (transaction ${v2.tx}).\n` +
             `Le mode opératoire semble identique au vôtre. Pouvez-vous nous dire si les fonds aboutissent au même endroit ?\n` +
             `Cordialement`,
         },
         {
-          id: 'note', type: 'note', title: 'Note de l\'analyste : stablecoins et gel', date: w.at(3 * 24), author: 'Cellule d\'appui',
+          id: 'note', type: 'note', title: 'Note de l\'analyste : stablecoins et gel', date: atHour(w.at(3 * 24), 14), author: 'Cellule d\'appui',
           body:
             `• USDC et USDT sont émis par des sociétés qui peuvent bloquer une adresse sur demande motivée des autorités.\n` +
             `• Le DAI est un stablecoin décentralisé, adossé à des garanties déposées dans des contrats : aucun émetteur ne peut geler une adresse.\n` +
@@ -191,14 +264,14 @@ export const accDexSwap: ScenarioTemplate = {
           prompt: 'Combien de victimes au total (plaignant compris) ont été drainées au profit de cette même adresse d\'affilié ?',
           answer: nAffVictims,
           hint: 'Comptez les transactions « Claim » dans lesquelles l\'adresse de l\'affilié reçoit une part du contrat drainer. Les autres « Claim » du contrat profitent à d\'autres affiliés.',
-          explanation: `L'adresse ${A(w, operator)} reçoit sa part de ${nAffVictims} transactions « Claim », donc de ${nAffVictims} victimes, dont ${v2Name} (plainte à ${city2}). Le contrat drainer, lui, sert aussi à d'autres affiliés, qui touchent leur part sur d'autres adresses : seules les victimes dont la part aboutit chez l'affilié relèvent de cette procédure, les autres justifient un signalement.`,
+          explanation: `L'adresse ${A(w, operator)} reçoit sa part de ${nAffVictims} transactions « Claim », donc de ${nAffVictims} victimes, dont ${v2Name} (plainte déposée à ${city2}). Le contrat drainer, lui, sert aussi à d'autres affiliés, qui touchent leur part sur d'autres adresses : seules les victimes dont la part aboutit chez l'affilié relèvent de cette procédure, les autres justifient un signalement.`,
         },
         {
           id: 'o2', type: 'choice', points: 8,
           prompt: 'En quels actifs l\'affilié a-t-il converti une partie de ses ETH sur Uniswap ?',
           hint: 'Dépliez les flux entrants de l\'affilié : quels jetons lui renvoient les pools Uniswap ?',
           ...choice(r, 'USDC et DAI', ['USDC uniquement', 'USDC et USDT', 'USDC et WBTC']),
-          explanation: 'Trois swaps : deux ETH → USDC et un ETH → DAI. Dans chaque swap, l\'ETH part vers le routeur, qui le transmet au pool ; le pool renvoie le jeton à l\'affilié.',
+          explanation: `Trois swaps : deux ETH → USDC et un ETH → DAI. Dans chaque swap, l'ETH part vers le routeur, qui le transmet au pool ; le pool renvoie le jeton à l'affilié. Attention aux ${dust.txs.length} petits transferts d'USDT reçus entre ${Math.min(...dustH)} et ${Math.max(...dustH)} heures après le vol : ils viennent d'adresses qui imitent celle de l'affilié (mêmes premiers et derniers caractères), pas d'un pool Uniswap. Ce sont des tentatives d'address poisoning visant l'affilié lui-même, sans rapport avec ses conversions.`,
         },
         {
           id: 'o3', type: 'amount', points: 10, unit: 'USDC', tolerance: 0.01,
@@ -212,7 +285,7 @@ export const accDexSwap: ScenarioTemplate = {
           prompt: 'Sur quelle plateforme les USDC ont-ils été envoyés ?',
           hint: 'Suivez les sorties d\'USDC de l\'affilié : l\'adresse destinataire est ensuite balayée vers un hot wallet étiqueté.',
           answer: [destKey],
-          explanation: `Les ${amt(usdcTotal, 'USDC')} sont déposés sur une adresse de dépôt ${dest.entity.name} puis balayés vers son hot wallet. Les DAI partent vers un autre portefeuille de l'affilié, et ${amt(ethKept, 'ETH')} restent sur son adresse. ${procedureFor(dest.entity)}`,
+          explanation: `Les ${amt(usdcTotal, 'USDC')} sont déposés sur une adresse de dépôt ${dest.entity.name} puis balayés vers son hot wallet. Les DAI partent vers un autre portefeuille de l'affilié ; ${amt(branchTotal, 'ETH')} sont éclatés vers ${branches.length} adresses neuves (${branches.map((b) => `${A(w, b.address).slice(0, 10)}… ${FATE[b.fate]}`).join(' ; ')}), aucune ne rejoignant une plateforme d'échange ; ${amt(ethKept, 'ETH')} restent sur son adresse. Seule la sortie d'USDC mène à un exchange. ${procedureFor(dest.entity)}`,
         },
         {
           id: 'o9', type: 'address', points: 9,
@@ -229,6 +302,20 @@ export const accDexSwap: ScenarioTemplate = {
           explanation: `Les ${amt(daiOut, 'DAI')} obtenus par le swap ETH → DAI partent vers ${A(w, cold)}, adresse sans étiquette qui ne fait rien d'autre : un portefeuille de stockage de l'affilié. Il faut la placer sous surveillance : si ces DAI rejoignent une plateforme, une réquisition rapide devient possible.`,
         },
         {
+          id: 'o12', type: 'entity', points: 9,
+          prompt: 'D\'où proviennent les tout premiers ETH de l\'affilié, reçus avant la campagne ?',
+          answer: ['changenow'],
+          hint: 'Remontez l\'historique de l\'adresse de l\'affilié jusqu\'à son premier flux entrant, deux à trois semaines avant le vol.',
+          explanation: `Le ${fmtDate(seedTx.time, false)}, l'adresse de l'affilié reçoit ${amt(seedTx.transfers[0].value, 'ETH')} du portefeuille de paiement de ChangeNOW : c'est le versement d'une commande d'échange (la crypto d'origine a été déposée chez ChangeNOW, éventuellement sur une autre chaîne). Ces ETH paient le gaz et l'hébergement de la campagne. La réquisition à ChangeNOW, avec le hash du versement (${seedTx.hash.slice(0, 18)}…), peut livrer la commande (actif et adresse de dépôt d'origine, adresse IP, horodatage). Les autres versements ChangeNOW des heures voisines vont à d'autres clients : seul celui qui aboutit sur l'adresse de l'affilié compte. ${procedureFor(sw.entity)}`,
+        },
+        {
+          id: 'o13', type: 'entity', points: 9,
+          prompt: 'Quel prestataire, payé par l\'affilié avant la campagne, héberge vraisemblablement le faux site ?',
+          answer: [hostE.id],
+          hint: 'Parmi les premières sorties d\'ETH de l\'affilié, deux paiements partent vers une adresse étiquetée, bien avant le vol. Rapprochez-les de la note OSINT.',
+          explanation: `L'affilié paie ${amt(hostTxs[0].transfers[0].value, 'ETH')} puis ${amt(hostTxs[1].transfers[0].value, 'ETH')} (${amt(hostTotal, 'ETH')}) à NordHost, aux dates d'enregistrement du domaine et de mise en ligne du serveur relevées par l'OSINT. Le prestataire détient le compte client (adresse électronique, connexions, factures) : c'est une piste d'identification indépendante des fonds volés. Les petits paiements ultérieurs (${spendNames.join(', ')}) relèvent des dépenses courantes et sont des pistes secondaires. ${procedureFor(hostE)}`,
+        },
+        {
           id: 'o11', type: 'choice', points: 9,
           prompt: 'Peut-on demander le gel des stablecoins conservés par l\'affilié hors de l\'exchange ?',
           hint: 'Quel est le stablecoin conservé, et existe-t-il une société émettrice capable de bloquer une adresse ?',
@@ -243,12 +330,13 @@ export const accDexSwap: ScenarioTemplate = {
         },
       ],
       truth: {
-        path: [tDrain.id, ...others, sw1.tx.id, sw2.tx.id, sw3.tx.id, dep.tx.id, ...(dep.sweep ? [dep.sweep.id] : []), daiTx.id],
+        path: [tDrain.id, ...others, sw1.tx.id, sw2.tx.id, sw3.tx.id, daiTx.id, dep.tx.id, ...(dep.sweep ? [dep.sweep.id] : []), seedTx.id],
         addresses: [drainer, operator, kitFee, cold, dep.deposit],
         debrief:
+          `0. Deux à trois semaines avant, l'affilié reçoit ${amt(seedTx.transfers[0].value, 'ETH')} d'une commande ChangeNOW et paie ${amt(hostTotal, 'ETH')} à NordHost pour le domaine ${domain}[.]example et son serveur.\n` +
           `1. La victime signe « Claim » : ${amt(stolen, 'ETH')} partent vers le contrat drainer ${A(w, drainer)}, qui reverse dans la même transaction ${Math.round(share * 100)} % à l'affilié ${A(w, operator)} et le reste au fournisseur du kit.\n` +
-          `2. L'affilié, qui a aussi drainé ${others.length} autre(s) victime(s) (dont ${v2Name}), effectue trois swaps sur Uniswap : ETH → ${amt(sw1.amountOut, 'USDC')}, ETH → ${amt(sw2.amountOut, 'DAI')}, ETH → ${amt(sw3.amountOut, 'USDC')}.\n` +
-          `3. Il dépose ${amt(usdcTotal, 'USDC')} sur l'adresse de dépôt ${A(w, dep.deposit)} (${dest.entity.name}), envoie les ${amt(daiOut, 'DAI')} vers ${A(w, cold)} et garde ${amt(ethKept, 'ETH')}.\n` +
+          `2. L'affilié, qui a aussi drainé ${others.length > 1 ? `${others.length} autres victimes` : 'une autre victime'} (dont ${v2Name}), effectue trois swaps sur Uniswap : ETH → ${amt(sw1.amountOut, 'USDC')}, ETH → ${amt(sw2.amountOut, 'DAI')}, ETH → ${amt(sw3.amountOut, 'USDC')}.\n` +
+          `3. Il dépose ${amt(usdcTotal, 'USDC')} sur l'adresse de dépôt ${A(w, dep.deposit)} (${dest.entity.name}), envoie les ${amt(daiOut, 'DAI')} vers ${A(w, cold)}, éclate ${amt(branchTotal, 'ETH')} vers ${branches.length} adresses neuves sans issue et garde ${amt(ethKept, 'ETH')}. Les petits USDT reçus ensuite sont de la poussière d'empoisonnement, pas des swaps.\n` +
           `4. Le fournisseur du kit encaisse ${amt(kitCut, 'ETH')} sur le vol du plaignant, et des commissions sur les vols d'autres affiliés, sur ${A(w, kitFee)}.\n\n` +
           `À retenir : un swap DEX n'est pas une rupture de traçage. Le routeur et le pool sont des contrats publics ; la transaction montre l'actif entrant et l'actif sortant, au profit du même trader. Les stablecoins obtenus (USDC, DAI) se suivent comme n'importe quel jeton, et l'USDC est gelable par son émetteur.`,
       },
@@ -258,6 +346,7 @@ export const accDexSwap: ScenarioTemplate = {
         'Dépliez les flux entrants de l\'affilié pour voir les jetons renvoyés par les pools Uniswap.',
         'Les jetons obtenus ne prennent pas tous le même chemin : suivez chaque jeton séparément.',
         'Pour mesurer l\'activité de l\'affilié, comptez les « Claim » dont il est bénéficiaire, pas toutes les transactions du contrat.',
+        'Remontez aussi le passé de l\'affilié : son premier ETH et ses premiers paiements disent comment la campagne a été montée.',
       ],
     }
   },

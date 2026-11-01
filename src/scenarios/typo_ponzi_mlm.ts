@@ -1,8 +1,8 @@
 import { World, type Tx } from '../engine/world'
-import { exchange, HOUR, DAY, type ExchangeKit } from '../engine/patterns'
+import { dex, exchange, HOUR, DAY, type ExchangeKit } from '../engine/patterns'
 import { roundAsset } from '../engine/chains'
 import type { ScenarioTemplate } from './types'
-import { A, amt, choice, fakeCity, fakeHandle, fakePerson, fmtDate, procedureFor } from './util'
+import { A, amt, choice, de, fakeCity, fakeHandle, fakePerson, fmtDate, procedureFor } from './util'
 
 // Fausse plateforme de rendement (YieldNova, fictive) sur Tron : les
 // investisseurs déposent des USDT sur une adresse unique ; un portefeuille de
@@ -12,7 +12,11 @@ import { A, amt, choice, fakeCity, fakeHandle, fakePerson, fmtDate, procedureFor
 
 const usdt = (v: number) => roundAsset('USDT', v)
 const usd0 = (v: number) => `${Math.round(v).toLocaleString('fr-FR')} USDT`
+const heure = (ts: number) => new Date(ts * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
 const pct = (v: number) => `${v.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`
+
+/** Heure de bureau (≈ 9 h – 17 h à Paris) le jour de `t` : plaintes, réponses et notes ne sont pas datées de la nuit. */
+const office = (t: number) => Math.floor(t / 86400) * 86400 + 8 * 3600 + (t % (7 * 3600))
 
 interface Inv {
   addr: string
@@ -29,13 +33,13 @@ type Ev = { t: number; kind: 'dep'; inv: Inv; i: number } | { t: number; kind: '
 export const ponziMlm: ScenarioTemplate = {
   id: 'ponzi-mlm',
   title: 'YieldNova : anatomie d\'un Ponzi en USDT',
-  tagline: 'Des « rendements » payés par les nouveaux entrants, des parrains commissionnés, puis la fermeture.',
+  tagline: 'Des « rendements » payés par les nouveaux entrants, des parrains commissionnés, puis la fermeture et une sortie en trompe-l\'œil.',
   description:
-    'Une plateforme promet 1 à 2 % de rendement par jour sur des dépôts en USDT, avec des commissions de parrainage. Les retraits fonctionnent… jusqu\'au jour où le site ferme. Identifiez l\'adresse de collecte et le portefeuille de paiement, comptez les investisseurs, mesurez la part des dépôts reversée en faux rendements et localisez la sortie des organisateurs.',
+    'Une plateforme promet 1 à 2 % de rendement par jour sur des dépôts en USDT, avec des commissions de parrainage. Les retraits fonctionnent… jusqu\'au jour où le site ferme. Identifiez l\'adresse de collecte et le portefeuille de paiement, comptez les investisseurs, mesurez la part des dépôts reversée en faux rendements puis triez la sortie des organisateurs (remboursements sélectifs, virements jumeaux, réserve gelable) jusqu\'au courtier OTC.',
   difficulty: 3,
   chains: ['tron'],
   skills: ['tron', 'tokens', 'typologies', 'exchange_id', 'requisition', 'osint'],
-  estMinutes: 60,
+  estMinutes: 70,
   lessons: ['ponzi-mlm', 'tron-usdt', 'typologies', 'exposition-risque', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -59,6 +63,7 @@ export const ponziMlm: ScenarioTemplate = {
     }
     const dest = ex(destKey)
     const ramps = ['binance', 'okx'].map(ex)
+    const sun = dex(w, 'sunswap', 'tron')
 
     const collector = w.addr('tron', { entity: nova })
     const payer = w.addr('tron', { entity: nova })
@@ -90,13 +95,19 @@ export const ponziMlm: ScenarioTemplate = {
     victim.lastPaid = victim.first
     victim.deposits = [{ t: victim.first, v: usdt(r.int(15, 50) * 100) }, { t: tHalt - Math.round(r.float(1.2, 2.8) * DAY), v: usdt(r.int(20, 90) * 100) }]
     w.setEntity(victim.addr, w.customEntity({ name: victimP.name, category: 'victim' }))
-    const leaderNames = Array.from({ length: nLeaders }, () => fakeHandle(r))
+    // Pseudonymes distincts
+    const leaderNames: string[] = []
+    while (leaderNames.length < nLeaders) {
+      const h = fakeHandle(r)
+      if (!leaderNames.includes(h)) leaderNames.push(h)
+    }
 
     // Achat des USDT par les investisseurs (exchanges ou adresses tierces)
     for (const inv of invs) {
       const need = inv.deposits.reduce((s, d) => s + d.v, 0)
       const tf = inv.first - Math.round(r.float(2, 72) * HOUR)
-      if (r.chance(0.7) || inv === victim) r.pick(ramps).withdraw(inv.addr, usdt(need + r.int(0, 20) * 5), tf, 'USDT')
+      // (les leaders et le plaignant achètent toujours sur un exchange : identifiables par réquisition)
+      if (r.chance(0.7) || inv === victim || invs.indexOf(inv) < nLeaders) r.pick(ramps).withdraw(inv.addr, usdt(need + r.int(0, 20) * 5), tf, 'USDT')
       else w.fundAccount(inv.addr, usdt(need + r.int(1, 20) * 5), 'USDT', tf)
     }
 
@@ -173,16 +184,49 @@ export const ponziMlm: ScenarioTemplate = {
     const exit2 = w.transfer({ time: tHalt + r.int(20, 90) * 60, from: collector, to: org, value: usdt(rest - exit1v), asset: 'USDT' })
     const orgTotal = usdt(w.balanceOf(org, 'USDT'))
 
-    // ── Sortie : OTC (majoritaire) et exchange ──────────────────────────────
-    const otcShare = r.float(0.6, 0.74)
-    const otcV = usdt(Math.floor(orgTotal * otcShare))
-    const otcA = usdt(Math.floor(otcV * r.float(0.45, 0.6)))
+    // ── Sortie : remboursements sélectifs, trois transferts jumeaux, OTC et exchange ──
+    // a) Branche « remboursements » : quelques investisseurs qui menaçaient de porter plainte
+    const gasTrx = (to: string, time: number) => w.transfer({ time, from: org, to, value: r.int(3, 8) * 10, asset: 'TRX', method: 'transfer' })
+    const orgTrx = dest.withdraw(org, r.int(800, 1500), tHalt - Math.round(r.float(5, 15) * DAY), 'TRX')
+    const bRef = w.addr('tron', { entity: orgE })
+    const refV = usdt(Math.floor((orgTotal * r.float(0.03, 0.04)) / 10) * 10)
+    const tBr = tHalt + Math.round(r.float(1, 3) * HOUR)
+    gasTrx(bRef, tBr - r.int(3, 10) * 60)
+    const refTx = w.transfer({ time: tBr, from: org, to: bRef, value: refV, asset: 'USDT' })
+    const dep0 = (i: Inv) => i.deposits.reduce((s, d) => s + d.v, 0)
+    const refunded = r.pickN(invs.slice(nLeaders).filter((i) => i !== victim).sort((a, b) => dep0(b) - dep0(a)).slice(0, 6), 3)
+    const refunds: Tx[] = []
+    let refLeft = refV
+    refunded.forEach((inv, i) => {
+      const v = i === refunded.length - 1 ? refLeft : usdt(Math.floor((refV / refunded.length) * r.float(0.8, 1.1) / 10) * 10)
+      if (v <= 0) return
+      refLeft = usdt(refLeft - v)
+      refunds.push(w.transfer({ time: tBr + Math.round(r.float(2, 30) * HOUR) + i * r.int(10, 90) * 60, from: bRef, to: inv.addr, value: v, asset: 'USDT' }))
+    })
+    // b) Trois transferts jumeaux : un relais vers le courtier OTC, deux réserves
+    const V = usdt(Math.floor(orgTotal * r.float(0.14, 0.16)))
+    const tTw = tHalt + Math.round(r.float(4, 14) * HOUR)
+    const relay = w.addr('tron', { entity: orgE })
+    const T1 = w.addr('tron', { entity: orgE }) // réserve sans TRX : immobile
+    const T2 = w.addr('tron', { entity: orgE }) // convertie en TRX sur SunSwap
+    gasTrx(relay, tTw - r.int(5, 20) * 60)
+    gasTrx(T2, tTw - r.int(25, 50) * 60)
+    const relayTx = w.transfer({ time: tTw, from: org, to: relay, value: V, asset: 'USDT' })
+    const twinOff = r.shuffle([r.int(-24, -3), r.int(3, 24)])
+    const t1Tx = w.transfer({ time: tTw + twinOff[0] * 60, from: org, to: T1, value: usdt(Math.round(V * (1 + r.float(0.0008, 0.004)))), asset: 'USDT' })
+    const t2Tx = w.transfer({ time: tTw + twinOff[1] * 60, from: org, to: T2, value: usdt(Math.round(V * (1 - r.float(0.0008, 0.004)))), asset: 'USDT' })
+    const t2Swap = sun.swap({ trader: T2, assetIn: 'USDT', amountIn: t2Tx.transfers[0].value, assetOut: 'TRX', time: t2Tx.time + Math.round(r.float(1, 3) * HOUR) })
+    // c) Le relais dépose tout chez SatsDesk ; l'exchange ; puis le gros dépôt OTC direct
     const otcDep = otc.newDeposit()
-    const tOut = tHalt + Math.round(r.float(4, 14) * HOUR)
-    const o1 = otc.receive(org, otcA, tOut, { asset: 'USDT', depositAddr: otcDep, sweepDelayH: r.float(0.5, 3) })
-    const o2 = otc.receive(org, usdt(otcV - otcA), tOut + Math.round(r.float(6, 20) * HOUR), { asset: 'USDT', depositAddr: otcDep, sweepDelayH: r.float(0.5, 3) })
-    const exV = usdt(Math.floor(orgTotal - otcV - r.float(20, 200)))
-    const e1 = dest.receive(org, exV, tOut + Math.round(r.float(2, 9) * HOUR), { asset: 'USDT' })
+    const o1 = otc.receive(relay, V, tTw + r.int(30, 90) * 60, { asset: 'USDT', depositAddr: otcDep, sweepDelayH: r.float(0.5, 3) })
+    const exV = usdt(Math.floor(orgTotal * r.float(0.06, 0.08)))
+    const e1 = dest.receive(org, exV, tTw + Math.round(r.float(2, 9) * HOUR), { asset: 'USDT' })
+    const o2V = usdt(Math.floor(orgTotal * r.float(0.3, 0.34)))
+    const o2 = otc.receive(org, o2V, tTw + Math.round(r.float(10, 30) * HOUR), { asset: 'USDT', depositAddr: otcDep, sweepDelayH: r.float(0.5, 3) })
+    const otcV = usdt(V + o2V)
+    const otcShare = otcV / orgTotal
+    const orgLeft = usdt(w.balanceOf(org, 'USDT'))
+    const t1Held = usdt(w.balanceOf(T1, 'USDT'))
 
     // ── Bruit ────────────────────────────────────────────────────────────────
     otc.noise(10, t0, tHalt + 4 * DAY, 'USDT')
@@ -206,7 +250,16 @@ export const ponziMlm: ScenarioTemplate = {
     // Bénéficiaires des commissions de parrainage (versées directement par l'adresse de collecte)
     const comRecipients = [...new Set(comTxs.map((t) => t.transfers[0].to))]
     const comBy = comRecipients.map((a) => ({ a, v: usdt(comTxs.filter((t) => t.transfers[0].to === a).reduce((s, t) => s + t.transfers[0].value, 0)), h: leaderNames[leaderAddrs.indexOf(a)] }))
+    const twinRows = [{ to: relay, tx: relayTx }, { to: T1, tx: t1Tx }, { to: T2, tx: t2Tx }].sort((a, b) => a.tx.time - b.tx.time)
     const skimTotal = usdt(skimTxs.reduce((s, t) => s + t.transfers[0].value, 0))
+    // Délai réel entre la dernière vague de « rendements » et la fermeture
+    const lastPayT = Math.max(...topups.map((t) => t.time))
+    const payStopDays = Math.round((tHalt - lastPayT) / DAY)
+    // Commissions dues mais jamais versées (dernières semaines)
+    const comUnpaid = pendingCom.reduce((s, v) => s + v, 0)
+    // Capture du tableau de bord : intérêts affichés depuis le premier dépôt du plaignant
+    const capT = victim.deposits[1].t - DAY
+    const capDays = Math.max(1, Math.floor((capT - victim.first) / DAY))
 
     return {
       world: w,
@@ -217,7 +270,7 @@ export const ponziMlm: ScenarioTemplate = {
         `Rappel : un rendement promis ne peut être payé que par une activité réelle. Si les « intérêts » ne proviennent que des dépôts des nouveaux entrants, la plateforme est structurellement condamnée à s'effondrer.`,
       evidence: [
         {
-          id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: tHalt + 3 * DAY, author: victimP.name,
+          id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: office(tHalt + 3 * DAY), author: victimP.name,
           body:
             `« J'ai découvert YieldNova par le groupe Telegram de @${leaderNames[victim.leader]}, qui montrait ses retraits chaque semaine. J'ai acheté des USDT sur un exchange et je les ai envoyés à l'adresse de la plateforme indiquée sur mon tableau de bord.\n\n` +
             `Mon adresse Tron : ${A(w, victim.addr)}\n` +
@@ -226,13 +279,13 @@ export const ponziMlm: ScenarioTemplate = {
             `${victim.paid > 0 ? `J'ai reçu ${amt(victim.paid, 'USDT')} de « rendements » au début, ce qui m'a mis en confiance.` : 'Je n\'ai jamais rien pu retirer : à chaque demande, le site affichait « retrait en cours de traitement ».'} Le ${fmtDate(tHalt, false)}, le site a disparu. »`,
         },
         {
-          id: 'capture', type: 'capture', title: 'Capture du tableau de bord YieldNova (fournie par la victime)', date: victim.deposits[1].t - DAY,
+          id: 'capture', type: 'capture', title: 'Capture du tableau de bord YieldNova (fournie par la victime)', date: capT,
           body:
             `YIELDNOVA — Smart Yield Protocol\n` +
             `Plan « Nova » : ${pct(dailyPct)} / jour · capital restitué à 60 jours\n` +
             `Parrainage : ${refPct} % sur chaque dépôt de vos filleuls\n\n` +
             `Dépôt : envoyez vos USDT (TRC-20) à l'adresse de la plateforme\n${A(w, collector)}\n\n` +
-            `Votre solde : ${amt(usdt(victim.deposits[0].v * (1 + (dailyPct / 100) * 9)), 'USDT')} · Retrait minimum : 50 USDT`,
+            `Votre solde : ${amt(usdt(victim.deposits[0].v * (1 + (dailyPct / 100) * capDays)), 'USDT')} · Retrait minimum : 50 USDT`,
         },
         {
           id: 'telegram', type: 'telegram', title: `Groupe Telegram « Nova Family » (message de @${proofHandle})`, author: `@${proofHandle}`, date: proof.time + 3 * HOUR,
@@ -243,14 +296,14 @@ export const ponziMlm: ScenarioTemplate = {
             `Mon lien de parrainage en message privé, bonus ${refPct} % pour moi, accompagnement offert pour vous 🤝`,
         },
         {
-          id: 'osint', type: 'osint', title: 'Note OSINT sur la plateforme', date: tHalt + 4 * DAY, author: 'Cellule cyber',
+          id: 'osint', type: 'osint', title: 'Note OSINT sur la plateforme', date: office(tHalt + 4 * DAY), author: 'Cellule cyber',
           body:
             `Le nom de domaine a été enregistré ${r.int(3, 6)} semaines avant les premiers dépôts, derrière un service d'anonymisation. Le « livre blanc » est copié d'un projet DeFi existant ; l'équipe affichée utilise des photos de banques d'images.\n` +
             `La plateforme ne dispose d'aucun enregistrement ni agrément de PSAN/CASP en France ; un site au nom proche figure sur une liste noire de l'AMF.\n` +
             `Les « leaders » @${leaderNames.join(', @')} animaient des groupes Telegram de plusieurs centaines de membres et des sessions vidéo de « formation ».`,
         },
         {
-          id: 'note', type: 'note', title: 'Note de l\'analyste : signature d\'un Ponzi', date: tHalt + 4 * DAY, author: 'Cellule d\'appui',
+          id: 'note', type: 'note', title: 'Note de l\'analyste : signature d\'un Ponzi', date: office(tHalt + 4 * DAY), author: 'Cellule d\'appui',
           body:
             `• Une plateforme de rendement réelle place les fonds (prêt, staking, liquidité) : on voit des flux vers des protocoles et des revenus qui en reviennent. Un Ponzi n'a aucune source extérieure : tout ce qui sort provient des dépôts.\n` +
             `• Le portefeuille qui paie les « rendements » est souvent distinct de l'adresse de dépôt et réalimenté juste avant chaque vague de paiements.\n` +
@@ -307,28 +360,35 @@ export const ponziMlm: ScenarioTemplate = {
           prompt: 'Quel montant total de commissions de parrainage l\'adresse de collecte a-t-elle versé ?',
           answer: commissions,
           hint: 'Additionnez les virements de l\'adresse de collecte vers les adresses des leaders (pas les réapprovisionnements du portefeuille de paiement, ni les prélèvements).',
-          explanation: `${usd0(commissions)} en ${comTxs.length} versements, soit ${pct(comShare)} des dépôts, cohérent avec la commission annoncée de ${refPct} % sur les dépôts des filleuls. Les commissions rémunèrent le recrutement : elles accélèrent l'entrée de nouveaux fonds, sans lesquels les « rendements » ne pourraient être payés. Elles sont à intégrer au calcul des gains nets des leaders.`,
+          explanation: `${usd0(commissions)} en ${comTxs.length} versements, soit ${pct(comShare)} des dépôts : moins que les ${refPct} % annoncés, car la commission ne porte que sur les dépôts des filleuls (pas sur ceux des leaders)${comUnpaid >= 20 ? ` et les dernières commissions dues (environ ${usd0(comUnpaid)}) n'ont jamais été versées avant la fermeture` : ''}. Les commissions rémunèrent le recrutement : elles accélèrent l'entrée de nouveaux fonds, sans lesquels les « rendements » ne pourraient être payés. Elles sont à intégrer au calcul des gains nets des leaders.`,
         },
         {
           id: 'o8', type: 'address', points: 10,
           prompt: 'Quelle adresse capte les prélèvements réguliers puis la vidange finale de l\'adresse de collecte ?',
           answer: [org],
           hint: 'Parmi les sorties de l\'adresse de collecte, cherchez une destination qui revient tous les six à neuf jours, puis reçoit deux gros virements le jour de la fermeture.',
-          explanation: `${A(w, org)} reçoit ${skimTxs.length} prélèvement${skimTxs.length > 1 ? 's' : ''} en cours de vie (${usd0(skimTotal)}), puis ${usd0(exit1v)} et ${usd0(usdt(rest - exit1v))} le ${fmtDate(tHalt, false)}, au moment où le site ferme : ${usd0(orgTotal)} au total. Elle ne reverse rien aux investisseurs : c'est le portefeuille des organisateurs, d'où partent ensuite les fonds vers les prestataires de sortie.`,
+          explanation: `${A(w, org)} reçoit ${skimTxs.length} prélèvement${skimTxs.length > 1 ? 's' : ''} en cours de vie (${usd0(skimTotal)}), puis ${usd0(exit1v)} et ${usd0(usdt(rest - exit1v))} le ${fmtDate(tHalt, false)}, au moment où le site ferme : ${usd0(orgTotal)} au total. Elle ne reverse rien directement aux investisseurs (seuls ${refunds.length} remboursements sélectifs passeront par une adresse intermédiaire après la fermeture) : c'est le portefeuille des organisateurs, d'où partent ensuite les fonds vers les prestataires de sortie.`,
         },
         {
           id: 'o6', type: 'entity', points: 10,
           prompt: 'Vers quel prestataire part la plus grande partie des fonds extraits par les organisateurs ?',
           answer: ['satsdesk'],
           hint: 'Suivez les prélèvements et la vidange finale de l\'adresse de collecte jusqu\'au portefeuille des organisateurs, puis ses sorties.',
-          explanation: `Le portefeuille des organisateurs ${A(w, org)} envoie ${usd0(otcV)} (${Math.round(otcShare * 100)} %) sur une adresse de dépôt de SatsDesk OTC, courtier de gré à gré, et ${usd0(exV)} sur ${dest.entity.name}. ${procedureFor(otc.entity)} ${procedureFor(dest.entity)}`,
+          explanation: `${usd0(otcV)} (${Math.round(otcShare * 100)} % de ce qu'ont capté les organisateurs) arrivent sur une même adresse de dépôt de SatsDesk OTC, courtier de gré à gré : ${usd0(V)} via le relais ${A(w, relay).slice(0, 10)}…, puis ${usd0(o2V)} directement depuis ${A(w, org).slice(0, 10)}…. C'est la plus grosse destination ; ${dest.entity.name} ne reçoit que ${usd0(exV)}. ${procedureFor(otc.entity)}`,
+        },
+        {
+          id: 'o13', type: 'tx', points: 12,
+          prompt: `Après la fermeture, trois virements d'environ ${usd0(V)} quittent le portefeuille des organisateurs à quelques minutes d'intervalle. Lequel mène au courtier OTC ?`,
+          answer: [relayTx.id],
+          hint: 'Les montants ne départagent pas : regardez quels destinataires reçoivent aussi des TRX pour leurs frais, et ce que chacun fait ensuite.',
+          explanation: `${twinRows.map((x) => `${heure(x.tx.time)} → ${A(w, x.to).slice(0, 10)}… (${usd0(x.tx.transfers[0].value)})`).join(' ; ')}. ${A(w, relay).slice(0, 10)}… reçoit ses TRX de frais ${Math.round((relayTx.time - w.txsOf(relay)[0].time) / 60)} minutes avant, puis dépose la totalité sur ${A(w, otcDep).slice(0, 10)}…, l'adresse de dépôt SatsDesk que le portefeuille des organisateurs alimentera aussi directement : c'est la continuation. ${A(w, T1).slice(0, 10)}… n'a jamais reçu de TRX et ne peut pas bouger : ses ${usd0(t1Held)} sont une réserve gelable par Tether. ${A(w, T2).slice(0, 10)}… convertit ses USDT en ${amt(t2Swap.amountOut, 'TRX')} sur SunSwap et s'arrête là : branche sans issue, hors de portée de l'émetteur. Plus tôt, une autre branche (${usd0(refV)} vers ${A(w, bRef).slice(0, 10)}…) a servi à rembourser ${refunds.length} gros investisseurs, vraisemblablement les plus menaçants : une manœuvre classique pour retarder les plaintes.`,
         },
         {
           id: 'o11', type: 'amount', points: 10, unit: 'USDT', tolerance: 0.01,
           prompt: 'Quel montant d\'USDT le portefeuille des organisateurs a-t-il déposé sur l\'exchange (et non chez le courtier OTC) ?',
           answer: exV,
-          hint: 'Suivez les sorties du portefeuille des organisateurs : deux dépôts vont sur la même adresse SatsDesk, un autre sur une adresse de dépôt d\'exchange.',
-          explanation: `${usd0(exV)} déposés le ${fmtDate(e1.tx.time)} sur ${A(w, e1.deposit)}, adresse de dépôt de ${dest.entity.name}. C'est la part la plus directement saisissable : une réquisition rapide, citant l'adresse de dépôt et le hash, peut conduire au gel du compte client s'il n'a pas été vidé, et donne l'identité, les IP et l'IBAN de son titulaire.`,
+          hint: 'Parmi les sorties du portefeuille des organisateurs, une seule arrive sur une adresse de dépôt d\'exchange (l\'autre adresse de dépôt, alimentée deux fois, est celle du courtier).',
+          explanation: `${usd0(exV)} déposés le ${fmtDate(e1.tx.time)} sur ${A(w, e1.deposit)}, adresse de dépôt ${de(dest.entity.name)}. C'est la part la plus directement saisissable : une réquisition rapide, citant l'adresse de dépôt et le hash, peut conduire au gel du compte client s'il n'a pas été vidé, et donne l'identité, les IP et l'IBAN de son titulaire. Le même exchange avait fourni, le ${fmtDate(orgTrx.time, false)}, les TRX de frais du portefeuille des organisateurs : deux liens indépendants vers le même compte. Le reste est gelable par Tether tant qu'il ne bouge pas : ${usd0(t1Held)} sur la réserve ${A(w, T1).slice(0, 10)}…, ${usd0(orgLeft)} sur le portefeuille des organisateurs. ${procedureFor(dest.entity)}`,
         },
         {
           id: 'o12', type: 'choice', points: 8,
@@ -357,22 +417,22 @@ export const ponziMlm: ScenarioTemplate = {
         },
       ],
       truth: {
-        path: [victim.deposits[0].tx!.id, victim.deposits[1].tx!.id, ...depTxs.filter((t) => t.transfers[0].from !== victim.addr).map((t) => t.id), ...topups.map((t) => t.id), ...payouts.map((t) => t.id), ...comTxs.map((t) => t.id), ...skimTxs.map((t) => t.id), exit1.id, exit2.id, o1.tx.id, o2.tx.id, e1.tx.id],
-        addresses: [collector, payer, org, otcDep, e1.deposit, ...comRecipients],
+        path: [victim.deposits[0].tx!.id, victim.deposits[1].tx!.id, ...depTxs.filter((t) => t.transfers[0].from !== victim.addr).map((t) => t.id), ...topups.map((t) => t.id), ...payouts.map((t) => t.id), ...comTxs.map((t) => t.id), ...skimTxs.map((t) => t.id), exit1.id, exit2.id, relayTx.id, o1.tx.id, e1.tx.id, o2.tx.id, ...(o2.sweep ? [o2.sweep.id] : [])],
+        addresses: [collector, payer, org, relay, otcDep, e1.deposit, ...comRecipients],
         debrief:
           `1. Du ${fmtDate(depTxs[0].time, false)} au ${fmtDate(depTxs[depTxs.length - 1].time, false)}, ${N} investisseurs déposent ${usd0(totalDeposited)} sur ${A(w, collector)}.\n` +
-          `2. À ${nPayCycles} reprises, l'adresse de collecte réalimente le portefeuille de paiement ${A(w, payer)}, qui verse aussitôt des « rendements » : ${usd0(returnsPaid)} au total (${pct(share)} des dépôts). Les paiements cessent ${D - lastPayDay} jours avant la fermeture (« maintenance »).\n` +
+          `2. À ${nPayCycles} reprises, l'adresse de collecte réalimente le portefeuille de paiement ${A(w, payer)}, qui verse aussitôt des « rendements » : ${usd0(returnsPaid)} au total (${pct(share)} des dépôts). La dernière vague de paiements a lieu ${payStopDays} jours avant la fermeture (« maintenance »).\n` +
           `3. Les ${nLeaders} leaders reçoivent ${usd0(commissions)} de commissions de parrainage (${pct(comShare)}).\n` +
-          `4. Les organisateurs prélèvent régulièrement, puis vident l'adresse de collecte le ${fmtDate(tHalt, false)} : ${usd0(orgTotal)} (${pct(orgShare)}) sur ${A(w, org)}, dont ${usd0(otcV)} vers SatsDesk OTC et ${usd0(exV)} vers ${dest.entity.name}.\n` +
+          `4. Les organisateurs prélèvent régulièrement, puis vident l'adresse de collecte le ${fmtDate(tHalt, false)} : ${usd0(orgTotal)} (${pct(orgShare)}) sur ${A(w, org)}. Sortie : ${usd0(refV)} pour des remboursements sélectifs, trois virements jumeaux d'environ ${usd0(V)} (un relais vers SatsDesk, une réserve immobile de ${usd0(t1Held)}, une conversion en TRX), ${usd0(exV)} vers ${dest.entity.name}, puis ${usd0(o2V)} directement chez SatsDesk : ${usd0(otcV)} au courtier au total.\n` +
           `5. ${victimP.name} perd ${usd0(victimLoss)}${victim.paid > 0 ? `, déduction faite de ${usd0(victim.paid)} de rendements reçus` : ''}.\n\n` +
-          `À retenir : la signature d'un Ponzi se lit dans les flux. Une adresse de collecte sans autre source que les dépôts, un portefeuille de paiement réalimenté juste avant chaque vague de retraits, des commissions de parrainage, puis une vidange finale. Mesurer la part reversée, la part en commissions et la part captée objective le préjudice global et oriente les saisies. Les gagnants (premiers entrants, leaders) sont à identifier : ils peuvent être témoins, complices ou simplement bénéficiaires.`,
+          `À retenir : la signature d'un Ponzi se lit dans les flux. Une adresse de collecte sans autre source que les dépôts, un portefeuille de paiement réalimenté juste avant chaque vague de retraits, des commissions de parrainage, puis une vidange finale. Mesurer la part reversée, la part en commissions et la part captée objective le préjudice global et oriente les saisies. À la sortie, des virements jumeaux se départagent par les frais reçus et le devenir de chaque destinataire, pas par leur montant. Les gagnants (premiers entrants, leaders) sont à identifier : ils peuvent être témoins, complices ou simplement bénéficiaires.`,
       },
       hints: [
         'Le dépôt cité dans la plainte mène à l\'adresse de collecte ; son historique est celui de toute la plateforme.',
         'La transaction publiée comme « preuve » sur Telegram révèle le portefeuille qui paie les rendements.',
         'Comparez les totaux reçus et envoyés des deux adresses de la plateforme : la part reversée se calcule directement.',
         'Les autres sorties de l\'adresse de collecte vont soit aux leaders (commissions), soit à un portefeuille unique qui finit vidé vers deux prestataires.',
-        'Le portefeuille des organisateurs se vide en trois dépôts : deux sur la même adresse de courtier, un sur un exchange.',
+        'Le portefeuille des organisateurs éclate ses fonds : remboursements, trois virements jumeaux, dépôts. Face aux jumeaux, regardez qui reçoit des TRX pour payer ses frais et où chacun envoie ensuite.',
       ],
     }
   },

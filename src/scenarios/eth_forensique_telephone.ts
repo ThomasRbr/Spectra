@@ -1,6 +1,7 @@
 import { World, type Tx } from '../engine/world'
 import { dex, exchange, swapper, HOUR, DAY } from '../engine/patterns'
 import { createEvmSeedAccounts } from '../engine/hd'
+import { priorHistory, personalSpending, dusting } from '../engine/realism'
 import { roundAsset } from '../engine/chains'
 import type { ScenarioTemplate } from './types'
 import { A, amt, choice, fakeCity, fakeHandle, fakePerson, fmtDate, procedureFor } from './util'
@@ -8,17 +9,19 @@ import { A, amt, choice, fakeCity, fakeHandle, fakePerson, fmtDate, procedureFor
 const usdt = (v: number) => amt(roundAsset('USDT', v), 'USDT')
 const r100 = (v: number) => Math.round(v / 100) * 100
 const PLATFORMS = ['NovaTrade Pro', 'Quantix Capital', 'BlueOak Markets', 'Stellaris FX', 'Ardent Invest']
+/** Heure de Paris (0–23) d'un horodatage. */
+const parisHour = (ts: number) => Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone: 'Europe/Paris' }).format(new Date(ts * 1000)))
 
 export const ethForensiqueTelephone: ScenarioTemplate = {
   id: 'forensique-telephone',
   title: 'Le téléphone du gestionnaire',
   tagline: 'Une extraction de téléphone, une phrase de récupération dans les notes : les comptes que l\'application ne montrait pas.',
   description:
-    'Le téléphone d\'un « gestionnaire de comptes » d\'une fausse plateforme de trading a été saisi et exploité. On y trouve une application de portefeuille multi-chaînes, une phrase de récupération recopiée dans les notes et des conversations Telegram avec un acheteur d\'USDT. Retrouvez les comptes dérivés absents de l\'application, reliez-les aux versements des victimes, suivez la conversion vers Tron et la revente de gré à gré, puis identifiez la plateforme de cash-out.',
+    'Le téléphone d\'un « gestionnaire de comptes » d\'une fausse plateforme de trading a été saisi et exploité. On y trouve une application de portefeuille multi-chaînes, une phrase de récupération recopiée dans les notes et des conversations Telegram avec un acheteur d\'USDT. Retrouvez les comptes dérivés absents de l\'application, reliez-les aux versements des victimes, suivez la conversion vers Tron et la revente de gré à gré, démêlez l\'éclatement final en trois branches jumelles, puis identifiez la plateforme de cash-out et les fonds encore gelables.',
   difficulty: 3,
   chains: ['eth', 'tron'],
   skills: ['evm', 'tokens', 'tron', 'crosschain', 'exchange_id', 'requisition'],
-  estMinutes: 60,
+  estMinutes: 70,
   lessons: ['forensique-supports', 'portefeuilles-hd', 'echangeurs-instantanes', 'tron-usdt', 'dab-cash-p2p', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -39,7 +42,19 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
     const cashEx = exchange(w, cashKey, 'tron')
     const cn = swapper(w, 'changenow')
     const uni = dex(w, 'uniswap', 'eth')
-    const suspect = w.customEntity({ name: `${sp.name} (mis en cause)`, category: 'suspect' })
+    const suspect = w.customEntity({ name: `${sp.name} (${ge('mis en cause', 'mise en cause')})`, category: 'suspect' })
+    /** Même jour (heure de Paris), entre `hMin` et `hMax` heures. */
+    const atHour = (ts: number, hMin: number, hMax: number) => ts - parisHour(ts) * HOUR - (ts % HOUR) + Math.round(r.float(hMin, hMax) * HOUR)
+    /** Premier soir (entre `hMin` et `hMax` h, heure de Paris) qui tombe au moins 2 h après `after`. */
+    const evening = (from: number, after: number, hMin: number, hMax: number) => {
+      let x = atHour(from, hMin, hMax)
+      while (x < after + 2 * HOUR) x += DAY
+      return x
+    }
+    // Commerçants propres au dossier (fictifs)
+    const gameShop = w.customEntity({ name: 'Pixel Vault (jeux et crédits en ligne)', category: 'merchant', known: true, description: 'Boutique en ligne (fictive) de jeux vidéo et de crédits de jeu payables en crypto ; compte client avec adresse électronique.' })
+    const fashion = w.customEntity({ name: 'Maison Ardoise (prêt-à-porter en ligne)', category: 'merchant', known: true, description: 'Boutique de vêtements en ligne (fictive) acceptant les paiements en crypto via un processeur ; adresse de livraison connue.' })
+    const casino = w.customEntity({ name: 'Casino Polaris', category: 'gambling', known: true, description: 'Casino en ligne (fictif) acceptant les cryptos, sans vérification d\'identité sous un seuil de retrait.' })
     const victimE = w.customEntity({ name: complainant.name, category: 'victim' })
     const buyerE = w.customEntity({ name: `@${buyerHandle} (acheteur, non identifié)`, category: 'individual' })
 
@@ -114,16 +129,67 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
     const p1 = o1.payoutValue
     const p2 = o2.payoutValue
     const d1 = Math.min(r100(p1 * r.float(0.55, 0.8)), Math.floor(p1 / 100) * 100)
-    const tD1 = o1.payoutTx.time + Math.round(r.float(5, 30) * HOUR)
+    // Remises « ce soir » : en soirée (heure de Paris), après le paiement de l'échangeur
+    const tD1 = evening(o1.payoutTx.time + Math.round(r.float(3, 20) * HOUR), o1.payoutTx.time, 18, 22)
     const deal1 = w.transfer({ time: tD1, from: tApp, to: buyer, value: d1, asset: 'USDT' })
     const d2 = r100((p1 + p2 - d1) * r.float(0.35, 0.5))
     const d2ask = d2 + r.int(10, 25) * 100
-    const tD2 = o2.payoutTx.time + Math.round(r.float(5, 30) * HOUR)
+    const tD2 = evening(o2.payoutTx.time + Math.round(r.float(20, 40) * HOUR), Math.max(o2.payoutTx.time, tD1 + DAY), 18, 22)
+    // Proposition « pour toi demain » envoyée la veille au soir
+    const tAsk = atHour(tD2 - DAY, 17, 22.5)
     const deal2 = w.transfer({ time: tD2, from: tApp, to: buyer, value: d2, asset: 'USDT' })
-    const rest = roundAsset('USDT', w.balanceOf(tApp, 'USDT'))
-    const cashDep = cashEx.receive(tApp, rest, tD2 + Math.round(r.float(6, 30) * HOUR), { asset: 'USDT', sweepDelayH: r.float(0.3, 3) })
-    // L'acheteur achète aussi à d'autres vendeurs
-    for (let i = 0; i < r.int(2, 4); i++) w.transfer({ time: Math.round(r.float(t0, tD2 + 3 * DAY)), from: w.addr('tron'), to: buyer, value: r100(r.float(2000, 15000)), asset: 'USDT' })
+    // ── Éclatement du reliquat en trois branches jumelles ────────────────────
+    // Trois adresses Tron neuves reçoivent chacune un tiers du reliquat en moins
+    // d'une heure. Deux d'entre elles ont d'abord reçu des TRX (sans TRX, une
+    // adresse Tron ne peut pas transférer d'USDT) : la troisième est bloquée.
+    const restAll = roundAsset('USDT', w.balanceOf(tApp, 'USDT'))
+    const tS = tD2 + Math.round(r.float(6, 30) * HOUR)
+    const [Ta, Tb, Tc] = [0, 1, 2].map(() => w.addr('tron', { entity: suspect }))
+    const part = Math.floor(restAll / 3 / 10) * 10
+    const partB = Math.round(part * (1 + (r.chance(0.5) ? 1 : -1) * r.float(0.001, 0.004)))
+    const partC = roundAsset('USDT', restAll - part - partB)
+    const actA = w.transfer({ time: tS - Math.round(r.float(0.6, 2.5) * HOUR), from: tApp, to: Ta, value: r.int(30, 60), asset: 'TRX' })
+    const actC = w.transfer({ time: tS - Math.round(r.float(0.6, 2.5) * HOUR), from: tApp, to: Tc, value: r.int(30, 60), asset: 'TRX' })
+    const offs = r.shuffle([0, Math.round(r.float(8, 22) * 60), Math.round(r.float(28, 50) * 60)])
+    // Le montant rond ne désigne pas la bonne branche : les trois montants sont répartis au hasard
+    const [vA, vB, vC] = r.shuffle([part, partB, partC])
+    const sA = w.transfer({ time: tS + offs[0], from: tApp, to: Ta, value: vA, asset: 'USDT' })
+    const sB = w.transfer({ time: tS + offs[1], from: tApp, to: Tb, value: vB, asset: 'USDT' })
+    const sC = w.transfer({ time: tS + offs[2], from: tApp, to: Tc, value: vC, asset: 'USDT' })
+    const splitTwins = [sA, sB, sC].sort((a, b) => a.time - b.time)
+    // Branche A : dépôt sur la plateforme (« le reste je le mets sur mon compte »)
+    const rest = vA
+    const cashDep = cashEx.receive(Ta, rest, sA.time + Math.round(r.float(1, 6) * HOUR), { asset: 'USDT', sweepDelayH: r.float(0.3, 3) })
+    // Branche C : ré-éclatée en petits montants vers des adresses inconnues
+    const tcSubs = Array.from({ length: r.int(3, 4) }, () => w.addr('tron'))
+    const tcParts = r.split(vC * 0.98, tcSubs.length, 0.5).map((v) => roundAsset('USDT', Math.floor(v)))
+    const tcTxs = tcSubs.map((s, i) => w.transfer({ time: sC.time + Math.round(r.float(1, 3) * DAY) + i * Math.round(r.float(10, 50) * 60), from: Tc, to: s, value: tcParts[i], asset: 'USDT' }))
+    // Branche B : dort, faute de TRX (USDT toujours sur l'adresse, gelables par l'émetteur)
+    const bHeld = roundAsset('USDT', w.balanceOf(Tb, 'USDT'))
+
+    // L'acheteur : un revendeur actif, qui achète à d'autres vendeurs et écoule ses USDT
+    for (let i = 0; i < r.int(3, 5); i++) w.transfer({ time: Math.round(r.float(t0, tD2 + 3 * DAY)), from: w.addr('tron'), to: buyer, value: r100(r.float(2000, 15000)), asset: 'USDT' })
+    const buyerOut = (time: number, to: string, value: number) => {
+      if (w.balanceOf(buyer, 'USDT') >= value) w.transfer({ time, from: buyer, to, value, asset: 'USDT' })
+    }
+    for (let i = 0, n = r.int(3, 5); i < n; i++) buyerOut(Math.round(r.float(tD1 + 2 * HOUR, tD2 + 6 * DAY)), w.addr('tron'), r100(r.float(1500, 9000)))
+    const buyerKit = r.pick([cashEx, exchange(w, 'huobex', 'tron')])
+    if (w.balanceOf(buyer, 'USDT') > 2000) buyerKit.receive(buyer, r100(w.balanceOf(buyer, 'USDT') * r.float(0.4, 0.7)), tD2 + Math.round(r.float(1, 5) * DAY), { asset: 'USDT' })
+
+    // ── Habillage des comptes de l'application ───────────────────────────────
+    // Compte principal : une vie antérieure (achats d'ETH, paiements) et quelques dépenses.
+    priorHistory(w, acc0, { start: fundTx.time - r.int(150, 300) * DAY, end: fundTx.time - 2 * DAY, nIn: r.int(3, 5), nOut: r.int(2, 3), maxUsd: 700 })
+    const tSeize = atHour(cashDep.tx.time + r.int(4, 15) * DAY, 6, 8)
+    const tExtract = atHour(tSeize + r.int(2, 6) * DAY, 9, 18)
+    personalSpending(w, acc0, { start: fundTx.time + DAY, end: tD2, n: r.int(2, 3), merchants: [w.entity('mullvad'), gameShop], maxUsd: 120 })
+    // Compte « Perso » : petite épargne, achats, et empoisonnement par des sosies
+    priorHistory(w, acc1, { start: toAcc1.time - r.int(60, 160) * DAY, end: toAcc1.time - DAY, nIn: r.int(3, 4), nOut: r.int(1, 2), maxUsd: 500 })
+    personalSpending(w, acc1, { start: toAcc1.time + DAY, end: Math.min(persoDep.tx.time + 10 * DAY, tSeize - DAY), n: r.int(2, 3), merchants: [fashion, casino], maxUsd: 90 })
+    // Sosies : après le transfert vers « Perso » (« reçus peu après »)
+    const poison = dusting(w, acc1, { time: persoTx.time + Math.round(r.float(6, 30) * HOUR), n: r.int(2, 3), spreadH: 24, min: persoTx.time + 30 * 60 })
+    // Adresse Tron de l'application : remboursements entre amis, poussière de sosies
+    priorHistory(w, tApp, { start: trxTx.time - r.int(40, 120) * DAY, end: t0, nIn: r.int(2, 4), nOut: r.int(1, 2), maxUsd: 400, asset: 'USDT' })
+    dusting(w, tApp, { time: o1.payoutTx.time + Math.round(r.float(1, 10) * HOUR), n: r.int(2, 3), spreadH: 36 })
 
     // ── Bruit ────────────────────────────────────────────────────────────────
     fundEx.noise(10, t0 - 30 * DAY, tD2 + 10 * DAY, 'ETH')
@@ -131,8 +197,6 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
     cashEx.noise(14, t0 - 10 * DAY, tD2 + 10 * DAY, 'USDT')
     uni.noise(10, t0 - 20 * DAY, tD2 + 5 * DAY)
 
-    const tSeize = cashDep.tx.time + Math.round(r.float(4, 15) * DAY)
-    const tExtract = tSeize + Math.round(r.float(2, 6) * DAY)
     const sold = d1 + d2
     const priceEur = (0.9 + r.int(0, 4) / 100).toFixed(2).replace('.', ',')
     const hidden = [acc2, acc3, acc4]
@@ -144,11 +208,11 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
       title: `Exploitation d'un téléphone — « ${platform} » (${city})`,
       briefing:
         `Une fausse plateforme de trading, « ${platform} », a démarché des épargnants par téléphone : après un premier « investissement » modeste et des gains fictifs affichés sur le site, les victimes étaient incitées à verser des montants croissants en USDT (réseau Ethereum) sur des « adresses de dépôt » communiquées par leur gestionnaire de compte.\n\n` +
-        `${sp.name}, ${ge('soupçonné', 'soupçonnée')} d'être l'un de ces gestionnaires, a été ${ge('interpellé', 'interpellée')} à ${city}. Son téléphone a été placé sous scellé et exploité par la cellule d'appui numérique. L'application de portefeuille ne montre que deux comptes Ethereum et une adresse Tron, sans lien apparent avec les versements des victimes.\n\n` +
+        `${sp.name}, ${ge('soupçonné d\'être l\'un', 'soupçonnée d\'être l\'une')} de ces gestionnaires, a été ${ge('interpellé', 'interpellée')} à ${city}. Son téléphone a été placé sous scellé et exploité par la cellule d'appui numérique. L'application de portefeuille ne montre que deux comptes Ethereum et une adresse Tron, sans lien apparent avec les versements des victimes.\n\n` +
         `Exploitez les pièces issues du téléphone : identifiez les comptes réellement contrôlés, chiffrez les versements, suivez les fonds jusqu'à Tron et jusqu'à leur revente, vérifiez que le compte « Perso » est resté étanche, et désignez les plateformes à requérir. Gardez à l'esprit ce que chaque élément prouve… et ce qu'il ne prouve pas.`,
       evidence: [
         {
-          id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: victimPay.time + Math.round(r.float(10, 30) * DAY), author: complainant.name,
+          id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: atHour(victimPay.time + r.int(10, 30) * DAY, 9, 18), author: complainant.name,
           body:
             `« Mon gestionnaire chez ${platform} m'appelait plusieurs fois par semaine. Il m'a fait acheter des USDT sur Coinhouse et les envoyer sur l'adresse de dépôt de mon compte de trading : ${A(w, victimPay.to)}. ` +
             `J'ai envoyé ${usdt(victimPay.value)} le ${fmtDate(victimPay.time)} (transaction ${victimPay.tx.hash}). Quand j'ai voulu retirer mes gains, on m'a réclamé des « frais de déblocage ». »`,
@@ -173,14 +237,14 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
             `NB : la phrase relevée est reproduite telle qu'extraite pour les besoins de l'analyse ; elle n'a été restaurée dans aucun portefeuille.`,
         },
         {
-          id: 'telegram', type: 'telegram', title: `Telegram — conversation avec @${buyerHandle} (extraction)`, date: tD2, author: `@${handle}`,
+          id: 'telegram', type: 'telegram', title: `Telegram — conversation avec @${buyerHandle} (extraction)`, date: tExtract, author: `@${handle}`,
           body:
             `[${fmtDate(tD1 - Math.round(r.float(3, 8) * HOUR))}] @${buyerHandle} : t'as du stock ? je prends à ${priceEur} € cash\n` +
             `[${fmtDate(tD1 - Math.round(r.float(1, 2.5) * HOUR))}] @${handle} : ${d1.toLocaleString('fr-FR')} dispo ce soir\n` +
             `[${fmtDate(tD1 - Math.round(r.float(0.3, 0.9) * HOUR))}] @${buyerHandle} : ok envoie sur ${A(w, buyer)} rdv parking comme d'hab\n` +
             `[${fmtDate(tD1 + Math.round(r.float(5, 20) * 60))}] @${handle} : envoyé\n` +
-            `[${fmtDate(tD2 - Math.round(r.float(5, 10) * HOUR))}] @${handle} : j'ai ${d2ask.toLocaleString('fr-FR')} pour toi demain\n` +
-            `[${fmtDate(tD2 - Math.round(r.float(3, 4.5) * HOUR))}] @${buyerHandle} : trop pour moi en ce moment, je peux faire moins\n` +
+            `[${fmtDate(tAsk)}] @${handle} : j'ai ${d2ask.toLocaleString('fr-FR')} pour toi demain\n` +
+            `[${fmtDate(tAsk + Math.round(r.float(0.3, 2.5) * HOUR))}] @${buyerHandle} : trop pour moi en ce moment, je peux faire moins\n` +
             `[${fmtDate(tD2 - Math.round(r.float(0.5, 2.5) * HOUR))}] @${handle} : ok on fait comme tu peux, même adresse\n` +
             `[${fmtDate(tD2 + Math.round(r.float(5, 20) * 60))}] @${handle} : c'est parti, le reste je le mets sur mon compte`,
         },
@@ -212,8 +276,8 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
           id: 'o8', type: 'tx', points: 10,
           prompt: 'La note « ne jamais mélanger avec le perso » n\'a pas été respectée : quelle transaction fait passer des fonds des victimes vers le compte « Perso » ?',
           answer: [persoTx.id],
-          hint: 'Ouvrez l\'historique du compte « Perso » affiché dans l\'application : en dehors de l\'ETH reçu du compte principal et d\'un swap, une entrée d\'USDT provient d\'un compte issu de la phrase.',
-          explanation: `Le ${fmtDate(persoTx.time)}, peu après le second regroupement, le compte de regroupement ${A(w, acc4)} envoie ${usdt(cut)} au compte « Perso » ${A(w, acc1)} (transaction ${persoTx.hash.slice(0, 16)}…). Ces USDT proviennent directement des versements des victimes. C'est une rupture de cloisonnement : le compte que l'utilisateur gardait « propre » reçoit désormais le produit de l'escroquerie.`,
+          hint: 'Ouvrez l\'historique du compte « Perso » affiché dans l\'application. Écartez l\'ETH, le swap et les micro-montants d\'USDT envoyés par des adresses qui ressemblent à s\'y méprendre au compte : une seule entrée d\'USDT significative provient d\'un compte issu de la phrase.',
+          explanation: `Le ${fmtDate(persoTx.time)}, peu après le second regroupement, le compte de regroupement ${A(w, acc4)} envoie ${usdt(cut)} au compte « Perso » ${A(w, acc1)} (transaction ${persoTx.hash.slice(0, 16)}…). Ces USDT proviennent directement des versements des victimes. C'est une rupture de cloisonnement : le compte que l'utilisateur gardait « propre » reçoit désormais le produit de l'escroquerie. Les ${poison.txs.length} micro-transferts d'USDT reçus peu après viennent d'adresses sosies (mêmes premiers et derniers caractères que le compte) : de l'empoisonnement d'adresse, sans lien avec les fonds, destiné à piéger un futur copier-coller.`,
         },
         {
           id: 'o9', type: 'address', points: 10,
@@ -253,14 +317,25 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
           id: 'o5', type: 'entity', points: 10,
           prompt: 'Sur quelle plateforme le reliquat des USDT a-t-il été déposé ?',
           answer: [cashKey],
-          hint: 'Suivez la dernière sortie de l\'adresse Tron du téléphone.',
-          explanation: `${usdt(rest)} sont déposés le ${fmtDate(cashDep.tx.time)} sur une adresse de dépôt ${cashEx.entity.name} (« le reste je le mets sur mon compte »). Indice convergent : les TRX de frais de cette même adresse Tron proviennent d'un retrait ${cashEx.entity.name} (${fmtDate(trxTx.time, false)}). Réquisition : identité, IP, IBAN de retrait, solde, avec demande de blocage. ${procedureFor(cashEx.entity)}`,
+          hint: 'Le reliquat de l\'adresse Tron du téléphone est éclaté en trois branches : suivez celle qui atteint une adresse étiquetée.',
+          explanation: `${usdt(rest)} sont déposés le ${fmtDate(cashDep.tx.time)} sur une adresse de dépôt ${cashEx.entity.name} par ${A(w, Ta)}, l'une des trois branches de l'éclatement (« le reste je le mets sur mon compte »). Indice convergent : les TRX de frais de l'adresse Tron de l'application proviennent d'un retrait ${cashEx.entity.name} (${fmtDate(trxTx.time, false)}). Réquisition : identité, IP, IBAN de retrait, solde, avec demande de blocage. ${procedureFor(cashEx.entity)}`,
+        },
+        {
+          id: 'o13', type: 'tx', points: 12,
+          prompt: 'Après la seconde remise à l\'acheteur, le reliquat de l\'adresse Tron du téléphone part en trois transferts d\'USDT de montant presque égal, en moins d\'une heure. Lequel est la continuation qui mène à la plateforme ?',
+          answer: [sA.id],
+          hint: 'Suivez chacune des trois adresses destinataires. Pensez aussi aux TRX : sur Tron, une adresse sans TRX ne peut pas transférer d\'USDT.',
+          explanation:
+            `${splitTwins.map((x) => `${fmtDate(x.time)} : ${usdt(x.transfers[0].value)} vers ${A(w, x.transfers[0].to).slice(0, 12)}…`).join(' ; ')}. Montant et horaire ne départagent rien. ` +
+            `${A(w, Ta).slice(0, 12)}…, activée juste avant par un envoi de TRX depuis l'adresse de l'application, dépose ${usdt(rest)} chez ${cashEx.entity.name} : c'est la continuation (transaction ${sA.hash.slice(0, 14)}…). ` +
+            `${A(w, Tc).slice(0, 12)}…, activée elle aussi, se ré-éclate en ${tcTxs.length} petits montants vers des adresses inconnues : une impasse. ` +
+            `${A(w, Tb).slice(0, 12)}… n'a jamais reçu de TRX : elle ne peut rien transférer et garde ${usdt(bHeld)}. Une impasse pour le traçage, mais pas pour la saisie : ces USDT sont gelables par Tether à la demande des autorités, à signaler sans délai.`,
         },
         {
           id: 'o11', type: 'amount', points: 10, unit: 'USDT', tolerance: 0.005,
           prompt: 'Quel montant d\'USDT le reliquat déposé sur cette plateforme représente-t-il (montant susceptible d\'être bloqué sur le compte client) ?',
           answer: rest,
-          hint: 'C\'est la dernière sortie de l\'adresse Tron du téléphone, vers une adresse de dépôt : relevez son montant.',
+          hint: 'C\'est la sortie de la branche qui aboutit à une adresse de dépôt : relevez son montant.',
           explanation: `${usdt(rest)} déposés le ${fmtDate(cashDep.tx.time)} sur ${A(w, cashDep.deposit)}. Ce montant est désormais sous la garde de ${cashEx.entity.name} : s'il n'a pas été converti et retiré, une demande de gel sur le compte client peut le préserver. La réquisition cite l'adresse de dépôt, le hash du dépôt et la période ; elle demande aussi l'historique des retraits (IBAN) pour savoir si les fonds sont déjà sortis.`,
         },
         {
@@ -291,15 +366,18 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
       truth: {
         path: [
           fundTx.id, ...pays.map((p) => p.tx.id), ...gasTxs.map((x) => x.id), ...fwdTxs.map((x) => x.id),
-          o1.depositTx.id, o1.payoutTx.id, o2.depositTx.id, o2.payoutTx.id, trxTx.id, deal1.id, deal2.id, cashDep.tx.id, ...(cashDep.sweep ? [cashDep.sweep.id] : []),
+          o1.depositTx.id, o1.payoutTx.id, o2.depositTx.id, o2.payoutTx.id, trxTx.id, deal1.id, deal2.id,
           toAcc1.id, persoSwap.tx.id, persoTx.id, persoDep.tx.id, ...(persoDep.sweep ? [persoDep.sweep.id] : []),
+          actA.id, sA.id, cashDep.tx.id, ...(cashDep.sweep ? [cashDep.sweep.id] : []),
         ],
-        addresses: [acc2, acc3, acc4, acc0, acc1, tApp, buyer, o1.deposit, o2.deposit, cashDep.deposit, persoDep.deposit],
+        addresses: [acc2, acc3, acc4, acc0, acc1, tApp, Ta, buyer, o1.deposit, o2.deposit, cashDep.deposit, persoDep.deposit],
         debrief:
           `1. Le compte principal ${A(w, acc0)} est alimenté en ETH par un retrait ${fundEx.entity.name} ; il finance le compte « Perso » et, surtout, les frais de gas des comptes 3, 4 et 5 de la même phrase.\n` +
           `2. ${nV} victimes versent ${usdt(totalVictims)} sur ${A(w, acc2)} et ${A(w, acc3)}, présentés comme des « adresses de dépôt » de la plateforme.\n` +
           `3. Les USDT sont regroupés sur ${A(w, acc4)}, puis convertis en deux fois chez ChangeNOW en USDT-TRC20, payés sur l'adresse Tron de l'application (${usdt(p1)} et ${usdt(p2)}). Entre les deux, ${usdt(cut)} partent vers le compte « Perso », qui les dépose chez ${fundName} : l'erreur de cloisonnement que la note voulait éviter.\n` +
-          `4. ${usdt(sold)} sont revendus à @${buyerHandle} contre des espèces (deux remises), et ${usdt(rest)} sont déposés chez ${cashEx.entity.name}.\n\n` +
+          `4. ${usdt(sold)} sont revendus à @${buyerHandle} contre des espèces (deux remises). L'acheteur est un revendeur actif : il achète à d'autres vendeurs et écoule ses USDT.\n` +
+          `5. Le reliquat est éclaté en trois transferts jumeaux vers trois adresses neuves : seule ${A(w, Ta).slice(0, 12)}… dépose (${usdt(rest)} chez ${cashEx.entity.name}) ; ${A(w, Tc).slice(0, 12)}… se ré-éclate ; ${A(w, Tb).slice(0, 12)}…, jamais approvisionnée en TRX, garde ${usdt(bHeld)}, gelables par Tether.\n` +
+          `6. Les comptes de l'application ont leur propre vie (entrées et paiements antérieurs, petits achats en ligne, empoisonnement par des sosies sur « Perso » et sur l'adresse Tron) : du bruit à écarter.\n\n` +
           `À retenir : l'application d'un téléphone ne montre que ce que l'utilisateur y a configuré. Une phrase de récupération découverte lors de l'exploitation permet de dériver tous les comptes (ici, trois comptes absents de l'application), sans la restaurer dans un portefeuille. L'extraction doit être conduite dans les règles (isolement, outil validé, empreinte, copie) et chaque conclusion présentée à sa juste force : la dérivation prouve le lien entre la phrase et les comptes ; l'imputation à une personne repose sur un faisceau d'éléments.`,
       },
       hints: [
@@ -307,7 +385,8 @@ export const ethForensiqueTelephone: ScenarioTemplate = {
         'Comparez les comptes dérivés utilisés avec la liste de l\'application : ceux qui manquent sont gérés depuis un autre appareil.',
         'Le compte qui regroupe les USDT les envoie chez un échangeur instantané : corrélez sur Tron (USDT) à partir de l\'heure du dépôt.',
         'Pour la revente, comparez la conversation Telegram aux transferts réels : seule la blockchain fait foi sur les montants.',
-        'Le compte « Perso » de l\'application n\'est pas resté étanche : examinez ses entrées et sorties d\'USDT.',
+        'Le compte « Perso » de l\'application n\'est pas resté étanche : examinez ses entrées et sorties d\'USDT, en écartant les micro-montants des adresses sosies.',
+        'Le reliquat sur Tron est éclaté en trois montants presque égaux : suivez les trois branches, et regardez lesquelles ont reçu des TRX.',
       ],
     }
   },

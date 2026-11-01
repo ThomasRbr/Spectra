@@ -1,9 +1,10 @@
 import { World, type Tx } from '../engine/world'
 import { dex, exchange, swapper, HOUR, DAY, type SwapperKit } from '../engine/patterns'
 import { roundAsset, usd } from '../engine/chains'
+import { dusting } from '../engine/realism'
 import { lookalike } from '../engine/addressgen'
 import type { ScenarioTemplate } from './types'
-import { A, amt, choice, fakeCity, fakeHandle, fakePerson, fmtDate, forwardAll, procedureFor } from './util'
+import { A, amt, choice, de, fakeCity, fakeHandle, fakePerson, fmtDate, forwardAll, procedureFor } from './util'
 
 const RELATIONS = [
   { rel: 'père', f: false },
@@ -24,6 +25,31 @@ const ACTIVITIES: [string, string][] = [
 
 /** Montant entier « au cent près » (USDT à 2 décimales). */
 const r2 = (v: number) => Math.round(v * 100) / 100
+
+/** Solde d'un compte à l'instant `t` (les soldes du moteur ne sont pas temporels). */
+function balAt(w: World, id: string, asset: 'USDT' | 'TRX', t: number): number {
+  let b = 0
+  for (const tx of w.txsOf(id)) {
+    if (tx.time > t) continue
+    for (const x of tx.transfers) {
+      if (x.asset !== asset) continue
+      if (x.to === id) b += x.value
+      if (x.from === id) b -= x.value
+    }
+  }
+  return b
+}
+
+/** Poussière répartie dans la fenêtre [a, b] : rien avant que l'adresse soit active, rien après « maintenant ». */
+function dustWindow(w: World, id: string, a: number, b: number, n: number): void {
+  dusting(w, id, { time: Math.round((a + b) / 2), n, spreadH: Math.max(0.1, (b - a) / 2 / HOUR), min: a, max: b })
+}
+
+/** Horodatage court d'un message (« 26/11 10:39 », heure de Paris). */
+const stamp = (t: number) => new Date(t * 1000).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
+
+/** « 1 adresse », « 2 adresses ». */
+const pl = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`
 
 /**
  * Sortie de peel chain envoyée à un échangeur instantané (BTC → USDT-TRC20).
@@ -59,11 +85,11 @@ export const tronKidnappingRansom: ScenarioTemplate = {
   title: 'Enlèvement : la rançon en USDT',
   tagline: 'Une rançon fractionnée en quelques minutes : trouver les USDT encore gelables avant qu\'ils ne disparaissent.',
   description:
-    'Un proche d\'un entrepreneur du secteur crypto a été séquestré. La famille a payé, sous le contrôle des enquêteurs, une rançon en USDT-TRC20 et en bitcoins. La victime est libérée, mais les fonds se dispersent : identifiez l\'adresse qui détient encore des USDT, le montant à faire geler par l\'émetteur, les plateformes de dépôt et le lien entre les volets Bitcoin et Tron.',
+    'Un proche d\'un entrepreneur du secteur crypto a été séquestré. La famille a payé, sous le contrôle des enquêteurs, une rançon en USDT-TRC20 et en bitcoins. La victime est libérée, mais les fonds se dispersent : identifiez l\'adresse qui détient encore des USDT, le montant à faire geler par l\'émetteur, les plateformes de dépôt et le lien entre les volets Bitcoin et Tron, sans vous laisser égarer par les virements jumeaux et les adresses leurres.',
   difficulty: 3,
   chains: ['tron', 'btc'],
   skills: ['tron', 'tokens', 'gel', 'requisition', 'crosschain', 'typologies'],
-  estMinutes: 65,
+  estMinutes: 75,
   lessons: ['tron-usdt', 'gel-saisie', 'stablecoins', 'requisitions', 'suivre-flux'],
   generate(seed) {
     const w = new World(seed)
@@ -72,7 +98,7 @@ export const tronKidnappingRansom: ScenarioTemplate = {
     const entP = fakePerson(r)
     const entName = entP.name
     const ge = entP.g
-    const deEnt = `${/^[AEIOUYÉÈÊÀÂÎ]/.test(entName) ? "d'" : "de "}${entName}`
+    const deEnt = de(entName)
     const activity = ge(...r.pick(ACTIVITIES))
     const relation = r.pick(RELATIONS)
     const hf = relation.f
@@ -129,13 +155,16 @@ export const tronKidnappingRansom: ScenarioTemplate = {
     const S4 = w.addr('tron', { entity: gang })
     const S4b = w.addr('tron', { entity: gang })
     const R = w.addr('tron', { entity: gang })
+    const D1 = w.addr('tron', { entity: gang }) // leurre, jumeau de S3
+    const D2 = w.addr('tron', { entity: gang }) // leurre, jumeau de S2
+    const spare = Array.from({ length: r.int(1, 2) }, () => w.addr('tron', { entity: gang })) // préparées, jamais utilisées
     const B0 = w.addr('btc', { entity: gang, kind: 'p2wpkh' })
     const tPrep = tKid - Math.round(r.float(5, 9) * DAY)
     const wTrx = exB.withdraw(P, r.int(25, 45) * 100, tPrep, 'TRX')
     const wUsdt = exB.withdraw(P, gangTest, tPrep + r.int(20, 120) * 60, 'USDT')
     const gasTxs: Tx[] = []
     let tg = tPrep + Math.round(r.float(3, 20) * HOUR)
-    for (const a of [C, S1, S2, S3, S4, S4b, R]) {
+    for (const a of r.shuffle([C, S1, S2, S3, S4, S4b, R, D1, D2, ...spare])) {
       gasTxs.push(w.transfer({ time: tg, from: P, to: a, value: r.int(10, 30) * 10, asset: 'TRX' }))
       tg += r.int(2, 25) * 60
     }
@@ -151,24 +180,42 @@ export const tronKidnappingRansom: ScenarioTemplate = {
 
     // Bruit : un robot d'address poisoning vise le payeur juste après le gros transfert
     const poison = w.addr('tron', { addr: lookalike(r, 'tron', A(w, C), 5, 5) })
-    const poisonTx = w.transfer({ time: tMain + r.int(3, 15) * 60, from: poison, to: VT, value: r.pick([0.01, 0.1, 1]), asset: 'USDT' })
+    const poisonTx = w.transfer({ time: tMain + r.int(3, 15) * 60, from: poison, to: VT, value: r.pick([0.01, 0.05, 0.1]), asset: 'USDT' })
 
     // ── Fractionnement de la collecte (quelques minutes) ─────────────────────
+    // Six destinations : quatre branches réelles et deux leurres dont le
+    // montant imite, à une ou deux centaines d'USDT près, celui d'une branche réelle.
     const total = w.balanceOf(C, 'USDT')
-    const s1 = Math.round((total * r.float(0.28, 0.4)) / 100) * 100
-    const s2 = Math.round((total * r.float(0.15, 0.22)) / 100) * 100
-    const s3 = Math.round((total * r.float(0.18, 0.25)) / 100) * 100
-    const s4 = r2(total - s1 - s2 - s3)
-    const order = r.shuffle([0, 1, 2, 3])
-    const dests = [S1, S2, S3, S4]
-    const vals = [s1, s2, s3, s4]
+    const s1 = Math.round((total * r.float(0.22, 0.28)) / 100) * 100
+    const s2 = Math.round((total * r.float(0.1, 0.13)) / 100) * 100
+    const s3 = Math.round((total * r.float(0.12, 0.15)) / 100) * 100
+    const d1 = s3 + r.pick([-1, 1]) * r.int(1, 2) * 100
+    const d2 = s2 + r.pick([-1, 1]) * 100
+    const s4 = r2(total - s1 - s2 - s3 - d1 - d2)
+    const dests = [S1, S2, S3, S4, D1, D2]
+    const vals = [s1, s2, s3, s4, d1, d2]
+    // Les jumeaux partent juste avant ou juste après leur modèle
+    const seq = r.shuffle([0, 1, 2, 3])
+    const order: number[] = []
+    for (const k of seq) {
+      if (k === 2) order.push(...r.shuffle([2, 4]))
+      else if (k === 1) order.push(...r.shuffle([1, 5]))
+      else order.push(k)
+    }
     const splitTx: Tx[] = []
     let ts = tMain + r.int(4, 9) * 60
     for (const k of order) {
       splitTx[k] = w.transfer({ time: ts, from: C, to: dests[k], value: vals[k], asset: 'USDT' })
-      ts += r.int(1, 4) * 60
+      ts += r.int(1, 3) * 60 + r.int(0, 50)
     }
-    const splitEnd = Math.max(...splitTx.map((t) => t.time))
+    const decoyTx = { d1: splitTx[4], d2: splitTx[5] }
+    splitTx.length = 4
+    const splitEnd = Math.max(...splitTx.map((t) => t.time), decoyTx.d1.time, decoyTx.d2.time)
+
+    // Leurres : D1 convertit en TRX et dort ; D2 convertit en TRX puis ré-éclate
+    const d1Swap = sun.swap({ trader: D1, assetIn: 'USDT', amountIn: d1, assetOut: 'TRX', time: splitEnd + r.int(30, 70) * 60 })
+    const d2Swap = sun.swap({ trader: D2, assetIn: 'USDT', amountIn: d2, assetOut: 'TRX', time: splitEnd + r.int(75, 120) * 60 })
+    const d2Subs = Array.from({ length: r.int(2, 3) }, () => w.addr('tron', { entity: gang }))
 
     // S2 : conversion USDT → TRX sur SunSwap (sortie du périmètre de gel), puis dépôt partiel
     const swapRes = sun.swap({ trader: S2, assetIn: 'USDT', amountIn: s2, assetOut: 'TRX', time: splitEnd + r.int(25, 55) * 60 })
@@ -201,14 +248,40 @@ export const tronKidnappingRansom: ScenarioTemplate = {
     const btcDeposited = peel3.outputs[0].value
     const btcSweep = exBtc.sweep([depBtc], peel3.time + Math.round(r.float(0.3, 0.8) * HOUR))[0]
 
-    // R : produit de la conversion ChangeNOW, renvoyé sur le compte de l'exchange A
-    const rDep = exA.receive(R, peel1.payoutValue, peel1.payoutTx.time + r.int(15, 45) * 60, { asset: 'USDT', depositAddr: D_a, sweepDelayH: r.float(0.2, 0.7) })
+    // R : produit de la conversion ChangeNOW, en partie renvoyé sur le compte de
+    // l'exchange A, le reste regroupé plus tard sur la réserve S1
+    const rDepV = r2(Math.round(peel1.payoutValue * r.float(0.6, 0.75) / 10) * 10)
+    const rDep = exA.receive(R, rDepV, peel1.payoutTx.time + r.int(15, 45) * 60, { asset: 'USDT', depositAddr: D_a, sweepDelayH: r.float(0.2, 0.7) })
+    const lastOther = Math.max(s2Dep.tx.time, s3Dep.tx.time, s4Dep.tx.time, rDep.tx.time, peel3.time, btcSweep.time, ...[s2Dep, s3Dep, s4Dep, rDep].map((d) => d.sweep?.time ?? 0))
+    const rToS1 = w.transfer({ time: lastOther + r.int(10, 35) * 60, from: R, to: S1, value: r2(peel1.payoutValue - rDepV), asset: 'USDT' })
 
     // ── Instant T ────────────────────────────────────────────────────────────
-    const lastSuspect = Math.max(s2Dep.tx.time, s3Dep.tx.time, s4Dep.tx.time, rDep.tx.time, peel3.time, btcSweep.time, ...[s2Dep, s3Dep, s4Dep, rDep].map((d) => d.sweep?.time ?? 0))
-    const tNow = lastSuspect + r.int(20, 45) * 60
+    const tNow = rToS1.time + r.int(15, 40) * 60
     const hNow = Math.max(1, Math.round((tNow - tMain) / HOUR))
-    const tRelease = tMain + Math.round(r.float(1.8, 3) * HOUR)
+    // Libération avant le point de situation, quelle que soit la durée du tirage
+    const tRelease = Math.min(tMain + Math.round(r.float(1.8, 3) * HOUR), tNow - r.int(25, 50) * 60)
+
+    // Leurre D2 : ré-éclatement de ses TRX, terminé avant « maintenant »
+    let td2 = d2Swap.tx.time + r.int(20, 60) * 60
+    const d2SubTxs = d2Subs.map((a, i) => {
+      const t = Math.max(d2Swap.tx.time + (i + 1) * 120, Math.min(td2, tNow - (d2Subs.length - i) * 6 * 60))
+      td2 += r.int(3, 12) * 60
+      return w.transfer({ time: t, from: D2, to: a, value: roundAsset('TRX', (d2Swap.amountOut / (d2Subs.length + 0.4)) * r.float(0.9, 1)), asset: 'TRX' })
+    })
+
+    // ── Habillage (après le flux : rien de tout cela n'est dépensé par les ravisseurs) ──
+    // Deuxième robot d'empoisonnement visant le payeur, sollicitations parasites
+    const poison2 = w.addr('tron', { addr: lookalike(r, 'tron', A(w, C), 4, 4) })
+    const poison2Tx = w.transfer({ time: Math.min(tMain + r.int(40, 160) * 60, tNow - 15 * 60), from: poison2, to: VT, value: r.pick([0.01, 0.02, 0.05]), asset: 'USDT' })
+    // Poussière : la collecte est visible on-chain depuis la préparation, la réserve et
+    // l'adresse BTC seulement après avoir servi ; rien n'arrive après « maintenant ».
+    dustWindow(w, C, gangTestTx.time + 6 * HOUR, tNow - 10 * 60, r.int(2, 3))
+    dustWindow(w, S1, splitTx[0].time + 20 * 60, tNow - 10 * 60, r.int(2, 3))
+    dustWindow(w, B0, peel1.depositTx.time + 10 * 60, tNow - 10 * 60, 2)
+    // Location d'énergie Tron par l'adresse de préparation (réduit les frais des transferts d'USDT)
+    const energyE = w.customEntity({ name: 'Service de location d\'énergie Tron (non identifié)', category: 'individual' })
+    const energy = w.addr('tron', { entity: energyE })
+    for (let i = 0; i < r.int(3, 4); i++) w.transfer({ time: tPrep + Math.round(r.float(1, 40) * HOUR), from: P, to: energy, value: r.int(3, 9) * 10, asset: 'TRX', method: 'rentEnergy' })
 
     // ── Bruit ────────────────────────────────────────────────────────────────
     exA.noise(16, tMain - 3 * DAY, tMain - 8 * HOUR, 'USDT')
@@ -221,9 +294,28 @@ export const tronKidnappingRansom: ScenarioTemplate = {
     sun.noise(r.int(18, 26), tMain - DAY, tMain + 3 * HOUR, [['TRX', 'USDT']])
 
     // ── Valeurs pour les textes ──────────────────────────────────────────────
-    const frozen = w.balanceOf(S1, 'USDT')
+    const frozen = r2(balAt(w, S1, 'USDT', tNow))
     const splitMin = Math.round((splitEnd - tMain) / 60)
-    const totalUsdtOut = r2(s3 + s4 + peel1.payoutValue)
+    const totalUsdtOut = r2(s3 + s4 + rDepV)
+    const fromRansom = r2(s1)
+    const fromBtc = r2(rToS1.transfers[0].value)
+    const dustOnS1 = r2(frozen - fromRansom - fromBtc)
+    const twinRows = [{ to: S3, tx: splitTx[2] }, { to: D1, tx: decoyTx.d1 }].sort((a, b) => a.tx.time - b.tx.time)
+    const d1Trx = d1Swap.amountOut
+    const d2Trx = d2Swap.amountOut
+    // Soldes TRX à l'instant présent : reliquats de swap et TRX de frais avancés par P
+    const trxAt = (a: string) => r2(balAt(w, a, 'TRX', tNow))
+    // Ordre réel des deux dépôts sur l'adresse de l'exchange B
+    const dbRows = [
+      { t: s2Dep.tx.time, txt: `${amt(trxDeposited, 'TRX')} (après swap SunSwap)` },
+      { t: s4Dep.tx.time, txt: `${amt(s4, 'USDT')} (après un saut)` },
+    ].sort((a, b) => a.t - b.t)
+    const dbOrder = `${dbRows[0].txt} puis ${dbRows[1].txt}`
+    // Les échanges Telegram, horodatés (la pièce est datée du dernier message)
+    const tgNego = tProof - r.int(20, 50) * 60
+    const tgProofMsg = tProof + r.int(1, 4) * 60
+    const tgTestMsg = tFamTest - r.int(30, 90) * 60
+    const nSplit = 6
     const nameA = exA.entity.name
     const nameB = exB.entity.name
     const nameBtc = exBtc.entity.name
@@ -236,19 +328,19 @@ export const tronKidnappingRansom: ScenarioTemplate = {
       world: w,
       title: `Enlèvement — ${city}`,
       briefing:
-        `Le ${fmtDate(tKid, false).replace(/^1 /, "1er ")}, ${theRel} ${deEnt} (${city}), ${activity}, a été ${gh('enlevé', 'enlevée')} devant son domicile. Quelques heures plus tard, ${entName} a reçu sur Telegram une demande de rançon de ${demandText}, assortie de la consigne habituelle : ne pas prévenir la police. ${ge('Il', 'Elle')} a pourtant alerté les enquêteurs sans attendre.\n\n` +
+        `Le ${fmtDate(tKid, false)}, ${theRel} ${deEnt} (${city}), ${activity}, a été ${gh('enlevé', 'enlevée')} devant son domicile. Quelques heures plus tard, ${entName} a reçu sur Telegram une demande de rançon de ${demandText}, assortie de la consigne habituelle : ne pas prévenir la police. ${ge('Il', 'Elle')} a pourtant alerté les enquêteurs sans attendre.\n\n` +
         `Le paiement a été effectué sous le contrôle des enquêteurs et de la cellule de négociation, depuis les portefeuilles personnels ${deEnt}. ${TheRel} de ${ge('l\'entrepreneur', 'l\'entrepreneuse')} a été ${gh('libéré', 'libérée')} le ${fmtDate(tRelease)}, sans blessure grave. Les auteurs sont en fuite.\n\n` +
         `Nous sommes le ${fmtDate(tNow)} (H+${hNow} après le paiement principal). Le magistrat de permanence attend votre analyse pour signer les demandes urgentes : quelles adresses tiennent encore des fonds gelables, auprès de qui agir, et dans quel ordre. Sur Tron, chaque minute compte : un USDT peut être converti ou déposé sur un exchange en quelques secondes.`,
       evidence: [
         {
-          id: 'telegram', type: 'telegram', title: 'Messages des ravisseurs (Telegram, extraits)', date: tDemand, author: `@${handle}`,
+          id: 'telegram', type: 'telegram', title: 'Messages des ravisseurs (Telegram, extraits)', date: tgTestMsg, author: `@${handle}`,
           body:
-            `@${handle} : On a ${hf ? 'ta' : 'ton'} ${relation.rel}. ${gh('Il', 'Elle')} va bien tant que tu fais ce qu'on dit. Pas de police.\n` +
-            `@${handle} : ${amt(ransomUsdt, 'USDT')} réseau TRC20 sur ${A(w, C)}\n` +
-            `@${handle} : + ${amt(ransomBtc, 'BTC')} sur ${A(w, B0)}\n` +
-            `Négociateur (au nom de la famille) : Prouvez que vous contrôlez cette adresse Tron.\n` +
-            `@${handle} : On vient de t'envoyer 1 USDT depuis l'adresse. Regarde ton portefeuille.\n` +
-            `@${handle} : Envoie d'abord un petit montant pour tester, ensuite tout. Après le paiement, on ${gh('le', 'la')} relâche.`,
+            `[${stamp(tDemand)}] @${handle} : On a ${hf ? 'ta' : 'ton'} ${relation.rel}. ${gh('Il', 'Elle')} va bien tant que tu fais ce qu'on dit. Pas de police.\n` +
+            `[${stamp(tDemand + 60)}] @${handle} : ${amt(ransomUsdt, 'USDT')} réseau TRC20 sur ${A(w, C)}\n` +
+            `[${stamp(tDemand + 120)}] @${handle} : + ${amt(ransomBtc, 'BTC')} sur ${A(w, B0)}\n` +
+            `[${stamp(tgNego)}] Négociateur (au nom de la famille) : Prouvez que vous contrôlez cette adresse Tron.\n` +
+            `[${stamp(tgProofMsg)}] @${handle} : On vient de t'envoyer 1 USDT depuis l'adresse. Regarde ton portefeuille.\n` +
+            `[${stamp(tgTestMsg)}] @${handle} : Envoie d'abord un petit montant pour tester, ensuite tout. Après le paiement, on ${gh('le', 'la')} relâche.`,
         },
         {
           id: 'pv', type: 'pv', title: 'PV de remise de la rançon (extrait)', date: tBtc + 2 * HOUR, author: 'Cellule de négociation — section de recherches',
@@ -287,34 +379,41 @@ export const tronKidnappingRansom: ScenarioTemplate = {
           prompt: 'Quelle adresse Tron a collecté la rançon avant son fractionnement ?',
           answer: [C],
           hint: 'Ouvrez le paiement principal mentionné dans le PV et comparez son destinataire, caractère par caractère, avec l\'adresse donnée sur Telegram.',
-          explanation: `${A(w, C)} reçoit le test des ravisseurs (${amt(gangTest, 'USDT')}), renvoie 1 USDT de preuve à la famille, puis reçoit ${amt(famTest, 'USDT')} de test et ${amt(ransomUsdt, 'USDT')}. ${splitMin} minutes après le paiement principal, elle a déjà réparti ${amt(total, 'USDT')} sur quatre adresses. Attention : une autre adresse au début et à la fin identiques apparaît dans l'historique du payeur ; seule celle-ci a reçu les paiements.`,
+          explanation: `${A(w, C)} reçoit le test des ravisseurs (${amt(gangTest, 'USDT')}), renvoie 1 USDT de preuve à la famille, puis reçoit ${amt(famTest, 'USDT')} de test et ${amt(ransomUsdt, 'USDT')}. ${splitMin} minutes après le paiement principal, elle a déjà réparti ${amt(total, 'USDT')} sur ${nSplit} adresses. Attention : deux autres adresses au début et à la fin identiques apparaissent dans l'historique du payeur ; seule celle-ci a reçu les paiements.`,
         },
         {
           id: 'o12', type: 'choice', points: 8,
-          prompt: 'Juste après le paiement principal, le portefeuille de la famille reçoit un micro-transfert d\'une adresse presque identique à la collecte. Comment l\'interpréter ?',
+          prompt: 'Dans les heures qui suivent le paiement principal, le portefeuille de la famille reçoit des micro-transferts d\'adresses presque identiques à la collecte. Comment les interpréter ?',
           ...choice(r,
-            'Un robot d\'address poisoning sans lien avec les ravisseurs : l\'écarter et alerter la famille de ne jamais copier une adresse depuis l\'historique',
+            'Des robots d\'address poisoning sans lien avec les ravisseurs : les écarter et alerter la famille de ne jamais copier une adresse depuis l\'historique',
             [
-              'Une seconde adresse des ravisseurs, à faire geler au même titre que la collecte',
+              'D\'autres adresses des ravisseurs, à faire geler au même titre que la collecte',
               'La preuve de contrôle demandée par le négociateur, renvoyée depuis une autre adresse',
               'Un remboursement partiel de la rançon, à déduire du préjudice',
             ]),
           hint: 'Comparez les deux adresses caractère par caractère, puis regardez qui a financé l\'émetteur du micro-transfert et à qui d\'autre il en envoie.',
-          explanation: `${A(w, poison)} partage les 5 premiers et 5 derniers caractères de la collecte ${A(w, C)}, mais n'a aucun lien de financement avec les ravisseurs (pas de TRX reçu de ${A(w, P)}) et n'apparaît pas dans les messages. Le micro-transfert de ${amt(poisonTx.transfers[0].value, 'USDT')}, quelques minutes après un gros paiement, est la signature d'un robot d'address poisoning qui espère être recopié par erreur lors d'un prochain envoi. À documenter et à écarter, sans le confondre avec la preuve de contrôle (1 USDT envoyé par la collecte elle-même avant le paiement).`,
+          explanation: `${A(w, poison)} partage les 5 premiers et 5 derniers caractères de la collecte ${A(w, C)}, ${A(w, poison2)} les 4 premiers et 4 derniers ; aucune n'a de lien de financement avec les ravisseurs (pas de TRX reçu de ${A(w, P)}) et n'apparaît pas dans les messages. Des micro-transferts (${amt(poisonTx.transfers[0].value, 'USDT')}, ${amt(poison2Tx.transfers[0].value, 'USDT')}) peu après un gros paiement sont la signature de robots d'address poisoning qui espèrent que leur adresse sera recopiée par erreur lors d'un prochain envoi. À documenter et à écarter, sans les confondre avec la preuve de contrôle (1 USDT envoyé par la collecte elle-même, avant le paiement).`,
         },
         {
           id: 'o2', type: 'address', points: 10,
           prompt: `À H+${hNow}, quelle adresse détient encore des USDT issus de la rançon ?`,
           answer: [S1],
-          hint: 'Ouvrez chacune des quatre adresses alimentées par la collecte et regardez leur solde actuel, actif par actif (USDT ≠ TRX). Plus rapide : tracez les USDT reçus par l\'adresse de collecte (touche R) et lisez « Fonds encore détenus ».',
-          explanation: `Des quatre adresses servies par la collecte, ${A(w, S1)} n'a fait aucun mouvement : elle détient toujours ${amt(frozen, 'USDT')}. ${A(w, S3)} et ${A(w, S4)} sont vides (fonds déposés chez ${nameA} et ${nameB}). ${A(w, S2)} détient encore ${amt(trxKept, 'TRX')}, mais ce sont des TRX issus d'un swap SunSwap : l'émetteur de l'USDT n'a aucune prise sur eux.`,
+          hint: 'Ouvrez chacune des six adresses alimentées par la collecte et regardez leur solde actuel, actif par actif (USDT ≠ TRX). Plus rapide : tracez les USDT reçus par l\'adresse de collecte (touche R) et lisez « Fonds encore détenus ».',
+          explanation: `Des six adresses servies par la collecte, ${A(w, S1)} est la seule à n'avoir rien envoyé : elle détient ${amt(frozen, 'USDT')}. ${A(w, S3)} et ${A(w, S4)} n'ont plus aucun USDT (fonds déposés chez ${nameA}, et chez ${nameB} après un saut) : il ne leur reste que les TRX de frais avancés par les ravisseurs (${amt(trxAt(S3), 'TRX')} et ${amt(trxAt(S4), 'TRX')}). ${A(w, S2)} a converti ses USDT et détient encore ${amt(trxAt(S2), 'TRX')} (reliquat du swap de ${amt(trxKept, 'TRX')} et TRX de frais), et les deux leurres ont tout converti sur SunSwap (${A(w, D1).slice(0, 10)}… garde ${amt(trxAt(D1), 'TRX')}, ${A(w, D2).slice(0, 10)}… a ré-éclaté l'essentiel de ses ${amt(d2Trx, 'TRX')} sur ${d2Subs.length} adresses et en garde ${amt(trxAt(D2), 'TRX')}) : ce sont des TRX, sur lesquels l'émetteur de l'USDT n'a aucune prise. Dans le traçage, « Fonds encore détenus » ne laisse apparaître en USDT que ${A(w, S1).slice(0, 10)}….`,
         },
         {
           id: 'o3', type: 'amount', points: 10, unit: 'USDT', tolerance: 0.01,
           prompt: 'Quel montant d\'USDT faut-il demander à geler sur cette adresse ?',
           answer: frozen,
-          hint: 'Le gel porte sur le solde présent au moment de la demande, pas sur le montant de la rançon.',
-          explanation: `${amt(frozen, 'USDT')}, soit ${Math.round((frozen / ransomUsdt) * 100)} % de la part USDT de la rançon. C'est le solde exact de ${A(w, S1)} : la demande doit citer l'adresse complète et ce montant. Le reste n'est plus sur une adresse auto-hébergée (exchanges) ou n'est plus en USDT (TRX).`,
+          hint: 'Le gel porte sur le solde présent au moment de la demande, pas sur le montant de la rançon ni sur la seule part que le traçage attribue à la collecte : ouvrez l\'adresse et lisez son solde USDT.',
+          explanation: `${amt(frozen, 'USDT')}, solde exact de ${A(w, S1)} au moment de la demande : ${amt(fromRansom, 'USDT')} reçus de la collecte, ${amt(fromBtc, 'USDT')} renvoyés par ${A(w, R).slice(0, 10)}… (produit de la conversion des bitcoins) peu avant H+${hNow}${dustOnS1 > 0 ? `, et ${amt(dustOnS1, 'USDT')} de micro-transferts parasites` : ''}. Le montant à geler n'est donc ni la rançon USDT ni la seule tranche reçue de la collecte : c'est le solde présent. La demande doit citer l'adresse complète et ce montant. Le reste n'est plus sur une adresse auto-hébergée (exchanges) ou n'est plus en USDT (TRX).`,
+        },
+        {
+          id: 'o13', type: 'tx', points: 12,
+          prompt: `Deux virements d'environ ${amt(s3, 'USDT')} quittent la collecte à quelques minutes d'intervalle. Lequel alimente une adresse qui dépose sur un exchange ?`,
+          answer: [splitTx[2].id],
+          hint: 'Les deux montants ne diffèrent que d\'une ou deux centaines d\'USDT : suivez chacun des deux destinataires jusqu\'à sa première sortie.',
+          explanation: `${twinRows.map((x) => `${fmtDate(x.tx.time)} → ${A(w, x.to).slice(0, 10)}… (${amt(x.tx.transfers[0].value, 'USDT')})`).join(' ; ')}. ${A(w, S3).slice(0, 10)}… dépose la totalité de ses ${amt(s3, 'USDT')} sur une adresse de dépôt ${nameA} ${Math.round((s3Dep.tx.time - splitTx[2].time) / 60)} minutes plus tard : c'est la branche à requérir. Son jumeau ${A(w, D1).slice(0, 10)}… convertit tout en TRX sur SunSwap et n'en bouge plus : branche sans issue, hors de portée de Tether comme de tout exchange. Même schéma pour le virement d'environ ${amt(s2, 'USDT')} : ${A(w, S2).slice(0, 10)}… swappe puis dépose chez ${nameB}, son jumeau ${A(w, D2).slice(0, 10)}… swappe puis ré-éclate ses TRX sur ${d2Subs.length} adresses qui dorment. Les montants voisins ne prouvent rien ; seul le devenir de chaque destinataire tranche.`,
         },
         {
           id: 'o4', type: 'entity', points: 8,
@@ -337,8 +436,8 @@ export const tronKidnappingRansom: ScenarioTemplate = {
           hint: 'Suivez chaque branche jusqu\'à une adresse étiquetée « Adresse de dépôt ». Certaines branches convergent vers la même adresse.',
           explanation:
             `Trois adresses de dépôt, donc trois comptes clients :\n` +
-            `- ${nameA} ${A(w, D_a)} : ${amt(s3, 'USDT')} (branche directe) puis ${amt(peel1.payoutValue, 'USDT')} venus de la conversion des BTC ;\n` +
-            `- ${nameB} ${A(w, D_b)} : ${amt(trxDeposited, 'TRX')} (après swap SunSwap) puis ${amt(s4, 'USDT')} (après un saut) ;\n` +
+            `- ${nameA} ${A(w, D_a)} : ${amt(s3, 'USDT')} (branche directe) puis ${amt(rDepV, 'USDT')} venus de la conversion des BTC ;\n` +
+            `- ${nameB} ${A(w, D_b)} : ${dbOrder} ;\n` +
             `- ${nameBtc} ${A(w, depBtc)} : ${amt(btcDeposited, 'BTC')} en fin de peel chain.\n` +
             `Sur Tron, l'adresse de dépôt est propre à un client : deux branches qui y aboutissent désignent le même compte. ${procedureFor(exA.entity)}`,
         },
@@ -347,7 +446,7 @@ export const tronKidnappingRansom: ScenarioTemplate = {
           prompt: 'Une partie des bitcoins est revenue sur Tron. Quelle adresse Tron a reçu le produit de cette conversion ?',
           answer: [R],
           hint: `La première sortie de la peel chain part chez ChangeNOW. Corrélation : émetteur ChangeNOW, chaîne Tron, à partir de l'heure du dépôt, fenêtre d'environ 1 h, quelques % de tolérance sur ≈ ${Math.round(usd('BTC', cnValue)).toLocaleString('fr-FR')} $.`,
-          explanation: `${A(w, B0)} envoie ${amt(cnValue, 'BTC')} (≈ ${Math.round(usd('BTC', cnValue)).toLocaleString('fr-FR')} $) à une adresse de dépôt ChangeNOW ; ${Math.round((peel1.payoutTx.time - peel1.depositTx.time) / 60)} minutes plus tard, ChangeNOW verse ${amt(peel1.payoutValue, 'USDT')} à ${A(w, R)}. Deux éléments confirment la corrélation : cette adresse a reçu ses TRX de frais du même financeur que la collecte (${A(w, P)}), et elle dépose ensuite les USDT sur la même adresse ${nameA} que la branche ${A(w, S3)}. Les deux volets de la rançon aboutissent donc au même compte.`,
+          explanation: `${A(w, B0)} envoie ${amt(cnValue, 'BTC')} (≈ ${Math.round(usd('BTC', cnValue)).toLocaleString('fr-FR')} $) à une adresse de dépôt ChangeNOW ; ${Math.round((peel1.payoutTx.time - peel1.depositTx.time) / 60)} minutes plus tard, ChangeNOW verse ${amt(peel1.payoutValue, 'USDT')} à ${A(w, R)}. Deux éléments confirment la corrélation : cette adresse a reçu ses TRX de frais du même financeur que la collecte (${A(w, P)}), et elle dépose ensuite ${amt(rDepV, 'USDT')} sur la même adresse ${nameA} que la branche ${A(w, S3)}. Les deux volets de la rançon aboutissent donc au même compte. Le solde (${amt(fromBtc, 'USDT')}) part en dernier, le ${fmtDate(rToS1.time)}, vers la réserve ${A(w, S1)} : il s'ajoute au montant à geler.`,
         },
         {
           id: 'o10', type: 'address', points: 8,
@@ -361,7 +460,7 @@ export const tronKidnappingRansom: ScenarioTemplate = {
           prompt: 'Quelle adresse a financé en TRX (frais de réseau) la collecte et les adresses de fractionnement ?',
           answer: [P],
           hint: 'Ouvrez les premiers flux entrants de l\'adresse de collecte ou d\'une adresse de fractionnement : de petits montants de TRX, tous venus de la même adresse, quelques jours avant l\'enlèvement.',
-          explanation: `${A(w, P)} envoie entre 100 et 300 TRX à la collecte, aux quatre adresses de fractionnement, au saut ${A(w, S4b)} et à ${A(w, R)} dans les jours qui précèdent l'enlèvement, puis ${amt(gangTest, 'USDT')} de test à la collecte. Sur Tron, chaque adresse a besoin de TRX pour payer ses frais : le financeur commun de « gas » relie toutes ces adresses à un même opérateur et date la préparation.`,
+          explanation: `${A(w, P)} envoie entre 100 et 300 TRX à la collecte, aux quatre adresses de fractionnement, au saut ${A(w, S4b)}, à ${A(w, R)}, aux deux leurres et à ${pl(spare.length, 'adresse qui ne servira', 'adresses qui ne serviront')} jamais, dans les jours qui précèdent l'enlèvement, puis ${amt(gangTest, 'USDT')} de test à la collecte. Il loue aussi de l'« énergie » Tron à un prestataire pour réduire ses frais. Sur Tron, chaque adresse a besoin de TRX pour payer ses frais : le financeur commun de « gas » relie toutes ces adresses à un même opérateur et date la préparation.`,
         },
         {
           id: 'o9', type: 'entity', points: 9,
@@ -381,7 +480,7 @@ export const tronKidnappingRansom: ScenarioTemplate = {
               'Requérir ChangeNOW pour l\'identité KYC du client, préalable indispensable à tout gel',
             ]),
           hint: 'Classez les actes selon la vitesse à laquelle les fonds peuvent encore bouger.',
-          explanation: `Les fonds encore auto-hébergés peuvent partir en quelques secondes : le gel Tether de ${A(w, S1)} (${amt(frozen, 'USDT')}) passe en premier. Viennent ensuite les demandes de gel conservatoire des comptes ${nameA}, ${nameB} et ${nameBtc}, dont les soldes peuvent encore être retirés, puis les réquisitions d'identification (KYC, IP de connexion, historique) et la demande de données de commande à ChangeNOW (hash du dépôt BTC). ${procedureFor(exB.entity)} SunSwap est un contrat automatisé sans opérateur capable de bloquer, et ChangeNOW ne pratique pas de KYC.`,
+          explanation: `Les fonds encore auto-hébergés peuvent partir en quelques secondes : le gel Tether de ${A(w, S1)} (${amt(frozen, 'USDT')}) passe en premier. Viennent ensuite les demandes de gel conservatoire des comptes ${nameA}, ${nameB} et ${nameBtc}, dont les soldes peuvent encore être retirés, puis les réquisitions d'identification (KYC, IP de connexion, historique) et la demande de données de commande à ChangeNOW (hash du dépôt BTC). ${procedureFor(exB.entity)} SunSwap est un contrat automatisé sans opérateur capable de bloquer, et ChangeNOW n'impose pas de KYC systématique : attendre une identité de sa part avant de geler serait perdre la course.`,
         },
       ],
       truth: {
@@ -390,20 +489,20 @@ export const tronKidnappingRansom: ScenarioTemplate = {
           ...splitTx.map((t) => t.id), swapRes.tx.id, s2Dep.tx.id, ...(s2Dep.sweep ? [s2Dep.sweep.id] : []),
           s3Dep.tx.id, ...(s3Dep.sweep ? [s3Dep.sweep.id] : []), s4Hop.id, s4Dep.tx.id, ...(s4Dep.sweep ? [s4Dep.sweep.id] : []),
           btcTx.id, peel1.depositTx.id, peel1.sweepTx.id, peel1.payoutTx.id, rDep.tx.id, ...(rDep.sweep ? [rDep.sweep.id] : []),
-          peel2.id, peel3.id, btcSweep.id,
+          peel2.id, peel3.id, btcSweep.id, rToS1.id,
         ],
         addresses: [C, S1, S2, S3, S4, S4b, R, P, B0, B1, B2, D_a, D_b, depBtc, peel1.deposit],
         debrief:
           `1. Préparation : ${A(w, P)}, alimentée par un retrait ${nameB} (${amt(wTrx.transfers[0].value, 'TRX')} puis ${amt(gangTest, 'USDT')}), finance en TRX la collecte et toutes les adresses de fractionnement, puis envoie ${amt(gangTest, 'USDT')} de test à la collecte ${A(w, C)}.\n` +
           `2. Négociation : la collecte renvoie 1 USDT à la famille (preuve de contrôle), puis reçoit ${amt(famTest, 'USDT')} de test et ${amt(ransomUsdt, 'USDT')} le ${fmtDate(tMain)}.\n` +
-          `3. En ${splitMin} minutes, ${amt(total, 'USDT')} sont répartis : ${amt(s1, 'USDT')} vers ${A(w, S1)} (immobile), ${amt(s2, 'USDT')} vers ${A(w, S2)}, ${amt(s3, 'USDT')} vers ${A(w, S3)}, ${amt(s4, 'USDT')} vers ${A(w, S4)}.\n` +
+          `3. En ${splitMin} minutes, ${amt(total, 'USDT')} sont répartis sur six adresses : ${amt(s1, 'USDT')} vers ${A(w, S1)} (réserve, jamais dépensée), ${amt(s2, 'USDT')} vers ${A(w, S2)}, ${amt(s3, 'USDT')} vers ${A(w, S3)}, ${amt(s4, 'USDT')} vers ${A(w, S4)}, et deux leurres dont le montant imite S3 et S2 : ${amt(d1, 'USDT')} vers ${A(w, D1)} (converti en ${amt(d1Trx, 'TRX')}, immobile) et ${amt(d2, 'USDT')} vers ${A(w, D2)} (converti en TRX puis ré-éclaté sur ${d2Subs.length} adresses). ${spare.length > 1 ? `${spare.length} autres adresses, préparées et financées en TRX par la même source, n'ont jamais servi` : `Une autre adresse, préparée et financée en TRX par la même source, n'a jamais servi`}.\n` +
           `4. ${A(w, S2)} convertit ses USDT en ${amt(trxOut, 'TRX')} sur SunSwap et en dépose ${amt(trxDeposited, 'TRX')} chez ${nameB} ; ${A(w, S4)} fait un saut puis dépose ${amt(s4, 'USDT')} sur la même adresse ${nameB} ; ${A(w, S3)} dépose ${amt(s3, 'USDT')} chez ${nameA}.\n` +
-          `5. Volet BTC : ${A(w, B0)} envoie ${amt(cnValue, 'BTC')} à ChangeNOW (payés ${amt(peel1.payoutValue, 'USDT')} sur ${A(w, R)}, puis déposés chez ${nameA}), ${amt(uValue, 'BTC')} à une adresse non identifiée, et le reliquat de ${amt(btcDeposited, 'BTC')} chez ${nameBtc}.\n` +
-          `6. À H+${hNow}, seuls ${amt(frozen, 'USDT')} restent gelables par Tether, sur ${A(w, S1)}. Total déposé en USDT sur les exchanges : ${amt(totalUsdtOut, 'USDT')}.\n\n` +
-          `À retenir : dans une affaire de rançon, le traçage se fait contre la montre. On cherche d'abord le solde encore détenu en USDT (gelable par l'émetteur), on distingue l'actif natif (TRX, non gelable) et on bascule ensuite vers les comptes d'exchange (gel puis identification). Les transferts « test » et le financement en TRX (gas) relient toutes les adresses des auteurs, et le retrait ${nameB} qui a alimenté ${A(w, P)} est une piste d'identification à part entière.`,
+          `5. Volet BTC : ${A(w, B0)} envoie ${amt(cnValue, 'BTC')} à ChangeNOW (payés ${amt(peel1.payoutValue, 'USDT')} sur ${A(w, R)}, dont ${amt(rDepV, 'USDT')} déposés chez ${nameA} et ${amt(fromBtc, 'USDT')} regroupés en dernier sur la réserve ${A(w, S1)}), ${amt(uValue, 'BTC')} à une adresse non identifiée, et le reliquat de ${amt(btcDeposited, 'BTC')} chez ${nameBtc}.\n` +
+          `6. À H+${hNow}, seuls ${amt(frozen, 'USDT')} restent gelables par Tether, sur ${A(w, S1)} (tranche de la collecte et retour de la conversion BTC). Total déposé en USDT sur les exchanges : ${amt(totalUsdtOut, 'USDT')}.\n\n` +
+          `À retenir : dans une affaire de rançon, le traçage se fait contre la montre. On cherche d'abord le solde encore détenu en USDT (gelable par l'émetteur), on distingue l'actif natif (TRX, non gelable) et on bascule ensuite vers les comptes d'exchange (gel puis identification). Face aux montants jumeaux, seul le devenir de chaque destinataire distingue la branche utile du leurre. Les transferts « test » et le financement en TRX (gas) relient toutes les adresses des auteurs, et le retrait ${nameB} qui a alimenté ${A(w, P)} est une piste d'identification à part entière.`,
       },
       hints: [
-        'Partez du paiement principal (PV) : la collecte se vide en quelques minutes. Ouvrez chacune de ses sorties et lisez le solde restant, actif par actif.',
+        'Partez du paiement principal (PV) : la collecte se vide en quelques minutes vers six adresses. Ouvrez chacune et lisez le solde restant, actif par actif ; deux montants se ressemblent par paires.',
         'Un USDT converti en TRX sur SunSwap échappe au gel de l\'émetteur ; un USDT déposé sur un exchange relève du gel du compte, pas de Tether.',
         'Côté Bitcoin, la première sortie de la peel chain va chez ChangeNOW : corrélez sur Tron (USDT) à partir de l\'heure et de la valeur du dépôt, puis vérifiez qui finance les frais de l\'adresse trouvée.',
         'Remontez aussi en amont : les petits envois de TRX reçus par les adresses des ravisseurs ont tous la même origine, elle-même alimentée par un exchange.',

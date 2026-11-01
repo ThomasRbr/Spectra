@@ -1,8 +1,9 @@
 import { World, type Tx } from '../engine/world'
 import { dex, exchange, l2Bridge, HOUR, DAY } from '../engine/patterns'
 import { roundAsset, usd } from '../engine/chains'
+import { dusting } from '../engine/realism'
 import type { ScenarioTemplate } from './types'
-import { A, amt, choice, fakeCity, fakePerson, fmtDate, procedureFor } from './util'
+import { A, amt, choice, de, fakeCity, fakePerson, fmtDate, procedureFor } from './util'
 
 // Vol d'ETH puis fuite par les bridges canoniques de deux rollups optimistes
 // (Arbitrum One, Base). La même adresse 0x est réutilisée sur les trois
@@ -25,13 +26,13 @@ const usd0 = (v: number) => `${Math.round(v).toLocaleString('fr-FR')} $`
 export const l2ArbitrumBase: ScenarioTemplate = {
   id: 'l2-arbitrum-base',
   title: 'Fuite par les rollups : Arbitrum et Base',
-  tagline: 'Une même adresse 0x sur trois chaînes, sept jours de contestation, un retrait encore en vol.',
+  tagline: 'Une même adresse 0x sur trois chaînes, des branches et des jumeaux sur les rollups, un retrait encore en vol.',
   description:
-    'La trésorerie en ETH d\'une jeune entreprise est vidée. Le voleur passe par les bridges officiels d\'Arbitrum et de Base, échange une partie de son butin sur un DEX, puis rapatrie des fonds sur Ethereum pour les déposer sur un exchange. Un dernier retrait est encore bloqué dans la période de contestation : identifiez-le et la destination où le gel est possible.',
+    'La trésorerie en ETH d\'une jeune entreprise est vidée. Le voleur passe par les bridges officiels d\'Arbitrum et de Base, échange une partie de son butin sur un DEX, ouvre plusieurs branches et des transferts jumeaux sur les rollups, puis rapatrie des fonds sur Ethereum pour les déposer sur un exchange. Un dernier retrait, lancé depuis une adresse relais, est encore bloqué dans la période de contestation : identifiez-le et la destination où le gel est possible.',
   difficulty: 3,
   chains: ['eth', 'arb', 'base'],
-  skills: ['evm', 'bridge', 'crosschain', 'dex', 'exchange_id', 'requisition', 'gel'],
-  estMinutes: 60,
+  skills: ['evm', 'bridge', 'crosschain', 'dex', 'poisoning', 'exchange_id', 'requisition', 'gel'],
+  estMinutes: 70,
   lessons: ['layer2-rollups', 'bridges', 'comptes-evm', 'dex-defi', 'gel-saisie', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -88,6 +89,19 @@ export const l2ArbitrumBase: ScenarioTemplate = {
     const swA = uniArb.swap({ trader: xa, assetIn: 'ETH', amountIn: eth(dA * r.float(0.28, 0.42)), assetOut: 'USDC', time: depA.l2Tx.time + Math.round(r.float(1, 4) * HOUR) })
     const swB = uniBase.swap({ trader: xb, assetIn: 'ETH', amountIn: eth(dB * r.float(0.18, 0.32)), assetOut: 'USDC', time: depB.l2Tx.time + Math.round(r.float(2, 6) * HOUR) })
 
+    // 3 bis. Arbitrum : trois branches sans issue avant le retrait (dort, dépensée, retour)
+    const tBrA = swA.tx.time + Math.round(r.float(0.5, 2.5) * HOUR)
+    const balA0 = w.balanceOf(xa, 'ETH')
+    const brA = [0, 1, 2].map((k) => ({ addr: w.addr('arb', { entity: thiefE }), value: eth(balA0 * r.float(0.05, 0.11)), time: tBrA + k * r.int(6, 25) * 60 }))
+    brA.forEach((b) => w.transfer({ time: b.time, from: xa, to: b.addr, value: b.value, asset: 'ETH' }))
+    // Commerçants fictifs propres au dossier
+    const orbitE = w.customEntity({ name: r.pick(['RoyalHash Casino', 'BetNebula', 'Lucky Satoshi Club']), category: 'gambling', known: true, description: 'Casino en ligne crypto (fictif), présent sur plusieurs rollups, vérification d\'identité au-delà d\'un seuil de retrait.' })
+    const cardE = w.customEntity({ name: r.pick(['GiftNova', 'Kadoo Cards', 'VoucherBay']), category: 'merchant', known: true, description: 'Revendeur de cartes cadeaux payables en crypto (fictif). Conserve l\'e-mail de livraison des codes.' })
+    for (const [k, e] of [orbitE, cardE, orbitE].entries()) {
+      w.transfer({ time: brA[1].time + Math.round(r.float(5 + k * 14, 16 + k * 18) * HOUR), from: brA[1].addr, to: w.addr('arb', { entity: e, label: `${e.name} — Paiement` }), value: eth(brA[1].value * r.float(0.15, 0.28)), asset: 'ETH' })
+    }
+    const backA = eth(brA[2].value * r.float(0.97, 0.995))
+
     // 4. Retrait Arbitrum → Ethereum (exécuté après la période de contestation)
     const wA = eth(Math.round((w.balanceOf(xa, 'ETH') - r.float(0.01, 0.04)) * 1000) / 1000)
     const wdA = arb.withdraw({ from: xa, value: wA, time: swA.tx.time + Math.round(r.float(5, 26) * HOUR) })
@@ -97,13 +111,48 @@ export const l2ArbitrumBase: ScenarioTemplate = {
     const depValue = eth(Math.floor((wA + keepL1 * 0.5) * 1000) / 1000)
     const dEx = dest.receive(thief, depValue, wdA.finalizeTx.time + Math.round(r.float(1, 6) * HOUR), { asset: 'ETH', depositAddr: dep, sweepDelayH: r.float(0.3, 2) })
 
-    // 6. Retrait Base → Ethereum vers la même adresse de dépôt : encore en attente
-    const wB = eth(Math.round((w.balanceOf(xb, 'ETH') - r.float(0.01, 0.04)) * 1000) / 1000)
+    // La branche « retour » d'Arbitrum revient sur l'adresse du voleur après le retrait
+    const brABack = w.transfer({ time: wdA.initTx.time + Math.round(r.float(6, 40) * HOUR), from: brA[2].addr, to: xa, value: backA, asset: 'ETH' })
+
+    // 6. Base : éclatement. Un montant part vers une adresse neuve qui initiera le retrait,
+    // deux jumeaux du même montant partent ailleurs, deux branches sans issue.
+    const tBrB = swB.tx.time + Math.round(r.float(1, 4) * HOUR)
+    const xb2 = w.addr('base', { entity: thiefE })
+    const vB = eth(Math.round(w.balanceOf(xb, 'ETH') * r.float(0.55, 0.65) * 100) / 100)
+    const realB = w.transfer({ time: tBrB, from: xb, to: xb2, value: vB, asset: 'ETH' })
+    // Jumeaux : montants ronds au centième comme le vrai (le montant ne trahit rien), chacun précédé
+    // (10 à 50 min avant) d'un apport extérieur exactement du même montant : l'indice décisif.
+    const twinsB = { txs: [-1, 1].map((sg) => {
+      const v0 = Math.round(vB * (1 + sg * r.float(0.001, 0.004)) * 100) / 100
+      const v = v0 === vB ? eth(vB + sg * 0.01) : eth(v0)
+      const t = tBrB + r.int(-20, 20) * 60
+      w.fundAccount(xb, v, 'ETH', t - r.int(10, 50) * 60)
+      return w.transfer({ time: t, from: xb, to: w.addr('base'), value: v, asset: 'ETH' })
+    }) }
+    const balB0 = w.balanceOf(xb, 'ETH')
+    const brBDorm = w.addr('base', { entity: thiefE })
+    const brBSplit = w.addr('base', { entity: thiefE })
+    const brBDormTx = w.transfer({ time: tBrB + r.int(30, 70) * 60, from: xb, to: brBDorm, value: eth(balB0 * r.float(0.25, 0.35)), asset: 'ETH' })
+    const brBSplitTx = w.transfer({ time: tBrB + r.int(75, 120) * 60, from: xb, to: brBSplit, value: eth(balB0 * r.float(0.25, 0.35)), asset: 'ETH' })
+    const tSubB = brBSplitTx.time + Math.round(r.float(12, 40) * HOUR)
+    const subsB = Array.from({ length: r.int(2, 3) }, (_, k) => {
+      const s = w.addr('base', { entity: thiefE })
+      w.transfer({ time: tSubB + k * r.int(3, 15) * 60, from: brBSplit, to: s, value: eth(brBSplitTx.transfers[0].value * r.float(0.25, 0.3)), asset: 'ETH' })
+      return s
+    })
+
+    // 7. Retrait Base → Ethereum depuis l'adresse neuve, vers la même adresse de dépôt : encore en attente
+    const wB = eth(Math.round((vB - r.float(0.004, 0.012)) * 1000) / 1000)
     const tPend = dEx.tx.time + Math.round(r.float(18, 40) * HOUR)
-    const pending = w.transfer({ time: tPend, from: xb, to: base.l2Gateway, value: wB, asset: 'ETH', method: 'withdraw', tags: ['bridge', 'l2-withdraw-init'] })
+    const pending = w.transfer({ time: tPend, from: xb2, to: base.l2Gateway, value: wB, asset: 'ETH', method: 'withdraw', tags: ['bridge', 'l2-withdraw-init'] })
     pending.bridge = { direction: 'out', otherChain: 'eth', nonce: r.int(900001, 999999), recipient: dep }
     const today = tPend + Math.round(r.float(1.5, 3) * DAY)
     const finalizable = tPend + 7 * DAY
+
+    // ── Habillage : empoisonnement d'adresse après un gros mouvement ─────────
+    dusting(w, thief, { time: tTheft + 5 * HOUR, n: 3, spreadH: 4 })
+    dusting(w, xa, { time: depA.l2Tx.time + 6 * HOUR, n: 2, spreadH: 5 })
+    dusting(w, xb, { time: depB.l2Tx.time + 8 * HOUR, n: 1, spreadH: 5 })
 
     // ── Bruit : autres utilisateurs des bridges, des DEX et de l'exchange ───
     const tLo = tTheft - 3 * DAY
@@ -137,14 +186,20 @@ export const l2ArbitrumBase: ScenarioTemplate = {
     const usdcHeld = swA.amountOut + swB.amountOut
     const leftArb = eth(w.balanceOf(xa, 'ETH'))
     const leftBase = eth(w.balanceOf(xb, 'ETH'))
+    const dormArb = eth(w.balanceOf(brA[0].addr, 'ETH'))
+    const dormBase = eth([brBDorm, brBSplit, ...subsB].reduce((s, a) => s + w.balanceOf(a, 'ETH'), 0))
+    const twinTxtB = twinsB.txs.map((t) => `${amt(t.transfers[0].value, 'ETH')} vers ${A(w, t.transfers[0].to).slice(0, 10)}…`).join(' et ')
     const daysLeft = Math.round(((finalizable - today) / DAY) * 10) / 10
     const gasName = gasEx.entity.name
+    const victimLeft = eth(w.balanceOf(victim, 'ETH'))
+    // Retraits de tiers encore en attente au jour du point de situation (tirés au hasard : on les compte)
+    const otherPending = [...w.txs.values()].filter((t) => t.tags.includes('l2-withdraw-init') && t.id !== pending.id && t.bridge && (!t.bridge.otherTx || w.tx(t.bridge.otherTx).time > today) && t.time <= today).length
 
     return {
       world: w,
       title: `Trésorerie ${company.name} — ${city}`,
       briefing:
-        `${boss.name}, ${boss.g('président', 'présidente')} de ${company.name}, ${company.activity} installée à ${city}, dépose plainte : la trésorerie de la société, ${amt(S, 'ETH')} (≈ ${usd0(usd('ETH', S))}), a été vidée en une seule transaction depuis le portefeuille de l'entreprise.\n\n` +
+        `${boss.name}, ${boss.g('président', 'présidente')} ${de(company.name)}, ${company.activity} installée à ${city}, dépose plainte : ${amt(S, 'ETH')} (≈ ${usd0(usd('ETH', S))}), la quasi-totalité de la trésorerie de la société, ont été dérobés en une seule transaction depuis le portefeuille de l'entreprise.\n\n` +
         `Le voleur a ensuite utilisé les bridges officiels de deux rollups optimistes d'Ethereum, Arbitrum One et Base. Sur ces réseaux, l'adresse 0x reste la même que sur Ethereum : une même clé contrôle le même compte sur toutes les chaînes compatibles EVM. Les retraits vers Ethereum ne sont exécutables qu'après une période de contestation d'environ sept jours.\n\n` +
         `Nous sommes le ${fmtDate(today, false)}. Objectifs : identifier les adresses du voleur sur les rollups, mesurer ce qui est revenu sur Ethereum et où, repérer le retrait encore en attente pour préparer un gel à son arrivée, remonter la préparation de l'adresse du voleur et recenser ce qui reste atteignable sur les rollups.`,
       evidence: [
@@ -152,7 +207,7 @@ export const l2ArbitrumBase: ScenarioTemplate = {
           id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: tTheft + DAY, author: boss.name,
           body:
             `« Notre trésorerie était conservée sur un portefeuille logiciel utilisé par notre directeur financier : ${A(w, victim)}.\n\n` +
-            `Le ${fmtDate(tTheft)}, la totalité du solde, ${amt(S, 'ETH')}, est partie vers une adresse inconnue. Transaction : ${theft.hash}\n\n` +
+            `Le ${fmtDate(tTheft)}, ${amt(S, 'ETH')} sont partis vers une adresse inconnue : il ne reste que ${amt(victimLeft, 'ETH')} sur le portefeuille. Transaction : ${theft.hash}\n\n` +
             `Nous n'avons signé aucune opération. Le poste du directeur financier est confié à un prestataire pour analyse. »`,
         },
         {
@@ -172,7 +227,7 @@ export const l2ArbitrumBase: ScenarioTemplate = {
         {
           id: 'pv', type: 'pv', title: `Point de situation du ${fmtDate(today, false)}`, date: today, author: 'Section de recherches',
           body:
-            `Les fonds ont quitté l'adresse de réception initiale quelques minutes après le vol, vers les bridges officiels d'Arbitrum et de Base. Aucune réquisition n'a encore été adressée.\n` +
+            `Les fonds ont quitté l'adresse de réception initiale dans les heures qui ont suivi le vol, vers les bridges officiels d'Arbitrum et de Base. Aucune réquisition n'a encore été adressée.\n` +
             `Priorité : déterminer si une partie du butin est encore en transit vers Ethereum et, le cas échéant, sa date d'arrivée possible et le prestataire qui la recevra.\n` +
             `Rappel : une demande de gel ne porte que sur ce qu'un prestataire détient ou recevra ; elle doit lui parvenir avant que les fonds ne repartent.`,
         },
@@ -225,8 +280,15 @@ export const l2ArbitrumBase: ScenarioTemplate = {
           id: 'o4', type: 'tx', points: 10,
           prompt: 'Quelle transaction correspond au retrait encore en attente (période de contestation non écoulée) ?',
           answer: [pending.id],
-          hint: 'Regardez l\'historique de l\'adresse du voleur sur Base : une transaction vers le contrat de bridge côté L2 n\'a pas de transaction liée sur Ethereum.',
-          explanation: `Le ${fmtDate(tPend)}, ${A(w, xb)} initie sur Base un retrait de ${amt(wB, 'ETH')} (≈ ${usd0(usd('ETH', wB))}). Au ${fmtDate(today, false)}, aucune finalisation n'existe sur Ethereum : elle ne sera possible qu'à partir du ${fmtDate(finalizable)} environ. D'autres utilisateurs du bridge ont aussi des retraits en attente : seul celui-ci part de l'adresse du voleur.`,
+          hint: 'Sur Base, l\'adresse du voleur n\'appelle pas elle-même le bridge : suivez l\'adresse qu\'elle a alimentée et cherchez une transaction vers le contrat de bridge côté L2 sans transaction liée sur Ethereum.',
+          explanation: `Le ${fmtDate(tPend)}, ${A(w, xb2)} (alimentée par l'adresse du voleur sur Base) initie un retrait de ${amt(wB, 'ETH')} (≈ ${usd0(usd('ETH', wB))}). Au ${fmtDate(today, false)}, aucune finalisation n'existe sur Ethereum : elle ne sera possible qu'à partir du ${fmtDate(finalizable)} environ. ${otherPending > 0 ? `${otherPending === 1 ? 'Un autre retrait, celui d\'un tiers, est' : `On compte aussi ${otherPending} autres retraits de tiers`} en attente sur les bridges : seul celui-ci part d'une adresse rattachée au voleur, et son destinataire est déjà connu du dossier.` : 'Il part d\'une adresse rattachée au voleur, et son destinataire est déjà connu du dossier.'}`,
+        },
+        {
+          id: 'o13', type: 'address', points: 11,
+          prompt: 'Sur Base, l\'adresse du voleur envoie en quelques minutes trois montants quasi identiques d\'ETH, puis deux autres transferts. Quelle adresse destinataire initie le retrait vers Ethereum ?',
+          answer: [xb2],
+          hint: 'Ouvrez chaque destinataire. Regardez aussi d\'où viennent les ETH de chaque envoi : du dépôt bridgé, ou d\'un apport arrivé juste avant ?',
+          explanation: `${A(w, xb2)} reçoit ${amt(vB, 'ETH')} le ${fmtDate(realB.time)}, prélevés sur les ETH arrivés par le bridge, et c'est elle qui appelle le bridge de Base ${Math.round((tPend - realB.time) / DAY)} jours plus tard. Le montant ne départage rien : les trois envois sont ronds au centième. Les deux jumeaux (${twinTxtB}) sont chacun précédés d'un apport exactement du même montant, venu d'une adresse tierce peu avant : ce sont d'autres fonds qui transitent pour brouiller la piste, et leurs destinataires ne font plus rien. Les deux autres branches n'aboutissent pas : ${A(w, brBDorm).slice(0, 10)}… dort, ${A(w, brBSplit).slice(0, 10)}… se ré-éclate en ${subsB.length} sous-adresses qui dorment. Sur Arbitrum, le même schéma existe (une branche qui dort, une qui paie ${orbitE.name} et ${cardE.name}, une qui revient sur l'adresse du voleur), mais le retrait y part de l'adresse du voleur elle-même.`,
         },
         {
           id: 'o6', type: 'address', points: 10,
@@ -276,21 +338,22 @@ export const l2ArbitrumBase: ScenarioTemplate = {
         },
       ],
       truth: {
-        path: [gasTx.id, theft.id, depA.l1Tx.id, depA.l2Tx.id, depB.l1Tx.id, depB.l2Tx.id, swA.tx.id, swB.tx.id, wdA.initTx.id, wdA.finalizeTx.id, dEx.tx.id, ...(dEx.sweep ? [dEx.sweep.id] : []), pending.id],
-        addresses: [thief, xa, xb, dep],
+        path: [gasTx.id, theft.id, depA.l1Tx.id, depA.l2Tx.id, depB.l1Tx.id, depB.l2Tx.id, swA.tx.id, swB.tx.id, realB.id, wdA.initTx.id, wdA.finalizeTx.id, dEx.tx.id, ...(dEx.sweep ? [dEx.sweep.id] : []), pending.id],
+        addresses: [thief, xa, xb, xb2, dep],
         debrief:
           `1. Le ${fmtDate(tTheft)}, la clé privée exfiltrée sert à vider la trésorerie : ${amt(S, 'ETH')} vers ${A(w, thief)}, une adresse préparée quelques jours plus tôt avec ${amt(gasTx.transfers[0].value, 'ETH')} de gaz retirés de ${gasName}.\n` +
           `2. Dans les heures qui suivent, le voleur dépose ${amt(dA, 'ETH')} sur le bridge d'Arbitrum et ${amt(dB, 'ETH')} sur celui de Base. Les deux dépôts arrivent sur la même adresse 0x, réutilisée sur les deux rollups.\n` +
           `3. Sur chaque rollup, il échange une partie de ses ETH contre des USDC sur Uniswap (${amt(swA.amountOut, 'USDC')} sur Arbitrum, ${amt(swB.amountOut, 'USDC')} sur Base), qu'il conserve.\n` +
           `4. Le ${fmtDate(wdA.initTx.time, false)}, il initie un retrait de ${amt(wA, 'ETH')} d'Arbitrum ; exécuté le ${fmtDate(wdA.finalizeTx.time, false)} après la période de contestation, il est déposé (${amt(depValue, 'ETH')}) sur ${A(w, dep)}, adresse de dépôt de ${destName}.\n` +
-          `5. Le ${fmtDate(tPend, false)}, il initie un retrait de ${amt(wB, 'ETH')} de Base directement vers cette même adresse de dépôt. Au ${fmtDate(today, false)}, il est encore en attente : finalisation possible à partir du ${fmtDate(finalizable, false)}.\n` +
-          `Restent sur les rollups : ${amt(leftArb, 'ETH')} et ${amt(swA.amountOut, 'USDC')} sur Arbitrum, ${amt(leftBase, 'ETH')} et ${amt(swB.amountOut, 'USDC')} sur Base.\n\n` +
+          `5. Sur chaque rollup, il ouvre des fausses pistes. Sur Arbitrum : trois branches (une dort, une paie ${orbitE.name} et ${cardE.name}, une revient sur son adresse). Sur Base : ${amt(vB, 'ETH')} vers une adresse neuve ${A(w, xb2)}, deux transferts jumeaux de montant voisin financés par des apports extérieurs arrivés juste avant, une branche qui dort et une branche ré-éclatée.\n` +
+          `6. Le ${fmtDate(tPend, false)}, l'adresse neuve de Base initie un retrait de ${amt(wB, 'ETH')} directement vers l'adresse de dépôt ${destName} déjà utilisée. Au ${fmtDate(today, false)}, il est encore en attente : finalisation possible à partir du ${fmtDate(finalizable, false)}.\n` +
+          `Restent sur les rollups : ${amt(leftArb, 'ETH')} et ${amt(swA.amountOut, 'USDC')} sur l'adresse du voleur sur Arbitrum (plus ${amt(dormArb, 'ETH')} sur la branche dormante), ${amt(leftBase, 'ETH')} et ${amt(swB.amountOut, 'USDC')} sur Base (plus ${amt(dormBase, 'ETH')} sur les branches dormantes). Les micro-envois reçus d'adresses sosies juste après le vol sont de l'empoisonnement d'adresse, sans lien avec le voleur.\n\n` +
           `À retenir : une adresse EVM se vérifie sur toutes les chaînes compatibles. Les bridges canoniques des rollups optimistes relient chaque dépôt et chaque retrait à sa transaction de l'autre côté ; le délai de sept jours des retraits ne permet pas d'annuler quoi que ce soit, mais il annonce où et quand les fonds arriveront. Ici, la destination est un compte d'exchange déjà identifié : une réquisition rapide, assortie d'une demande de gel, peut bloquer ${amt(wB, 'ETH')} dès leur arrivée.`,
       },
       hints: [
         'Depuis la transaction de vol, ouvrez l\'adresse du voleur et ses sorties : deux transactions partent vers des contrats de bridge.',
         'Le bouton « Ouvrir la transaction liée » mène de la transaction Ethereum à son arrivée sur le rollup : regardez le destinataire.',
-        'Sur chaque rollup, suivez l\'adresse du voleur jusqu\'à une transaction vers le contrat de bridge L2. L\'une a une transaction liée sur Ethereum, l\'autre non.',
+        'Sur chaque rollup, suivez l\'adresse du voleur jusqu\'à une transaction vers le contrat de bridge L2. Sur Base, il faut d\'abord trier les envois de l\'adresse du voleur : un seul destinataire appelle le bridge.',
         'Comparez le « Destinataire » du retrait sans finalisation avec les adresses Ethereum que vous avez déjà rencontrées.',
         'Remontez aussi l\'historique de l\'adresse du voleur avant le vol : elle n\'était pas vide.',
         'Les USDC obtenus sur les rollups ne bougent plus : leur émetteur peut les geler.',
