@@ -4,12 +4,17 @@
 // simple-icons (CC0) pour Mullvad. Les marques restent la propriété de leurs
 // détenteurs. Quelques icônes officielles sont copiées dans brands/ :
 // ChangeNOW et Hodl Hodl depuis leurs sites, Wasabi (zkSNACKs) depuis le dépôt
-// WalletWasabi (MIT). Une entité sans logo embarqué reçoit une marque à
-// initiales dans la couleur de sa catégorie (entityMark).
+// WalletWasabi (MIT), Coinhouse et LockBit depuis Wikimedia Commons (domaine
+// public). Les entités fictives ont des logos dessinés pour SPECTRA
+// (brands/fictifs.ts). Une entité sans logo reçoit une marque à initiales dans
+// la couleur de sa catégorie (entityMark).
 import { siMullvad } from 'simple-icons'
 import changenow from './brands/changenow.png'
+import coinhouse from './brands/coinhouse.png'
 import hodlhodl from './brands/hodlhodl.svg'
+import lockbit from './brands/lockbit.svg'
 import wasabi from './brands/wasabi.png'
+import { FICTIVE_LOGOS } from './brands/fictifs'
 import oneinch from '@web3icons/core/svgs/exchanges/background/1inch.svg.js'
 import aave from '@web3icons/core/svgs/tokens/background/AAVE.svg.js'
 import mkr from '@web3icons/core/svgs/tokens/background/MKR.svg.js'
@@ -69,8 +74,11 @@ const ENTITY_LOGOS: Record<string, string> = {
   circle: uri(usdc),
   makerdao: uri(mkr),
   changenow,
+  coinhouse,
   hodlhodl,
+  lockbit,
   wasabi,
+  ...Object.fromEntries(Object.entries(FICTIVE_LOGOS).map(([id, svg]) => [id, uri(svg)])),
 }
 
 export const CHAIN_LOGOS: Record<ChainId, string> = {
