@@ -30,6 +30,8 @@ export type Selection =
   | { kind: 'address'; id: string }
   | { kind: 'tx'; id: string }
   | { kind: 'edge'; source: string; target: string; txIds: string[] }
+  /** Groupe replié ou agrégat de contreparties du graphe (clé d'affichage g:… ou n:…). */
+  | { kind: 'group'; key: string }
   | null
 
 export type Mode = 'standard' | 'examen'
@@ -714,6 +716,11 @@ export const useGame = create<GameState>()((set, get) => ({
     const s = get()
     if (!s.inst) return
     snapshot('réorganisation')
+    // Mise en page du graphe affiché (groupes, agrégats, mode chronologique…) quand l'interface l'a fournie
+    if (relayoutHook) {
+      relayoutHook()
+      return
+    }
     const w = s.inst.world
     const nodes = [...Object.keys(s.addrPos).map(aKey), ...Object.keys(s.txPos).map(tKey)]
     const edges = [...computeEdges(w, s.addrPos, s.txPos, s.revealed), ...extraLinks(w, s.addrPos, s.revealed, s.links)]
@@ -963,6 +970,13 @@ export const useGame = create<GameState>()((set, get) => ({
     set((s) => ({ log: [...s.log, { t: Date.now(), text, kind }].slice(-400) }))
   },
 }))
+
+let relayoutHook: (() => void) | null = null
+
+/** Branche la mise en page du graphe affiché (voir ui/workspace/graphActions.ts). */
+export function setRelayoutHook(fn: (() => void) | null) {
+  relayoutHook = fn
+}
 
 function snapshot(label: string) {
   const s = useGame.getState()
