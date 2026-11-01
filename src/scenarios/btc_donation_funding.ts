@@ -1,12 +1,17 @@
 import { World, type Tx } from '../engine/world'
 import { exchange, mixer, person, roundCoin, roundUsdAmount, HOUR, DAY, type ExchangeKit } from '../engine/patterns'
-import { usd } from '../engine/chains'
+import { fromUsd, usd } from '../engine/chains'
+import { dusting, personalSpending } from '../engine/realism'
 import type { ScenarioTemplate } from './types'
 import { A, amt, choice, fakeCity, fakePerson, fmtDate, forwardAll, procedureFor } from './util'
 
 const r8 = (v: number) => Math.round(v * 1e8) / 1e8
 /** Arrondi par défaut à 8 décimales : la sortie ne dépasse jamais les entrées. */
 const f8 = (v: number) => Math.floor(v * 1e8) / 1e8
+/** Heure de Paris (0–23) d'un horodatage. */
+const parisHour = (ts: number) => Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Paris' }).format(new Date(ts * 1000)))
+/** Même jour que `ts`, à `h` heures pile (heure de Paris) : pièces rédigées aux heures de bureau. */
+const atHour = (ts: number, h: number) => ts - (ts % HOUR) + (h - parisHour(ts)) * HOUR
 
 type Src = 'coinhouse' | 'coinbase' | 'kraken' | 'huobex' | 'person' | 'repeat'
 const REGULATED: Src[] = ['coinhouse', 'coinbase', 'kraken']
@@ -16,13 +21,13 @@ const GROUPS = ['Collectif Granit', 'Cercle Basalte', 'Mouvement Orage', 'Front 
 export const btcDonationFunding: ScenarioTemplate = {
   id: 'donation-funding',
   title: 'Collecte de fonds illicite sur les réseaux sociaux',
-  tagline: 'Adresses rotatives, petits dons, un portefeuille unique : remonter de la publication aux donateurs.',
+  tagline: 'Adresses rotatives, petits dons, un portefeuille unique : remonter de la publication aux donateurs, puis de la caisse du groupe à ceux qu\'elle défraie.',
   description:
-    'Un groupuscule violent dissous continue de lever des fonds en bitcoins sur Telegram et X, en changeant régulièrement d\'adresse. Reliez les adresses successives au même portefeuille, chiffrez la collecte, repérez les dons issus de plateformes régulées, choisissez la bonne réquisition, localisez la sortie vers un mixeur et rédigez avec prudence ce que l\'on sait des donateurs.',
+    'Un groupuscule violent dissous continue de lever des fonds en bitcoins sur Telegram et X, en changeant régulièrement d\'adresse. Reliez les adresses successives au même portefeuille, chiffrez la collecte, repérez les dons issus de plateformes régulées, choisissez la bonne réquisition, suivez les sorties (mixeur, vente P2P sous séquestre), triez les défraiements versés depuis le reliquat et rédigez avec prudence ce que l\'on sait des donateurs.',
   difficulty: 2,
   chains: ['btc'],
   skills: ['cioh', 'osint', 'exchange_id', 'requisition', 'typologies'],
-  estMinutes: 45,
+  estMinutes: 50,
   lessons: ['osint', 'clustering', 'attribution-sources', 'exposition-risque', 'requisitions'],
   generate(seed) {
     const w = new World(seed)
@@ -42,7 +47,13 @@ export const btcDonationFunding: ScenarioTemplate = {
       kraken: exchange(w, 'kraken', 'btc'),
       huobex: exchange(w, 'huobex', 'btc'),
     }
-    const mx = mixer(w, 'sinbad', 'btc')
+    // Mixeur centralisé fictif (Sinbad, saisi en novembre 2023, ne peut plus servir dans une affaire de 2024–2026)
+    const mixE = w.customEntity({
+      name: 'Nebula Mix', category: 'mixer', risk: 'severe', known: true, country: 'Inconnu',
+      description: 'Mixeur centralisé (custodial) fictif, accessible par Tor : mélange les dépôts avec ceux d\'autres utilisateurs et les restitue après un délai, moins une commission. Signalé comme service de blanchiment par les sociétés d\'analyse.',
+      compliance: { contact: 'Aucun contact (service clandestin)', cooperation: 'none', responseDays: [0, 0], canFreeze: false, kyc: 'aucun' },
+    })
+    const mx = mixer(w, mixE.id, 'btc')
     const hodl = w.entity('hodlhodl')
     const grp = w.customEntity({ name: `Groupuscule « ${groupName} »`, category: 'suspect', description: 'Groupement dissous (nom fictif) poursuivant une activité en ligne.' })
     const copycat = w.customEntity({ name: `Compte usurpateur ${xCopy}`, category: 'scam', description: 'Compte opportuniste qui reprend l\'identité du groupe pour détourner des dons.' })
@@ -144,6 +155,38 @@ export const btcDonationFunding: ScenarioTemplate = {
     const p2pValue = Math.floor(w.unspentValue(next1, T4) * r.float(0.55, 0.75) * 1e4) / 1e4
     const p2pTx = w.utxoTx({ time: T4, from: [next1], to: [{ address: escrow, value: p2pValue }], change: next2, spendAll: true })
     const release = forwardAll(w, escrow, w.addr('btc'), Math.round(T4 + r.float(2, 12) * HOUR), undefined, ['escrow-release'])
+
+    // ── Dépenses du groupe depuis le reliquat ────────────────────────────────
+    // Défraiements de trois membres (déplacements), puis achats courants. Le
+    // rendu revient chaque fois sur la même adresse de reliquat.
+    const rem0 = w.unspentValue(next2)
+    const members = Array.from({ length: 3 }, () => w.addr('btc', { kind: r.pick(['p2wpkh', 'p2wpkh', 'p2sh'] as const) }))
+    let tPay = Math.round(T4 + r.float(1, 3) * DAY)
+    const defrais = members.map((m) => {
+      const tx = w.utxoTx({ time: tPay, from: [next2], to: [{ address: m, value: f8(rem0 * r.float(0.06, 0.1)) }], change: next2 })
+      tPay += Math.round(r.float(2, 9) * HOUR)
+      return tx
+    })
+    const defraisTotal = r8(defrais.reduce((s, t, i) => s + t.outputs.filter((o) => o.address === members[i]).reduce((a, o) => a + o.value, 0), 0))
+    // Membre A : n'y touche plus. Membre B : petites dépenses. Membre C : dépôt sur Coinhouse (KYC).
+    // Membre B : billets de train et matériel de camping payés en bitcoins (commerçants fictifs)
+    const railE = w.customEntity({ name: 'RailPass Crypto', category: 'merchant', known: true, country: 'France', description: 'Revendeur en ligne (fictif) de billets de train et de cartes de transport payables en crypto-actifs. Conserve l\'identité des voyageurs et l\'adresse e-mail de commande.' })
+    const campE = w.customEntity({ name: 'Bivouac Store', category: 'merchant', known: true, country: 'France', description: 'Boutique en ligne (fictive) de matériel de randonnée et de camping acceptant le bitcoin via un prestataire de paiement. Conserve les adresses de livraison.' })
+    const spendB = personalSpending(w, members[1], { start: tPay + DAY, end: tPay + 8 * DAY, n: 2, merchants: [railE, campE], maxUsd: Math.max(20, usd('BTC', rem0) * 0.02) })
+    const memberDep = kits.coinhouse.receive(members[2], f8(w.unspentValue(members[2]) - 0.00002), Math.round(tPay + r.float(2, 6) * DAY), { change: null })
+    // Achats du groupe : VPN et imprimeur en ligne (banderoles, autocollants)
+    const printE = w.customEntity({
+      name: 'ImprimExpress', category: 'merchant', known: true, country: 'France',
+      description: 'Imprimeur en ligne (fictif) acceptant le bitcoin via un prestataire de paiement. Conserve les commandes, adresses de livraison et coordonnées des clients.',
+      compliance: { contact: 'Service juridique d\'ImprimExpress', cooperation: 'direct', responseDays: [3, 15], canFreeze: false, kyc: 'standard' },
+    })
+    const printAddr = w.addr('btc', { entity: printE, label: 'ImprimExpress — Paiement', kind: 'p2wpkh' })
+    const vpnE = w.customEntity({ name: 'Bastion VPN', category: 'merchant', known: true, country: 'Suisse', description: 'Fournisseur de VPN (fictif) acceptant le bitcoin, sans collecte d\'identité : seul un numéro de compte anonyme est conservé.' })
+    const mullvadAddr = w.addr('btc', { entity: vpnE, label: 'Bastion VPN — Paiement', kind: 'p2wpkh' })
+    const vpnTx = w.utxoTx({ time: Math.round(tPay + r.float(0.5, 2) * DAY), from: [next2], to: [{ address: mullvadAddr, value: f8(fromUsd('BTC', r.pick([5.5, 11, 33]))) }], change: next2 })
+    const printTx = w.utxoTx({ time: Math.round(tPay + r.float(3, 7) * DAY), from: [next2], to: [{ address: printAddr, value: f8(Math.min(rem0 * 0.05, fromUsd('BTC', r.float(90, 240)))) }], change: next2 })
+    // Les adresses publiées restent exposées : poussière reçue après les faits
+    for (const a of pub.slice(-2)) dusting(w, a, { time: Math.round(T2 + 4 * DAY), n: r.int(1, 2), spreadH: 48 })
     const remainderValue = w.unspentValue(next2)
 
     // ── Bruit ────────────────────────────────────────────────────────────────
@@ -170,6 +213,12 @@ export const btcDonationFunding: ScenarioTemplate = {
     const privDons = donations.filter((d) => d.target === priv)
     const privTotal = r8(privDons.reduce((s, d) => s + d.value, 0))
     const krDon = donations.find((d) => d.src === 'kraken')!
+    const krOthers = donations.filter((d) => d.src === 'kraken' && d !== krDon && d.target === krDon.target).length
+    // Poussière (546 sats) reçue après le dernier regroupement : ni don ni fonds du groupe
+    const dustCount = pub.reduce((s, a) => s + w.txsOf(a).filter((t) => t.tags.includes('dust')).length, 0)
+    // Petits paiements du membre B (commerçant ou particulier, tirés au hasard)
+    const spendBNames = spendB.addresses.map((a) => w.ownerOf(a)?.name ?? 'un particulier')
+    const nSpendB = spendB.txs.length
     // Dons reçus par une adresse publiée après son remplacement par la suivante
     const lateDons = donations.filter((d) => { const i = pub.indexOf(d.target); return i >= 0 && i < nA - 1 && d.tx.time > posts[i + 1] })
     const lateAddrs = new Set(lateDons.map((d) => d.target)).size
@@ -188,6 +237,7 @@ export const btcDonationFunding: ScenarioTemplate = {
     }))
     tgLines.push({ t: copyPostT + r.int(6, 30) * HOUR, s: `« Attention : le compte ${xCopy} n'est pas le nôtre. Ne donnez qu'aux adresses publiées ici ou transmises par un administrateur. »` })
     tgLines.push({ t: posts[1] + r.int(2, 6) * DAY, s: '« Pour les dons importants, contactez un administrateur en privé. »' })
+    tgLines.push({ t: Math.min(end - HOUR, posts[nA - 1] + r.int(1, 4) * DAY), s: '« Merci à tous : vos dons serviront à rembourser les déplacements des camarades et à imprimer le matériel pour la prochaine action. »' })
     const postLines = tgLines.sort((a, b) => a.t - b.t).map((l) => `[${fmtDate(l.t)}] ${l.s}`).join('\n')
 
     return {
@@ -199,13 +249,13 @@ export const btcDonationFunding: ScenarioTemplate = {
         `Objectifs : regrouper les adresses de collecte, chiffrer les dons et leur chronologie, repérer ceux qui transitent par des plateformes régulées, choisir la réquisition prioritaire, suivre les sorties (mixeur, vente P2P, reliquat) et qualifier avec prudence la situation des donateurs.`,
       evidence: [
         {
-          id: 'telegram', type: 'telegram', title: `Canal Telegram « ${tgChannel} » — extraits`, date: end, author: 'Capture réalisée par l\'enquêteur',
+          id: 'telegram', type: 'telegram', title: `Canal Telegram « ${tgChannel} » — extraits`, date: atHour(end + DAY, 9) + 30 * 60, author: 'Capture réalisée par l\'enquêteur',
           body:
             `Canal public, environ ${followers.toLocaleString('fr-FR')} abonnés. Passages à caractère violent expurgés ; seuls les appels aux dons sont reproduits.\n\n` +
             postLines,
         },
         {
-          id: 'x', type: 'capture', title: 'Publications X (extraits)', date: end + r.int(1, 3) * DAY, author: 'Capture réalisée par l\'enquêteur',
+          id: 'x', type: 'capture', title: 'Publications X (extraits)', date: atHour(end + r.int(1, 3) * DAY, 14) + 10 * 60, author: 'Capture réalisée par l\'enquêteur',
           body:
             `${xHandle} — [${fmtDate(posts[0] + r.int(1, 12) * HOUR)}] « Soutenez la cause : ${A(w, pub[0])} »\n` +
             `${xHandle} — [${fmtDate(posts[nA - 1] + r.int(1, 12) * HOUR)}] « Adresse mise à jour : ${A(w, pub[nA - 1])} »\n\n` +
@@ -213,7 +263,7 @@ export const btcDonationFunding: ScenarioTemplate = {
             `(compte créé ${r.int(3, 20)} jours plus tôt, aucune publication antérieure)`,
         },
         {
-          id: 'renseignement', type: 'note', title: 'Note de partage — service de renseignement', date: end + r.int(2, 5) * DAY, author: 'Service de renseignement (note déclassifiée pour l\'enquête)',
+          id: 'renseignement', type: 'note', title: 'Note de partage — service de renseignement', date: atHour(end + r.int(2, 5) * DAY, 11), author: 'Service de renseignement (note déclassifiée pour l\'enquête)',
           body:
             `• Depuis sa dissolution, « ${groupName} » communique via le canal « ${tgChannel} » et le compte ${xHandle}. Les appels aux dons financeraient du matériel, des déplacements et les frais de défense de membres poursuivis.\n` +
             `• Selon une source, les administrateurs communiquent une adresse distincte, non publiée, aux soutiens qui proposent des montants importants.\n` +
@@ -221,19 +271,22 @@ export const btcDonationFunding: ScenarioTemplate = {
             `• Les éléments de la présente note ne peuvent fonder à eux seuls une mise en cause : ils orientent les investigations.`,
         },
         {
-          id: 'partenaire', type: 'rapport', title: 'Adresses signalées par un service partenaire', date: end + r.int(3, 8) * DAY, author: 'Service partenaire étranger (via Europol)',
+          id: 'partenaire', type: 'rapport', title: 'Adresses signalées par un service partenaire', date: atHour(end + r.int(3, 8) * DAY, 16), author: 'Service partenaire étranger (via Europol)',
           body:
             `Adresses BTC associées à « ${groupName} » d'après des observations de messageries, attribution non vérifiée on-chain :\n` +
             partnerList.map((a) => `• ${A(w, a)}`).join('\n') +
             `\n\nLe partenaire précise que cette liste est transmise à titre de renseignement et doit être vérifiée.`,
         },
         {
-          id: 'kraken', type: 'rapport', title: 'Réponse de Kraken (demande préalable)', date: end + r.int(6, 12) * DAY, author: 'Service des demandes des forces de l\'ordre de Kraken',
+          id: 'kraken', type: 'rapport', title: 'Réponse de Kraken (demande préalable)', date: atHour(end + r.int(6, 12) * DAY, 10), author: 'Service des demandes des forces de l\'ordre de Kraken',
           body:
             `Réponse à la demande transmise lors de la phase de renseignement, portant sur la transaction ${krDon.tx.hash}.\n\n` +
             `Retrait du ${fmtDate(krDon.tx.time)} de ${amt(krDon.value, 'BTC')} vers ${A(w, krDon.target)}.\n` +
             `Titulaire du compte : ${donor.name}, ${dg('né', 'née')} en ${donorYear}, ${dg('domicilié', 'domiciliée')} à ${fakeCity(r)}. Compte ouvert depuis ${r.int(2, 6)} ans, activité d'investissement régulière.\n` +
-            `Aucun autre retrait vers cette adresse. Le client n'a pas renseigné de motif pour ce retrait.`,
+            (krOthers === 0
+              ? `Aucun autre retrait de nos clients vers cette adresse. `
+              : `${krOthers === 1 ? 'Un autre retrait' : `${krOthers} autres retraits`} vers cette adresse, depuis d'autres comptes clients, ${krOthers === 1 ? 'n\'est pas couvert' : 'ne sont pas couverts'} par la présente demande. `) +
+            `Le client n'a pas renseigné de motif pour ce retrait.`,
         },
       ],
       seeds: [],
@@ -272,14 +325,14 @@ export const btcDonationFunding: ScenarioTemplate = {
           prompt: 'Quel montant total (en BTC) les donateurs ont-ils versé sur les adresses de collecte du groupe ?',
           answer: total,
           hint: 'Additionnez les dons reçus par chaque adresse du cluster, avant regroupement. Ne comptez ni les regroupements ni l\'adresse usurpatrice.',
-          explanation: `${nDon} dons pour ${amt(total, 'BTC')} (≈ ${Math.round(usd('BTC', total)).toLocaleString('fr-FR')} $), dont ${privDons.length} dons plus élevés (${amt(privTotal, 'BTC')}) sur l'adresse non publiée. La plupart des dons sont modestes (quelques dizaines à quelques centaines de dollars) : la collecte repose sur le nombre.`,
+          explanation: `${nDon} dons pour ${amt(total, 'BTC')} (≈ ${Math.round(usd('BTC', total)).toLocaleString('fr-FR')} $), dont ${privDons.length} dons plus élevés (${amt(privTotal, 'BTC')}) sur l'adresse non publiée. La plupart des dons sont modestes (quelques dizaines à quelques centaines de dollars) : la collecte repose sur le nombre. Les ${dustCount} micro-versements de 546 sats reçus par les deux dernières adresses publiées après le dernier regroupement sont de la poussière (sollicitation automatique d'adresses exposées), pas des dons.`,
         },
         {
           id: 'o9', type: 'number', points: 9, tolerance: 0, unit: 'dons',
           prompt: 'Combien de dons ont été reçus par une adresse publiée après que le canal l\'a remplacée par une nouvelle ?',
           answer: lateDons.length,
-          hint: 'Datez chaque publication d\'adresse grâce à la capture Telegram, puis comparez avec la date des dons reçus par l\'adresse précédente.',
-          explanation: `${lateDons.length} don${lateDons.length > 1 ? 's' : ''}, sur ${lateAddrs} adresse${lateAddrs > 1 ? 's' : ''} déjà remplacée${lateAddrs > 1 ? 's' : ''} : des soutiens continuent d'utiliser une adresse enregistrée ou copiée d'une ancienne publication (relais, captures partagées). La rotation n'est donc pas étanche, et c'est ce qui permet au groupe de continuer à les dépenser avec les nouvelles. Pour l'enquête, ces dons tardifs datent l'audience réelle de chaque publication et montrent que les adresses restent surveillées et regroupées par les administrateurs : une ancienne adresse n'est pas « abandonnée ».`,
+          hint: 'Datez chaque publication d\'adresse grâce à la capture Telegram, puis comparez avec la date des dons reçus par l\'adresse précédente. Un micro-versement de 546 sats n\'est pas un don.',
+          explanation: `${lateDons.length} don${lateDons.length > 1 ? 's' : ''}, sur ${lateAddrs} adresse${lateAddrs > 1 ? 's' : ''} déjà remplacée${lateAddrs > 1 ? 's' : ''} (la poussière de 546 sats arrivée après le dernier regroupement ne compte pas) : des soutiens continuent d'utiliser une adresse enregistrée ou copiée d'une ancienne publication (relais, captures partagées). La rotation n'est donc pas étanche, et c'est ce qui permet au groupe de continuer à les dépenser avec les nouvelles. Pour l'enquête, ces dons tardifs datent l'audience réelle de chaque publication et montrent que les adresses restent surveillées et regroupées par les administrateurs : une ancienne adresse n'est pas « abandonnée ».`,
         },
         {
           id: 'o3', type: 'number', points: 10, tolerance: 0, unit: 'dons',
@@ -313,7 +366,7 @@ export const btcDonationFunding: ScenarioTemplate = {
           prompt: 'Quelle transaction envoie une partie des fonds regroupés vers le mixeur ?',
           answer: [mixRes.depositTx.id],
           hint: 'Suivez la dépense de l\'adresse de regroupement : une sortie part vers une adresse de dépôt attribuée à un mixeur.',
-          explanation: `Le ${fmtDate(mixRes.depositTx.time)}, ${amt(mixValue, 'BTC')} partent de ${A(w, cons).slice(0, 14)}… vers une adresse de dépôt Sinbad, mixeur centralisé sanctionné : la traçabilité s'interrompt, et toute adresse en aval est exposée à un service à risque sévère. Le rendu (${A(w, next1).slice(0, 14)}…) finance ensuite une vente P2P de ${amt(p2pValue, 'BTC')} via un séquestre Hodl Hodl. ${procedureFor(hodl)}`,
+          explanation: `Le ${fmtDate(mixRes.depositTx.time)}, ${amt(mixValue, 'BTC')} partent de ${A(w, cons).slice(0, 14)}… vers une adresse de dépôt de ${mixE.name}, mixeur centralisé clandestin : la traçabilité s'interrompt, et toute adresse en aval est exposée à un service à risque sévère. Le rendu (${A(w, next1).slice(0, 14)}…) finance ensuite une vente P2P de ${amt(p2pValue, 'BTC')} via un séquestre Hodl Hodl. ${procedureFor(hodl)}`,
         },
         {
           id: 'o10', type: 'amount', points: 9, unit: 'BTC', tolerance: 0.01,
@@ -340,18 +393,29 @@ export const btcDonationFunding: ScenarioTemplate = {
           prompt: 'Sur quelle adresse le groupe conserve-t-il la part des fonds qui n\'a été ni mixée ni vendue ?',
           answer: [next2],
           hint: 'La transaction vers le séquestre a deux sorties : l\'une vers l\'adresse multisignature, l\'autre est un rendu.',
-          explanation: `${A(w, next2)} est le rendu de la vente P2P : ${amt(remainderValue, 'BTC')} y restent à la date des faits. C'est la dernière position connue des fonds du groupe hors mixeur. Aucun intermédiaire ne la détient, donc aucun gel immédiat n'est possible, mais l'adresse doit être mise sous surveillance (alerte sur toute dépense) : un futur dépôt sur une plateforme régulée ouvrirait une réquisition et une saisie.`,
+          explanation: `${A(w, next2)} est le rendu de la vente P2P. Le groupe y puise ensuite pour ${members.length} défraiements (${amt(defraisTotal, 'BTC')}), un abonnement VPN et une commande chez un imprimeur en ligne, chaque fois avec rendu sur la même adresse : ${amt(remainderValue, 'BTC')} y restent à la date des faits. C'est la dernière position connue des fonds du groupe hors mixeur. Aucun intermédiaire ne la détient, donc aucun gel immédiat n'est possible, mais l'adresse doit être mise sous surveillance (alerte sur toute dépense). Le paiement à ImprimExpress (${amt(printTx.outputs.find((o) => o.address === printAddr)!.value, 'BTC')} le ${fmtDate(printTx.time, false)}) est une piste secondaire : l'imprimeur connaît le client et son adresse de livraison. ${procedureFor(printE)}`,
+        },
+        {
+          id: 'o13', type: 'address', points: 9,
+          prompt: 'Depuis le reliquat, le groupe défraie trois personnes. L\'un de ces défraiements aboutit sur une plateforme régulée : quelle adresse de dépôt faut-il citer dans la réquisition ?',
+          answer: [memberDep.deposit],
+          hint: 'Suivez chacune des trois sorties du reliquat vers des adresses sans étiquette : l\'une dort, l\'autre sert à de petits achats, la troisième est vidée d\'un bloc vers une adresse de dépôt d\'exchange.',
+          explanation:
+            `Les trois défraiements partent les uns après les autres de ${A(w, next2).slice(0, 14)}… : ` +
+            `${A(w, members[0]).slice(0, 14)}… n'a plus bougé ; ${A(w, members[1]).slice(0, 14)}… a servi à ${nSpendB} petits paiements (${spendBNames.join(', ')}), pistes secondaires qui ne mènent à aucune plateforme d'échange ; ` +
+            `${A(w, members[2]).slice(0, 14)}… est vidée le ${fmtDate(memberDep.tx.time, false)} vers ${A(w, memberDep.deposit)}, adresse de dépôt Coinhouse balayée ensuite vers le hot wallet. Coinhouse connaît le titulaire de ce compte : c'est vraisemblablement un membre ou un proche du groupe, défrayé sur la collecte. ${procedureFor(kits.coinhouse.entity)} Comme pour les donateurs, le flux établit une réception de fonds du groupe ; le rôle exact de cette personne reste à établir.`,
         },
       ],
       truth: {
-        path: [...donations.map((d) => d.tx.id), c1.id, c2.id, mixRes.depositTx.id, p2pTx.id, release.id],
+        // Le flux s'arrête au séquestre P2P : la libération appartient à l'acheteur
+        path: [...donations.map((d) => d.tx.id), c1.id, c2.id, mixRes.depositTx.id, p2pTx.id],
         addresses: [...collect, cons, next1, next2, mixRes.deposit, escrow],
         debrief:
           `1. Du ${fmtDate(posts[0], false)} au ${fmtDate(end, false)}, le groupe publie ${nA} adresses successives sur Telegram et X, et en communique une autre en privé aux soutiens importants.\n` +
           `2. ${nDon} dons arrivent sur ces adresses, pour ${amt(total, 'BTC')} : ${nReg} depuis des plateformes régulées (${count('coinhouse')} Coinhouse, ${count('coinbase')} Coinbase, ${count('kraken')} Kraken), ${count('huobex')} depuis Huobex, le reste depuis des portefeuilles personnels. Un donateur récurrent a donné ${nRep} fois depuis le même portefeuille. ${lateDons.length} don${lateDons.length > 1 ? 's arrivent' : ' arrive'} sur des adresses déjà remplacées : la rotation n'empêche ni les dons tardifs ni leur regroupement.\n` +
           `3. Regroupements le ${fmtDate(c1.time, false)} et le ${fmtDate(c2.time, false)} vers ${A(w, cons)} ; ${A(w, bridgeAddr).slice(0, 14)}… figure dans les deux et soude le cluster.\n` +
-          `4. Sorties : ${amt(mixValue, 'BTC')} vers le mixeur Sinbad, puis ${amt(p2pValue, 'BTC')} vendus en P2P via un séquestre Hodl Hodl. Reliquat : ${amt(remainderValue, 'BTC')} sur ${A(w, next2).slice(0, 14)}….\n` +
-          `5. Fausses pistes : l'adresse du compte usurpateur ${xCopy} (portefeuille distinct, encaissé chez Huobex) et l'adresse du donateur récurrent, signalée à tort par le partenaire.\n\n` +
+          `4. Sorties : ${amt(mixValue, 'BTC')} vers le mixeur ${mixE.name}, puis ${amt(p2pValue, 'BTC')} vendus en P2P via un séquestre Hodl Hodl (sortie principale vers la monnaie fiat, libérée au profit d'un acheteur inconnu). Le reliquat finance ${members.length} défraiements, dont l'un aboutit chez Coinhouse (${A(w, memberDep.deposit).slice(0, 14)}…), un VPN et une commande d'impression ; il reste ${amt(remainderValue, 'BTC')} sur ${A(w, next2).slice(0, 14)}….\n` +
+          `5. Fausses pistes : l'adresse du compte usurpateur ${xCopy} (portefeuille distinct, encaissé chez Huobex) et l'adresse du donateur récurrent, signalée à tort par le partenaire ; parmi les défraiements, deux branches ne mènent nulle part (l'une dort, l'autre se disperse en petits achats).\n\n` +
           `Leçon : face à une collecte en ligne, l'OSINT donne les adresses publiées et leur chronologie ; le clustering (CIOH) relie les adresses rotatives et révèle celles qui n'ont jamais été publiées. Une liste transmise par un tiers est une source d'attribution à vérifier, pas une preuve. Les donateurs passés par une plateforme régulée sont identifiables par réquisition, mais un don établit un flux, pas une intention : la rédaction doit rester factuelle.`,
       },
       hints: [

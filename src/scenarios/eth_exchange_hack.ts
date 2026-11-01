@@ -3,6 +3,7 @@ import { bridge, coinjoin, dex, exchange, privacyPool, swapper, HOUR, DAY, type 
 import { fromUsd, roundAsset, usd, type AssetId } from '../engine/chains'
 import type { ScenarioTemplate } from './types'
 import { A, amt, choice, fakeHandle, fakePerson, fmtDate, procedureFor } from './util'
+import { dusting, personalSpending, priorHistory } from '../engine/realism'
 
 const MIN = 60
 const r8 = (v: number) => Math.round(v * 1e8) / 1e8
@@ -14,7 +15,7 @@ const musd = (v: number) => `${(v / 1e6).toLocaleString('fr-FR', { maximumFracti
 
 /** Dénominations standard d'un CoinJoin de type Wasabi 2 (puissances de 2 en satoshis). */
 const DENOMS = [5.36870912, 10.73741824, 21.47483648]
-/** Marge prépayée dans chaque UTXO pré-mix (frais de coordination + réseau). */
+/** Marge laissée dans chaque UTXO découpée avant mixage (frais de coordination + réseau). */
 const PREMIX_EXTRA = 0.0003
 
 const EXCHANGES = [
@@ -25,12 +26,13 @@ const EXCHANGES = [
 ]
 
 /**
- * Date de l'affaire : premier semestre 2024, période où le coordinateur
- * CoinJoin zkSNACKs fonctionnait encore. Calculée depuis la graine (déterministe).
+ * Date de l'affaire : de mi-janvier à fin avril 2024, pour que toute la chaîne
+ * (jusqu'aux CoinJoin, une dizaine de jours après le vol) précède l'arrêt du
+ * coordinateur zkSNACKs le 1er juin 2024. Calculée depuis la graine (déterministe).
  */
 function caseStart(seed: number): number {
   const s = Math.abs(Math.trunc(seed))
-  return 1704067200 + (12 + (s % 140)) * 86400 + (7 + (s % 11)) * 3600 + (s % 3000)
+  return 1704067200 + (12 + (s % 108)) * 86400 + (7 + (s % 11)) * 3600 + (s % 3000)
 }
 
 /**
@@ -254,7 +256,7 @@ export const ethExchangeHack: ScenarioTemplate = {
     const B = r8(consIn - consFee)
     const consTx = w.utxoTx({ time: consT, from: r.shuffle([...arrivals]), to: [{ address: C, value: B }], fee: consFee, change: null, spendAll: true, method: 'consolidation' })
 
-    // ── Découpage pré-mix puis CoinJoin ──────────────────────────────────────
+    // ── Découpage avant mixage puis CoinJoin ──────────────────────────────────────
     const D = DENOMS.find((d) => Math.floor((B * 0.8) / (d + PREMIX_EXTRA)) <= 24) ?? DENOMS[DENOMS.length - 1]
     const m = Math.max(4, Math.floor((B * 0.8) / (D + PREMIX_EXTRA)))
     const premix = w.addrs('btc', m, { entity: hk, kind: 'p2wpkh' })
@@ -262,7 +264,7 @@ export const ethExchangeHack: ScenarioTemplate = {
     const splitTx = w.utxoTx({
       time: consT + Math.round(r.float(3, 20) * HOUR), from: [C],
       to: premix.map((p) => ({ address: p, value: r8(D + PREMIX_EXTRA) })),
-      change: toxic, fee: w.estimateFee('btc', 1, m + 1), spendAll: true, method: 'découpage pré-mix',
+      change: toxic, fee: w.estimateFee('btc', 1, m + 1), spendAll: true, method: 'découpage avant mixage',
     })
     const toxicValue = splitTx.outputs.find((o) => o.address === toxic)!.value
     const nRounds = Math.ceil(m / 8)
@@ -336,6 +338,28 @@ export const ethExchangeHack: ScenarioTemplate = {
     }
     sat.noise(12, consT - 2 * DAY, tB + 5 * DAY)
     kr.noise(10, consT - 2 * DAY, tB + 5 * DAY)
+
+    // ── Portefeuilles opérateurs réutilisés par le groupe (habillage) ────────
+    // Deux adresses à la vie propre (historique, dépenses, poussière) ont servi
+    // à acheminer le gas vers l'adresse d'attaque, en plus du retrait Tornado.
+    const OP = w.addr('eth', { entity: hk })
+    const OP2 = w.addr('eth', { entity: hk })
+    const opGas1 = pp.withdraw(OP, 1, T - Math.round(r.float(2, 4) * DAY), true)
+    const opGas2 = pp.withdraw(OP2, 1, T - Math.round(r.float(1, 2) * DAY), true)
+    const opRelay1 = w.transfer({ time: T - Math.round(r.float(0.3, 1.5) * DAY), from: OP, to: H0, value: roundAsset('ETH', r.float(0.5, 0.9)), asset: 'ETH' })
+    const opRelay2 = w.transfer({ time: T + Math.round(r.float(0.3, 1) * HOUR), from: OP2, to: H0, value: roundAsset('ETH', r.float(0.4, 0.8)), asset: 'ETH' })
+    priorHistory(w, OP, { start: T - Math.round(r.float(120, 200) * DAY), end: T - 20 * DAY, nIn: 5, nOut: 4, maxUsd: 4000, asset: 'ETH' })
+    // Prestataires techniques payés par les opérateurs (infrastructure d'attaque) : pistes de réquisition
+    const opShops = [
+      w.customEntity({ name: 'Quorra Hosting (serveurs dédiés)', category: 'merchant', known: true, description: 'Hébergeur de serveurs dédiés (fictif) acceptant l\'ETH, sans vérification d\'identité : conserve l\'e-mail du client, les adresses IP et les serveurs loués.' }),
+      w.customEntity({ name: 'Ombrix VPN', category: 'merchant', known: true, description: 'Service de VPN (fictif) payable en crypto-actifs : conserve les dates d\'abonnement et l\'identifiant de compte.' }),
+      w.customEntity({ name: 'Numerio (numéros virtuels)', category: 'merchant', known: true, description: 'Revendeur (fictif) de numéros de téléphone virtuels payables en crypto-actifs, utilisés pour créer des comptes de messagerie.' }),
+    ]
+    personalSpending(w, OP, { start: T - 60 * DAY, end: T - 10 * DAY, n: 3, merchants: opShops.slice(0, 2), asset: 'ETH' })
+    dusting(w, OP, { time: T - 30 * DAY, n: 3, spreadH: 200 })
+    priorHistory(w, OP2, { start: T - Math.round(r.float(90, 160) * DAY), end: T - 15 * DAY, nIn: 5, nOut: 4, maxUsd: 3000, asset: 'ETH' })
+    personalSpending(w, OP2, { start: T - 50 * DAY, end: T - 8 * DAY, n: 3, merchants: opShops.slice(1), asset: 'ETH' })
+    dusting(w, OP2, { time: T - 20 * DAY, n: 3, spreadH: 160 })
 
     // ── Textes ───────────────────────────────────────────────────────────────
     const listed = r.shuffle(L1.filter((_, i) => i !== k)).slice(0, 5)
@@ -438,7 +462,7 @@ export const ethExchangeHack: ScenarioTemplate = {
           prompt: 'Avant le mixage, en combien d\'UTXO de montant identique la consolidation est-elle découpée ?',
           answer: m,
           hint: 'Ouvrez la dépense de l\'adresse de consolidation : comptez les sorties de même montant, en laissant de côté la sortie différente.',
-          explanation: `${splitTx.hash.slice(0, 14)}… crée ${m} sorties de ${btc8(r8(D + PREMIX_EXTRA))} : la dénomination standard ${btc8(D)} plus une marge pour les frais de coordination et de réseau. Ce découpage « pré-mix » est la signature d'une préparation à un CoinJoin à dénominations fixes ; il annonce aussi combien de sorties mixées il faudra retrouver de l'autre côté (${m}), et sur combien de tours elles se répartissent (${nCj}).`,
+          explanation: `${splitTx.hash.slice(0, 14)}… crée ${m} sorties de ${btc8(r8(D + PREMIX_EXTRA))} : la dénomination standard ${btc8(D)} plus une marge pour les frais de coordination et de réseau. Le coordinateur Wasabi accepte des entrées de tout montant ; en découpant d'avance la consolidation, le pirate s'assure que chaque UTXO ressortira en exactement une sortie de la dénomination standard et peut les répartir sur plusieurs tours. Ce découpage annonce aussi combien de sorties mixées il faudra retrouver de l'autre côté (${m}), et sur combien de tours elles se répartissent (${nCj}).`,
         },
         {
           id: 'o8', type: 'address', points: 10,
@@ -452,14 +476,14 @@ export const ethExchangeHack: ScenarioTemplate = {
           prompt: 'Quel service reçoit les fonds à la sortie du CoinJoin ?',
           answer: ['satsdesk'],
           hint: 'Le découpage avant mixage laisse un rendu qui n\'entre pas dans le CoinJoin. Où ce rendu est-il dépensé, et avec quoi ?',
-          explanation: `${A(w, C)} découpe ${amt(r8(m * (D + PREMIX_EXTRA)), 'BTC')} en ${m} UTXO de ${btc8(r8(D + PREMIX_EXTRA))} et garde un rendu de ${amt(toxicValue, 'BTC')} (${A(w, toxic)}), qui n'est pas mixé. ${nCj > 1 ? `${nCj} CoinJoin coordonnés par zkSNACKs produisent` : 'Un CoinJoin coordonné par zkSNACKs produit'} des sorties de ${btc8(D)}, dénomination standard (2^${Math.round(Math.log2(D * 1e8))} satoshis). Erreur d'hygiène : ${half} sorties mixées sont dépensées avec ce rendu vers une adresse de dépôt de SatsDesk OTC, ce qui les rattache au pirate par entrées communes ; les ${batchB.length} autres partent vers une seconde adresse de dépôt SatsDesk (lien de présomption seulement : même dénomination, mêmes tours, même courtier, délai court). Au total ${amt(toOtc, 'BTC')}.${nOthersToKr ? ` Des sorties d'autres participants partent vers ${kr.entity.name} : fausse piste, rien ne les relie au pirate.` : ''} ${procedureFor(sat.entity)}`,
+          explanation: `${A(w, C)} découpe ${amt(r8(m * (D + PREMIX_EXTRA)), 'BTC')} en ${m} UTXO de ${btc8(r8(D + PREMIX_EXTRA))} et garde un rendu de ${amt(toxicValue, 'BTC')} (${A(w, toxic)}), qui n'est pas mixé. ${nCj > 1 ? `${nCj} CoinJoin coordonnés par zkSNACKs produisent` : 'Un CoinJoin coordonné par zkSNACKs produit'} des sorties de ${btc8(D)}, dénomination standard (2^${Math.round(Math.log2(D * 1e8))} satoshis). Erreur d'hygiène : ${half} sorties mixées sont dépensées avec ce rendu vers une adresse de dépôt de SatsDesk OTC, ce qui les rattache au pirate par entrées communes ; les ${batchB.length} autres partent vers une seconde adresse de dépôt SatsDesk (lien de présomption seulement : même dénomination, mêmes tours, même courtier, ${Math.round((tB - tA) / HOUR)} h d'écart). Au total ${amt(toOtc, 'BTC')}.${nOthersToKr ? ` Des sorties d'autres participants partent vers ${kr.entity.name} : fausse piste, rien ne les relie au pirate.` : ''} ${procedureFor(sat.entity)}`,
         },
         {
           id: 'o10', type: 'addresses', points: 10,
           prompt: 'Sélectionnez les adresses de dépôt du service de sortie qui reçoivent les fonds post-mix du pirate.',
           answer: [dA, dB],
-          hint: 'Partez de la dépense du rendu pré-mix, puis cherchez, peu après, une seconde dépense regroupant uniquement des sorties mixées des mêmes tours vers le même service.',
-          explanation: `${A(w, dA)} reçoit ${amt(pmA.outputs[0].value, 'BTC')} : le rendu pré-mix et ${half} sorties mixées y sont dépensés ensemble (lien par entrées communes). ${A(w, dB)}, autre adresse de dépôt du même courtier, reçoit ${amt(pmB.outputs[0].value, 'BTC')} ${Math.round((tB - tA) / HOUR)} h plus tard, depuis les ${batchB.length} autres sorties mixées (lien de présomption). Les deux adresses de dépôt sont à viser dans la même demande au courtier, qui pourra dire si elles relèvent du même compte client.`,
+          hint: 'Partez de la dépense du rendu non mixé, puis cherchez, peu après, une seconde dépense regroupant uniquement des sorties mixées des mêmes tours vers le même service.',
+          explanation: `${A(w, dA)} reçoit ${amt(pmA.outputs[0].value, 'BTC')} : le rendu non mixé et ${half} sorties mixées y sont dépensés ensemble (lien par entrées communes). ${A(w, dB)}, autre adresse de dépôt du même courtier, reçoit ${amt(pmB.outputs[0].value, 'BTC')} ${Math.round((tB - tA) / HOUR)} h plus tard, depuis les ${batchB.length} autres sorties mixées (lien de présomption). Les deux adresses de dépôt sont à viser dans la même demande au courtier, qui pourra dire si elles relèvent du même compte client.`,
         },
         {
           id: 'o11', type: 'amount', points: 8, unit: 'BTC', tolerance: 0.01,
@@ -470,7 +494,7 @@ export const ethExchangeHack: ScenarioTemplate = {
         },
         {
           id: 'o12', type: 'choice', points: 8,
-          prompt: 'Les sorties mixées envoyées vers la seconde adresse de dépôt du courtier ne sont pas dépensées avec le rendu pré-mix. Comment présenter leur rattachement au pirate ?',
+          prompt: 'Les sorties mixées envoyées vers la seconde adresse de dépôt du courtier ne sont pas dépensées avec le rendu non mixé. Comment présenter leur rattachement au pirate ?',
           ...choice(r,
             'Comme une présomption (même dénomination, mêmes tours, même courtier, délai court), distincte du lien établi par entrées communes',
             [
@@ -497,15 +521,15 @@ export const ethExchangeHack: ScenarioTemplate = {
       ],
       truth: {
         path: [
-          gasTx.id, ...drains.map((x) => x.id), ...allSwaps.map((x) => x.tx.id), bounty.id, ...dispTxs.map((x) => x.id),
+          gasTx.id, opGas1.id, opRelay1.id, opGas2.id, opRelay2.id, ...drains.map((x) => x.id), ...allSwaps.map((x) => x.tx.id), bounty.id, ...dispTxs.map((x) => x.id),
           ...routes.flatMap((x) => [x.hop.id, x.out.id, x.arr.id]), consTx.id, splitTx.id, ...cjs.map((x) => x.id), pmA.id, pmB.id, swA.id, swB.id,
         ],
-        addresses: [H0, ...L1, ...routes.map((x) => x.l2), ...arrivals, C, toxic, ...premix, ...mixed, dA, dB],
+        addresses: [H0, OP, OP2, ...L1, ...routes.map((x) => x.l2), ...arrivals, C, toxic, ...premix, ...mixed, dA, dB],
         debrief:
-          `1. Préparation : l'adresse ${A(w, H0)} reçoit son gas depuis Tornado Cash (${fmtDate(gasTx.time, false)}). Le point d'entrée probable est un faux recrutement visant un développeur, puis la manipulation de l'interface de signature.\n` +
+          `1. Préparation : l'adresse ${A(w, H0)} reçoit son gas depuis Tornado Cash (${fmtDate(gasTx.time, false)}) et de deux portefeuilles « opérateurs » réutilisés (${A(w, OP).slice(0, 12)}…, ${A(w, OP2).slice(0, 12)}…, à l'historique et aux dépenses propres). Le point d'entrée probable est un faux recrutement visant un développeur, puis la manipulation de l'interface de signature.\n` +
           `2. Vol : cinq transactions vident le hot wallet de ${VX.name} : ${amt(stolen.ETH, 'ETH')}, ${amt(stolen.USDT, 'USDT')}, ${amt(stolen.USDC, 'USDC')}, ${amt(stolen.DAI, 'DAI')} et ${amt(stolen.WBTC, 'WBTC')}, soit ${usdFmt(stolenUsd)} (${musd(stolenUsd)}).\n` +
           `3. Conversions sur Uniswap : l'USDT d'abord (${amt(usdtSwapped, 'USDT')} en ${usdtSwaps.length} tranches), jusqu'au gel de Tether qui bloque ${amt(frozen, 'USDT')} ; puis l'USDC, et seulement ensuite le DAI et le WBTC. Total obtenu : ${amt(roundAsset('ETH', ethFromSwaps), 'ETH')}.\n` +
-          `4. Dispersion : ${N1} adresses de premier niveau reçoivent ~${amt(r2(perAvg), 'ETH')} chacune, puis transfèrent tout vers une deuxième couche d'adresses neuves.\n` +
+          `4. Dispersion : ${N1} adresses de premier niveau reçoivent ~${amt(r2(perAvg), 'ETH')} chacune, puis transfèrent la quasi-totalité de leur solde vers une deuxième couche d'adresses neuves.\n` +
           `5. Passage sur Bitcoin : ${nArc} routes par ArcBridge (événements à nonce) et 2 par eXch (sans lien on-chain). Toutes les arrivées sont regroupées par ${consTx.hash.slice(0, 14)}… sur ${A(w, C)} (${amt(B, 'BTC')}).\n` +
           `6. Mixage : découpage en ${m} UTXO de ${btc8(D)} + marge, rendu de ${amt(toxicValue, 'BTC')} sur ${A(w, toxic)}, ${nCj > 1 ? `${nCj} tours` : 'un tour'} de CoinJoin (zkSNACKs).\n` +
           `7. Sortie : le rendu est dépensé avec ${half} sorties mixées vers une adresse de dépôt de SatsDesk OTC (${A(w, dA)}), les ${batchB.length} autres suivent vers une seconde adresse de dépôt du même courtier (${A(w, dB)}) : ${amt(toOtc, 'BTC')} au total.\n\n` +
@@ -514,7 +538,7 @@ export const ethExchangeHack: ScenarioTemplate = {
       hints: [
         'Partez de l\'adresse principale du communiqué : ses entrées racontent le vol, ses sorties les swaps puis la dispersion.',
         'Pour le passage sur Bitcoin, ouvrez l\'événement du bridge sur la transaction de départ : chaîne cible, destinataire et nonce désignent la transaction d\'arrivée.',
-        'Sur Bitcoin, cherchez où convergent les arrivées, puis le rendu du découpage pré-mix : c\'est lui qui trahit la sortie du CoinJoin.',
+        'Sur Bitcoin, cherchez où convergent les arrivées, puis le rendu du découpage avant mixage : c\'est lui qui trahit la sortie du CoinJoin.',
         'Toutes les sorties mixées ne sont pas dépensées avec le rendu : cherchez une seconde dépense de sorties des mêmes tours, vers le même service, dans les heures qui suivent.',
       ],
     }

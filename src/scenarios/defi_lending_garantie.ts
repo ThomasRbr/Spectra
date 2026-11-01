@@ -4,7 +4,17 @@ import { lending, weth } from '../engine/defi'
 import { fmtUsd, fromUsd, roundAsset, usd } from '../engine/chains'
 import { traceFunds } from '../engine/tracing'
 import type { ScenarioTemplate } from './types'
-import { A, amt, choice, fakeCity, fakeHandle, fakePerson, fmtDate, procedureFor } from './util'
+import { A, amt, choice, de, fakeCity, fakeHandle, fakePerson, fmtDate, procedureFor } from './util'
+import { dusting, lookalikeFlows } from '../engine/realism'
+
+/** Délai lisible : « 35 min », « 2 h 10 », « 5 h ». */
+const delai = (s: number) => {
+  const m = Math.round(s / 60)
+  if (m < 60) return `${m} min`
+  const h = Math.floor(m / 60)
+  const mm = m % 60
+  return mm ? `${h} h ${String(mm).padStart(2, '0')}` : `${h} h`
+}
 
 export const defiLendingGarantie: ScenarioTemplate = {
   id: 'lending-garantie',
@@ -43,6 +53,13 @@ export const defiLendingGarantie: ScenarioTemplate = {
     // ── Activité normale du hot wallet ───────────────────────────────────────
     const S = roundAsset('ETH', r.float(120, 380))
     w.fundAccount(H, roundAsset('ETH', S + r.float(60, 200)), 'ETH', w.at(-r.float(20, 30) * 24))
+    // Réapprovisionnements depuis le cold wallet (créés avant les retraits : aucun financement extérieur)
+    const cold = w.addr('eth', { entity: victimE, label: `${company} — Cold wallet` })
+    for (let i = 0; i < r.int(3, 5); i++) {
+      const v = roundAsset('ETH', r.float(40, 120))
+      w.fundAccount(cold, v, 'ETH', w.at(-r.float(40, 60) * 24))
+      w.transfer({ time: w.at(-r.float(1, 18) * 24), from: cold, to: H, value: v, asset: 'ETH', method: 'transfer' })
+    }
     for (let i = 0; i < r.int(12, 18); i++) {
       const t = w.at(-r.float(0.5, 18) * 24)
       w.transfer({ time: t, from: H, to: w.addr('eth'), value: roundAsset('ETH', r.float(0.05, 22)), asset: 'ETH', method: 'transfer' })
@@ -55,6 +72,10 @@ export const defiLendingGarantie: ScenarioTemplate = {
 
     // ── Le piratage ──────────────────────────────────────────────────────────
     const hack = w.transfer({ time: w.at(0), from: H, to: X, value: S, asset: 'ETH' })
+    // La société migre en urgence le solde restant vers un nouveau portefeuille (avant la plainte)
+    const newWallet = w.addr('eth', { entity: victimE, label: `${company} — Nouveau portefeuille` })
+    const migrated = roundAsset('ETH', w.balanceOf(H, 'ETH'))
+    const migration = w.transfer({ time: hack.time + Math.round(r.float(3, 10) * HOUR), from: H, to: newWallet, value: migrated, asset: 'ETH' })
     const T = roundAsset('ETH', S * r.float(0.5, 0.62))
     const hop = w.transfer({ time: w.at(r.float(0.3, 1.2)), from: X, to: X2, value: T, asset: 'ETH' })
     const Ts = roundAsset('ETH', T * r.float(0.6, 0.72))
@@ -93,6 +114,16 @@ export const defiLendingGarantie: ScenarioTemplate = {
     exA.noise(14, w.at(-40 * 24), w.at(2 * 24), 'ETH')
     exB.noise(18, w.at(-2 * 24), w.at(10 * 24), 'USDC')
 
+    // ── Habillage des adresses du pirate et fausses pistes ───────────────────
+    // Empoisonnement par adresses sosies sur les deux portefeuilles du pirate,
+    // vie personnelle de l'adresse de rendu, et transferts jumeaux de tiers sans
+    // lien (même montant, même heure que le saut vers la position Aave).
+    // Aucune poussière avant le piratage : l'adresse est neuve quand elle reçoit les ETH.
+    dusting(w, X, { time: w.at(0), n: 5, spreadH: 40, min: hack.time + 1800 })
+    dusting(w, X2, { time: supply1.time, n: 4, spreadH: 40 })
+    lookalikeFlows(w, { chain: 'eth', value: T, time: hop.time, n: 3, asset: 'ETH' })
+    lookalikeFlows(w, { chain: 'eth', value: B, time: dep.tx.time, n: 2, asset: 'USDC' })
+
     // ── Part de l'emprunt rattachable au vol, telle que la calcule l'outil ───
     const tr = traceFunds(w, { txId: hack.id, address: X }, { method: 'haircut' })
     const exEnd = tr.endpoints.find((e) => e.entity.id === exBKey)
@@ -101,6 +132,8 @@ export const defiLendingGarantie: ScenarioTemplate = {
 
     const handle = fakeHandle(r)
     const d = (ts: number) => fmtDate(ts)
+    // USDC restés sur l'emprunteur : excédent du swap de remboursement (rien de l'emprunt)
+    const usdcLeft = roundAsset('USDC', w.balanceOf(X2, 'USDC'))
 
     return {
       world: w,
@@ -119,12 +152,12 @@ export const defiLendingGarantie: ScenarioTemplate = {
         {
           id: 'retraits', type: 'email', title: 'Précision du responsable conformité', date: w.at(2 * 24), author: `Conformité — ${company}`,
           body:
-            `Pour faciliter vos recherches : les retraits clients légitimes du hot wallet sont plafonnés à 25 ETH par opération et passent tous par notre outil de paiement. Toute sortie supérieure est anormale. Nous tenons la liste des retraits légitimes à votre disposition.`,
+            `Pour faciliter vos recherches : les retraits clients légitimes du hot wallet sont plafonnés à 25 ETH par opération et passent tous par notre outil de paiement ; le hot wallet est réapprovisionné depuis notre cold wallet. Après l'incident, nous avons nous-mêmes transféré le solde restant (${amt(migrated, 'ETH')}) vers notre nouveau portefeuille ${A(w, newWallet)}, le ${d(migration.time)}. Hormis cette migration, toute sortie supérieure à 25 ETH est anormale. Nous tenons la liste des retraits légitimes à votre disposition.`,
         },
         {
           id: 'forum', type: 'forum', title: 'Fil d\'un analyste on-chain', date: w.at(10 * 24), author: handle,
           body:
-            `Le pirate de ${company} n'a pas tout bougé d'un coup. Une partie est partie vers une autre adresse qui avait DÉJÀ une position sur Aave, ouverte des semaines avant le hack 👀 Dépôt d'ETH en garantie, emprunt d'USDC, puis remboursement quelques jours plus tard. Classique pour obtenir des stablecoins sans vendre l'ETH volé.`,
+            `Le pirate ${de(company)} n'a pas tout bougé d'un coup. Une partie est partie vers une autre adresse qui avait DÉJÀ une position sur Aave, ouverte des semaines avant le hack 👀 Dépôt d'ETH en garantie, emprunt d'USDC, puis remboursement quelques jours plus tard. Classique pour obtenir des stablecoins sans vendre l'ETH volé.`,
         },
         {
           id: 'note', type: 'note', title: 'Note de la cellule d\'appui : prêts DeFi et traçage', date: w.at(10 * 24), author: 'Cellule d\'appui',
@@ -188,8 +221,8 @@ export const defiLendingGarantie: ScenarioTemplate = {
           id: 'o6', type: 'entity', points: 8,
           prompt: 'Sur quel exchange les USDC empruntés sont-ils envoyés ?',
           answer: [exBKey],
-          hint: 'Suivez la sortie d\'USDC de l\'emprunteur, quelques heures après l\'emprunt.',
-          explanation: `Les ${amt(B, 'USDC')} partent vers une adresse de dépôt de ${exB.entity.name}, balayée vers son hot wallet. ${procedureFor(exB.entity)}`,
+          hint: 'Suivez la sortie d\'USDC de l\'emprunteur, peu après l\'emprunt.',
+          explanation: `Les ${amt(B, 'USDC')} partent vers une adresse de dépôt ${de(exB.entity.name)}, balayée vers son hot wallet. ${procedureFor(exB.entity)}`,
         },
         {
           id: 'o7', type: 'address', points: 8,
@@ -217,7 +250,7 @@ export const defiLendingGarantie: ScenarioTemplate = {
           prompt: 'Quelle transaction retire la garantie d\'Aave ?',
           answer: [withdraw.id],
           hint: 'Après le remboursement (repay), cherchez l\'appel withdraw(address,uint256,address) sur le pool : des aWETH sont détruits.',
-          explanation: `Le ${d(withdraw.time)}, ${withdraw.hash.slice(0, 18)}… détruit ${amt(collTotal, 'aWETH')} et fait sortir ${amt(collTotal, 'ETH')} du pool. Elle n'est possible qu'après le remboursement : ${amt(repayAmt, 'USDC')} (capital et intérêts), obtenus en enveloppant ${amt(wrapAmt, 'ETH')} en WETH, en vendant ${amt(wSwap, 'WETH')} contre ${amt(sell.amountOut, 'USDC')} sur Uniswap et en redéroulant ${amt(unwrapAmt, 'WETH')} en ETH.`,
+          explanation: `Le ${d(withdraw.time)}, ${withdraw.hash.slice(0, 18)}… détruit ${amt(collTotal, 'aWETH')} et fait sortir ${amt(collTotal, 'ETH')} du pool. Elle n'est possible qu'après le remboursement : ${amt(repayAmt, 'USDC')} (capital et intérêts), obtenus en enveloppant ${amt(wrapAmt, 'ETH')} en WETH, en vendant ${amt(wSwap, 'WETH')} contre ${amt(sell.amountOut, 'USDC')} sur Uniswap et en reconvertissant le reliquat (${amt(unwrapAmt, 'WETH')}) en ETH.`,
         },
         {
           id: 'o11', type: 'address', points: 9,
@@ -237,7 +270,7 @@ export const defiLendingGarantie: ScenarioTemplate = {
               'Les USDC sur l\'adresse emprunteuse, en requérant Circle',
               'L\'ETH de l\'adresse de retrait, en requérant la fondation Ethereum',
             ]),
-          explanation: `La position Aave est soldée (remboursée, garantie retirée) et aucun opérateur ne pourrait la bloquer. Les USDC empruntés ne sont plus sur l'adresse emprunteuse : ils ont été déposés chez ${exB.entity.name}, qui peut geler le compte client. L'ETH retiré vers ${A(w, N).slice(0, 12)}… est un actif natif sans émetteur : il faut surveiller l'adresse et agir dès qu'il rejoint un service, ou le saisir si l'enquête donne accès aux clés (perquisition, matériel du suspect).`,
+          explanation: `La position Aave est soldée (remboursée, garantie retirée) et aucun opérateur ne pourrait la bloquer. Les USDC empruntés ne sont plus sur l'adresse emprunteuse : ils ont été déposés chez ${exB.entity.name}, qui peut geler le compte client${usdcLeft > 0 ? ` (il n'y reste que ${amt(usdcLeft, 'USDC')}, excédent du swap de remboursement, sans rapport avec l'emprunt)` : ''}. L'ETH retiré vers ${A(w, N).slice(0, 12)}… est un actif natif sans émetteur : il faut surveiller l'adresse et agir dès qu'il rejoint un service, ou le saisir si l'enquête donne accès aux clés (perquisition, matériel du suspect).`,
         },
       ],
       truth: {
@@ -245,9 +278,9 @@ export const defiLendingGarantie: ScenarioTemplate = {
         addresses: [X, X2, N, dep.deposit],
         debrief:
           `1. Avant les faits, ${A(w, X2)} reçoit ${amt(wA.transfers[0].value, 'ETH')} de ${exA.entity.name} et en dépose ${amt(E0, 'ETH')} en garantie sur Aave.\n` +
-          `2. Le pirate vide le hot wallet de ${company} (${amt(S, 'ETH')}) vers ${A(w, X)}, puis transfère ${amt(T, 'ETH')} à ${A(w, X2).slice(0, 12)}….\n` +
-          `3. ${A(w, X2).slice(0, 12)}… dépose ${amt(Ts, 'ETH')} volés en garantie (total ${amt(collTotal, 'ETH')}) et emprunte ${amt(B, 'USDC')}, aussitôt déposés sur ${exB.entity.name} (${A(w, dep.deposit)}).\n` +
-          `4. Quelques jours plus tard, il reçoit ${amt(top, 'ETH')} de la première adresse, enveloppe ${amt(wrapAmt, 'ETH')} en WETH, en vend ${amt(wSwap, 'WETH')} contre des USDC, redéroule le reste, rembourse ${amt(repayAmt, 'USDC')} et retire toute sa garantie vers ${A(w, N)}.\n` +
+          `2. Le pirate vide le hot wallet ${de(company)} (${amt(S, 'ETH')}) vers ${A(w, X)}, puis transfère ${amt(T, 'ETH')} à ${A(w, X2).slice(0, 12)}….\n` +
+          `3. ${A(w, X2).slice(0, 12)}… dépose ${amt(Ts, 'ETH')} volés en garantie (total ${amt(collTotal, 'ETH')}) et emprunte ${amt(B, 'USDC')}, déposés ${delai(dep.tx.time - borrow.time)} plus tard sur ${exB.entity.name} (${A(w, dep.deposit)}).\n` +
+          `4. Quelques jours plus tard, il reçoit ${amt(top, 'ETH')} de la première adresse, enveloppe ${amt(wrapAmt, 'ETH')} en WETH, en vend ${amt(wSwap, 'WETH')} contre des USDC, reconvertit le reliquat de WETH en ETH, rembourse ${amt(repayAmt, 'USDC')} et retire toute sa garantie vers ${A(w, N)}.\n` +
           `5. L'outil de traçage (prorata) rattache ${fmtUsd(attribUsd)} des USDC déposés chez ${exB.entity.name} au vol, par le lien de garantie.\n\n` +
           `À retenir : un prêt DeFi crée une rupture apparente. Les fonds empruntés sortent de la réserve du protocole, pas des dépôts de l'emprunteur ; ils restent un produit indirect du vol, rattachable au prorata de la garantie marquée, ce que le rapport doit exposer comme un lien économique et non comme un flux. Le retrait de garantie peut viser une adresse neuve : lire l'argument « to ». Côté gel, seuls les acteurs centralisés (exchange, émetteur de stablecoin tant que les jetons sont sur l'adresse) peuvent agir.`,
       },

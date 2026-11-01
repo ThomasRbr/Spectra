@@ -7,7 +7,7 @@ import { shortAddr } from '../engine/addressgen'
 import { deriveAddresses, hdWalletById } from '../engine/hd'
 import type { World } from '../engine/world'
 import { scenarioById } from '../scenarios'
-import type { ScenarioInstance, ScenarioTemplate } from '../scenarios/types'
+import type { Objective, ScenarioInstance, ScenarioTemplate } from '../scenarios/types'
 import { type Answer, type CaseScore, scoreCase } from '../lib/scoring'
 import type { Explored } from '../lib/debrief'
 import { addNoise, type NoiseLevel } from '../engine/noise'
@@ -237,6 +237,8 @@ export interface SavedCase {
   flags: Record<string, Flag>
   notes: Record<string, string>
   answers: Record<string, Answer>
+  /** Empreinte de chaque question répondue : une réponse n'est restaurée que sur la même question. */
+  answerSig?: Record<string, string>
   hintsUsed: number
   objHints: string[]
   log: LogEntry[]
@@ -399,6 +401,9 @@ export const useGame = create<GameState>()((set, get) => ({
     for (const o of inst.objectives) {
       const v = saved.answers[o.id]
       if (v === undefined) continue
+      // La mission a pu être réécrite : un même id peut désigner une autre question. Sans empreinte
+      // (ancienne sauvegarde), seules les réponses revérifiables dans le monde sont gardées.
+      if (saved.answerSig ? saved.answerSig[o.id] !== objectiveSig(o) : !['address', 'addresses', 'tx', 'entity'].includes(o.type)) continue
       if (o.type === 'address' && !w.addresses.has(String(v))) continue
       if (o.type === 'tx' && !w.txs.has(String(v))) continue
       if (o.type === 'entity' && !w.entities.has(String(v))) continue
@@ -1018,11 +1023,20 @@ function revealMany(txIds: string[], undoLabel: string, logText: string) {
 const fmtUsd0 = (v: number) => `${Math.round(v).toLocaleString('fr-FR')} $`
 const fmtClock = (t: number) => new Date(t * 1000).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
+/** Empreinte courte d'une question (type, énoncé, options) : distingue deux versions d'un même id. */
+function objectiveSig(o: Objective): string {
+  const text = `${o.type}|${o.prompt}|${o.type === 'choice' ? o.options.join('|') : ''}`
+  let h = 2166136261
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619)
+  return (h >>> 0).toString(36)
+}
+
 function currentSave(s: GameState): SavedCase | null {
   if (!s.inst || !s.template || s.score) return null
+  const answerSig = Object.fromEntries(s.inst.objectives.filter((o) => s.answers[o.id] !== undefined).map((o) => [o.id, objectiveSig(o)]))
   return {
     templateId: s.template.id, seed: s.seed, mode: s.mode, coverage: s.coverage, noise: s.noise, startedAt: s.startedAt,
-    addrPos: s.addrPos, txPos: s.txPos, revealed: s.revealed, flags: s.flags, notes: s.notes, answers: s.answers,
+    addrPos: s.addrPos, txPos: s.txPos, revealed: s.revealed, flags: s.flags, notes: s.notes, answers: s.answers, answerSig,
     hintsUsed: s.hintsUsed, objHints: s.objHints, log: s.log, links: s.links, guideMarks: s.guideMarks, elapsed: Date.now() - s.startedAt,
     trace: s.trace ? { source: s.trace.source, opts: s.trace.opts } : undefined,
     live: s.live ?? undefined, watch: s.watch, alerts: s.alerts, views: s.views, viewId: s.viewId, viewName: s.viewName,

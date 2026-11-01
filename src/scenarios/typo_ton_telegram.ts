@@ -1,14 +1,17 @@
 import { World, type Tx } from '../engine/world'
 import { exchange, tonTransfer, HOUR, DAY, type ExchangeKit } from '../engine/patterns'
-import { roundAsset, usd } from '../engine/chains'
+import { dusting } from '../engine/realism'
+import { ASSETS, roundAsset, usd } from '../engine/chains'
 import type { ScenarioTemplate } from './types'
 import { A, amt, choice, fakeCity, fakeHandle, fakePerson, fmtDate, procedureFor } from './util'
 
 // Escroquerie « airdrop / boost » par un bot Telegram et sa mini-application.
 // Les victimes paient en TON et en USDT (jetton) avec, en commentaire, leur
 // identifiant Telegram ; l'escroc encaisse sur une adresse de collecte puis
-// dépose sur deux services à adresse partagée (portefeuille custodial TonPocket
-// et exchange), le compte bénéficiaire n'étant désigné que par le commentaire.
+// vide celle-ci vers son portefeuille de travail, qui a un passé (retraits
+// d'exchange, achat aux enchères du pseudonyme du canal, achat de membres).
+// Mises de côté, dépôts sur un exchange, puis l'essentiel finit chez TonPocket
+// (portefeuille custodial à adresse partagée, compte désigné par le commentaire).
 
 const BOTS = ['TonBoostX', 'NotAirdropPlus', 'TonHarvest', 'GramYield', 'TonMinerPro', 'DurovDrop'] as const
 const B64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
@@ -16,6 +19,17 @@ const B64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
 const ton = (v: number) => roundAsset('TON', v)
 const usdt = (v: number) => roundAsset('USDT', v)
 const usd0 = (v: number) => `${Math.round(v).toLocaleString('fr-FR')} $`
+const GIFT_SHOPS = ['CadoBox', 'GiftTon', 'PremiumCards', 'Recharge Express'] as const
+/** Heure locale (Paris) d'un horodatage. */
+const parisHour = (t: number) => Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', hour: '2-digit', hourCycle: 'h23' }).format(new Date(t * 1000)))
+/** Décale vers l'avant jusqu'aux heures de bureau (pièces de procédure datées en journée). */
+const office = (t: number) => {
+  const h = parisHour(t)
+  let u = h >= 9 && h < 19 ? t : t + (h >= 19 ? 24 - h + 9 : 9 - h) * HOUR
+  // Changement d'heure pendant le décalage : on ajuste heure par heure
+  while (parisHour(u) < 9 || parisHour(u) >= 19) u += HOUR
+  return u
+}
 
 /** Même compte, forme « bounceable » (EQ…) : drapeau et somme de contrôle changent, pas le hash du compte. */
 function bounceableForm(w: World, uq: string): string {
@@ -40,13 +54,13 @@ interface Pay {
 export const tonTelegramScam: ScenarioTemplate = {
   id: 'ton-telegram-scam',
   title: 'Le bot Telegram « boost » sur TON',
-  tagline: 'Une mini-application, des TON et des USDT, et des commentaires qui désignent les comptes.',
+  tagline: 'Une mini-application, des TON et des USDT, des commentaires qui désignent les comptes… et un pseudonyme acheté aux enchères.',
   description:
-    'Un bot Telegram promet de « booster » des TON et des USDT grâce à un faux programme d\'airdrop. Les victimes paient depuis leur portefeuille TON en indiquant leur identifiant Telegram en commentaire. Retrouvez l\'adresse de collecte, suivez les fonds jusqu\'aux services à adresse partagée et isolez le commentaire qui désigne le compte de l\'escroc.',
+    'Un bot Telegram promet de « booster » des TON et des USDT grâce à un faux programme d\'airdrop. Les victimes paient depuis leur portefeuille TON en indiquant leur identifiant Telegram en commentaire. Retrouvez l\'adresse de collecte, triez les mouvements du portefeuille de l\'administrateur (passé, mises de côté, poussière), isolez les commentaires qui désignent ses comptes chez les services de sortie et trouvez le paiement qui le rattache au compte Telegram du canal.',
   difficulty: 2,
   chains: ['ton'],
-  skills: ['lecture_tx', 'tokens', 'memo', 'exchange_id', 'requisition', 'typologies'],
-  estMinutes: 40,
+  skills: ['lecture_tx', 'tokens', 'memo', 'exchange_id', 'requisition', 'typologies', 'osint'],
+  estMinutes: 48,
   lessons: ['ton-telegram', 'xrp-memos', 'exchanges', 'requisitions', 'typologies'],
   generate(seed) {
     const w = new World(seed)
@@ -77,6 +91,39 @@ export const tonTelegramScam: ScenarioTemplate = {
     const collect = w.addr('ton', { entity: scamE })
     const relay = w.addr('ton', { entity: scamE })
     const collectEq = bounceableForm(w, A(w, collect))
+
+    // ── Vie antérieure du portefeuille de l'administrateur (futur relais) ───
+    // Retraits depuis son compte d'exchange, achat aux enchères du pseudonyme
+    // Telegram qui administre le canal, achat de « membres » pour le canal.
+    const tStart0 = w.at(0)
+    const adminEx = ex(r.pick(fundKeys))
+    const marketE = w.customEntity({
+      name: 'Gramota', category: 'nft_marketplace', known: true, country: 'Émirats arabes unis',
+      description: 'Place de marché (fictive) de pseudonymes et de numéros Telegram vendus aux enchères sous forme de NFT sur TON. Le paiement du gagnant porte en commentaire le numéro d\'enchère et le pseudonyme acquis, qui est ensuite rattaché à un compte Telegram.',
+      compliance: { contact: 'Service juridique de Gramota', cooperation: 'voluntary', responseDays: [15, 60], canFreeze: false, kyc: 'faible', notes: 'Conserve le compte Telegram connecté lors de l\'enchère, le portefeuille payeur et l\'historique des pseudonymes attribués.' },
+    })
+    const marketAddr = w.addr('ton', { entity: marketE, label: 'Gramota — Paiement des enchères' })
+    const auctionNo = r.int(100000, 999999)
+    const h1 = adminEx.withdraw(relay, ton(r.float(150, 500)), tStart0 - Math.round(r.float(60, 90) * DAY), 'TON')
+    const usernameTx = tonTransfer(w, { from: relay, to: marketAddr, value: ton(Math.round(h1.transfers[0].value * r.float(0.3, 0.6))), asset: 'TON', comment: `Enchère n° ${auctionNo} — @${admin}`, time: tStart0 - Math.round(r.float(40, 55) * DAY) })
+    const h2 = adminEx.withdraw(relay, ton(r.float(100, 300)), tStart0 - Math.round(r.float(15, 25) * DAY), 'TON')
+    const promoSeller = w.addr('ton')
+    for (let i = 0; i < r.int(2, 3); i++) {
+      const c = w.addr('ton')
+      const v = ton(Math.round(r.float(20, 90)))
+      const tc = tStart0 - Math.round(r.float(2, 40) * DAY)
+      w.fundAccount(c, ton(v + r.float(1, 10)), 'TON', tc - Math.round(r.float(2, 48) * HOUR))
+      tonTransfer(w, { from: c, to: promoSeller, value: v, asset: 'TON', comment: 'Boost membres', time: tc })
+    }
+    const promoTxs = [r.float(7, 9), r.float(3, 5)].map((d) => tonTransfer(w, { from: relay, to: promoSeller, value: ton(Math.round(r.float(20, 60))), asset: 'TON', comment: `Boost membres ${bot} Official`, time: tStart0 - Math.round(d * DAY) }))
+    // Autres acheteurs de pseudonymes sur la place de marché
+    for (let i = 0; i < 3; i++) {
+      const c = w.addr('ton')
+      const t = tStart0 - Math.round(r.float(5, 90) * DAY)
+      const v = ton(Math.round(r.float(20, 280)))
+      w.fundAccount(c, ton(v + r.float(5, 50)), 'TON', t - Math.round(r.float(1, 10) * DAY))
+      tonTransfer(w, { from: c, to: marketAddr, value: v, asset: 'TON', comment: `Enchère n° ${r.int(100000, 999999)}`, time: t })
+    }
 
     // ── Victimes ─────────────────────────────────────────────────────────────
     const tStart = w.at(0)
@@ -157,10 +204,19 @@ export const tonTelegramScam: ScenarioTemplate = {
     const mvTon = tonTransfer(w, { from: collect, to: relay, value: moveTon, asset: 'TON', time: tMove })
     const mvUsdt = tonTransfer(w, { from: collect, to: relay, value: collectedUsdt, asset: 'USDT', time: tMove + r.int(60, 600) })
 
-    const toPocket = ton(Math.round(moveTon * r.float(0.22, 0.35)))
-    const pocketTx = tonTransfer(w, { from: relay, to: pocket.hot, value: toPocket, asset: 'TON', comment: pocketMemo, time: tMove + Math.round(r.float(1, 4) * HOUR) })
+    // Mise de côté : deux adresses neuves reçoivent une petite part des TON
+    const reserveAddr = w.addr('ton', { entity: scamE })
+    const giftAddr = w.addr('ton', { entity: scamE })
+    const reserveV = ton(Math.round(moveTon * r.float(0.06, 0.1)))
+    const giftV = ton(Math.round(moveTon * r.float(0.03, 0.05)))
+    const reserveTx = tonTransfer(w, { from: relay, to: reserveAddr, value: reserveV, asset: 'TON', time: tMove + Math.round(r.float(1, 3) * HOUR) })
+    const giftTx = tonTransfer(w, { from: relay, to: giftAddr, value: giftV, asset: 'TON', time: reserveTx.time + r.int(4, 30) * 60 })
+    const shopName = GIFT_SHOPS[(Math.imul(w.seed, 2654435761) >>> 20) % GIFT_SHOPS.length]
+    const cardhub = w.customEntity({ name: shopName, category: 'merchant', known: true, description: 'Vente de cartes cadeaux et d\'abonnements contre TON (fictif) ; chaque commande est livrée à un compte Telegram ou à une adresse e-mail.' })
+    const giftSpend = [0, 1].map((i) => tonTransfer(w, { from: giftAddr, to: w.addr('ton', { entity: cardhub, label: `${shopName} — Paiement` }), value: ton(giftV * r.float(0.3, 0.42)), asset: 'TON', time: giftTx.time + Math.round(r.float(10 + i * 30, 30 + i * 40) * HOUR) }))
 
-    const exTonV = ton(Math.floor(moveTon - toPocket - r.float(1, 3)))
+    // Dépôts sur l'exchange (adresse partagée, commentaire = compte client)
+    const exTonV = ton(Math.round(moveTon * r.float(0.18, 0.28)))
     const u1 = usdt(Math.round(collectedUsdt * r.float(0.45, 0.6)))
     const u2 = usdt(collectedUsdt - u1)
     const tDep = tMove + Math.round(r.float(6, 20) * HOUR)
@@ -169,6 +225,12 @@ export const tonTelegramScam: ScenarioTemplate = {
     const dep3 = tonTransfer(w, { from: relay, to: dest.hot, value: u2, asset: 'USDT', comment: exMemo, time: tDep + Math.round(r.float(2, 7) * HOUR) })
     const depTxs = [dep1, dep2, dep3]
     const depositedUsd = usd('TON', exTonV) + u1 + u2
+
+    // L'essentiel des TON part en dernier vers le portefeuille custodial intégré à Telegram
+    const toPocket = ton(Math.floor(moveTon - reserveV - giftV - exTonV - r.float(2, 5)))
+    const pocketTx = tonTransfer(w, { from: relay, to: pocket.hot, value: toPocket, asset: 'TON', comment: pocketMemo, time: dep3.time + Math.round(r.float(4, 12) * HOUR) })
+    // Des sosies du portefeuille de l'administrateur lui envoient des montants infimes
+    const relayDust = dusting(w, relay, { time: tDep, n: 2, spreadH: 30 })
 
     // Leurres : dépôts concomitants d'autres clients sur l'exchange, montants voisins
     for (let i = 0; i < r.int(5, 8); i++) {
@@ -194,15 +256,15 @@ export const tonTelegramScam: ScenarioTemplate = {
       briefing:
         `${victimName}, demeurant à ${city}, dépose plainte pour escroquerie. Sur Telegram, ${g('il', 'elle')} a lancé la mini-application du bot @${bot}_bot, qui promettait un « boost » de +${boostPct} % en sept jours sur les TON et les USDT déposés, au titre d'un prétendu airdrop. Après un premier petit « gain », ${g('il', 'elle')} a renvoyé des USDT ; puis le bot a cessé de répondre.\n\n` +
         `Sur la blockchain TON, les paiements portent souvent un commentaire en clair. Les services qui utilisent une adresse unique pour tous leurs clients (exchanges, portefeuilles intégrés à Telegram) identifient le compte crédité grâce à ce commentaire : sans lui, impossible de savoir à qui le dépôt profite.\n\n` +
-        `Objectifs : identifier l'adresse de collecte du bot, mesurer la collecte et le nombre de victimes, suivre les fonds jusqu'aux services de sortie et relever les commentaires qui désignent les comptes de l'escroc.`,
+        `Objectifs : identifier l'adresse de collecte du bot, mesurer la collecte et le nombre de victimes, puis trier les mouvements du portefeuille qui reçoit les fonds (il a une vie bien antérieure à l'escroquerie) pour suivre l'argent jusqu'aux services de sortie, relever les commentaires qui désignent les comptes de l'escroc et trouver ce qui le rattache à un compte Telegram.`,
       evidence: [
         {
-          id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: lastPay + 2 * DAY, author: victimName,
+          id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: office(lastPay + 2 * DAY), author: victimName,
           body:
             `« Un ami m'a transféré le lien du bot @${bot}_bot. Dans la mini-application, on choisissait un montant et le bot affichait l'adresse où envoyer, avec mon identifiant Telegram (${victimTg}) à mettre en commentaire "pour créditer mon compte".\n\n` +
             `J'ai envoyé ${amt(vTon, 'TON')} le ${fmtDate(vPay1.time)} depuis mon portefeuille : ${A(w, victimAddr)}\n` +
             `Transaction : ${vPay1.hash}\n\n` +
-            `J'ai reçu un « bonus » de ${amt(bonus, 'TON')}, alors j'ai renvoyé ${amt(vUsdt, 'USDT')} le ${fmtDate(vPay2.time, false)}. Ensuite plus rien, et le bot me demandait des "frais de déblocage". Au total je perds environ ${usd0(vLossUsd)}. »`,
+            `J'ai reçu un « bonus » de ${amt(bonus, 'TON')}, alors j'ai renvoyé ${amt(vUsdt, 'USDT')} le ${fmtDate(vPay2.time, false)}. Ensuite plus rien, et le bot me demandait des "frais de déblocage". Au total j'ai envoyé environ ${usd0(vLossUsd)}, et je n'ai récupéré que ce « bonus ». »`,
         },
         {
           id: 'capture', type: 'capture', title: `Capture de la mini-application @${bot}_bot`, date: tStart - 2 * HOUR,
@@ -223,7 +285,13 @@ export const tonTelegramScam: ScenarioTemplate = {
             `Places limitées, fin de la saison dans 72 h ⏳`,
         },
         {
-          id: 'note', type: 'note', title: 'Note de l\'analyste : lire une transaction TON', date: lastPay + 2 * DAY, author: 'Cellule d\'appui',
+          id: 'osint', type: 'osint', title: 'Note de veille : pseudonymes Telegram vendus aux enchères', date: office(lastPay + 3 * DAY), author: 'Cellule cyber',
+          body:
+            `Les pseudonymes courts ou recherchés de Telegram (@nom) se vendent aux enchères sur des places de marché, sous forme de NFT sur la blockchain TON. Le gagnant paie depuis son portefeuille, et le pseudonyme est ensuite rattaché à son compte Telegram. Sur la place de marché Gramota, le paiement porte en commentaire le numéro d'enchère et le pseudonyme acquis.\n\n` +
+            `Le canal « ${bot} Official » est administré par le compte @${admin}. Les opérateurs d'arnaques Telegram achètent souvent un pseudonyme « propre » pour leurs canaux, et des « membres » pour les faire paraître actifs.`,
+        },
+        {
+          id: 'note', type: 'note', title: 'Note de l\'analyste : lire une transaction TON', date: office(lastPay + 2 * DAY) + HOUR, author: 'Cellule d\'appui',
           body:
             `• TON est un modèle à comptes. Chaque portefeuille est un petit contrat ; les USDT y circulent comme jetons au standard Jetton (méthode « jetton transfer »).\n` +
             `• Une même adresse s'écrit sous plusieurs formes : « UQ… » (non-bounceable, d'usage pour les portefeuilles), « EQ… » (bounceable, d'usage pour les contrats et les services) et une forme brute « 0:<64 caractères hexadécimaux> ». Le drapeau et la somme de contrôle changent, pas le compte. Les hash de transaction s'affichent aussi en hexadécimal ou en base64.\n` +
@@ -258,14 +326,14 @@ export const tonTelegramScam: ScenarioTemplate = {
           prompt: 'Combien de portefeuilles distincts (plaignant compris) ont envoyé des fonds à l\'adresse de collecte ?',
           answer: nVictims,
           hint: 'Listez les transactions entrantes de l\'adresse de collecte et comptez les expéditeurs différents : certains ont payé deux fois.',
-          explanation: `${nVictims} portefeuilles pour ${pays.length} paiements : certaines victimes ont payé deux fois, souvent après un faux « bonus ». Chaque paiement porte un identifiant Telegram différent en commentaire, ce qui confirme qu'il s'agit d'autant de comptes victimes. ${nExVictims} de ces portefeuilles ont été alimentés juste avant par un retrait d'exchange : leurs titulaires sont identifiables par réquisition, pour être entendus et rattachés à la procédure.`,
+          explanation: `${nVictims} portefeuilles pour ${pays.length} paiements : certaines victimes ont payé deux fois, souvent après un faux « bonus ». Chaque portefeuille indique en commentaire son propre identifiant Telegram (repris à l'identique lors d'un second paiement), ce qui confirme qu'il s'agit d'autant de comptes victimes. ${nExVictims} de ces portefeuilles ont été alimentés juste avant par un retrait d'exchange : leurs titulaires sont identifiables par réquisition, pour être entendus et rattachés à la procédure.`,
         },
         {
           id: 'o2', type: 'amount', points: 9, unit: 'USD', tolerance: 0.02,
           prompt: 'Quel montant total (en dollars) l\'adresse de collecte a-t-elle reçu des victimes ?',
           answer: collectedUsd,
           hint: 'L\'adresse de collecte ne reçoit rien d\'autre que les paiements des victimes : son total reçu, TON et USDT confondus, répond à la question.',
-          explanation: `${pays.length} paiements : ${amt(collectedTon, 'TON')} et ${amt(collectedUsdt, 'USDT')}, soit ${usd0(collectedUsd)} au cours de l'exercice (1 TON = 5,40 $). Les faux « bonus » renvoyés à ${bonusOthers.length + 1} victimes (${amt(bonusOut, 'TON')}) sont des sorties : ils ne réduisent pas la collecte et font partie du mécanisme (mettre en confiance pour obtenir un second versement).`,
+          explanation: `${pays.length} paiements : ${amt(collectedTon, 'TON')} et ${amt(collectedUsdt, 'USDT')}, soit ${usd0(collectedUsd)} au cours de l'exercice (1 TON = ${ASSETS.TON.usd.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $). Les faux « bonus » renvoyés à ${bonusOthers.length + 1} victimes (${amt(bonusOut, 'TON')}) sont des sorties : ils ne réduisent pas la collecte et font partie du mécanisme (mettre en confiance pour obtenir un second versement).`,
         },
         {
           id: 'o11', type: 'amount', points: 8, unit: 'TON', tolerance: 0.01,
@@ -276,17 +344,24 @@ export const tonTelegramScam: ScenarioTemplate = {
         },
         {
           id: 'o8', type: 'address', points: 9,
-          prompt: 'Par quelle adresse relais les fonds collectés transitent-ils avant d\'atteindre les services de sortie ?',
+          prompt: 'Vers quelle adresse les fonds collectés sont-ils transférés avant d\'atteindre les services de sortie ?',
           answer: [relay],
-          hint: 'Écartez les petits « bonus » renvoyés aux victimes : la seule grosse sortie de l\'adresse de collecte, en TON puis en USDT, mène au relais.',
-          explanation: `Le ${fmtDate(mvTon.time)}, l'adresse de collecte transfère ${amt(moveTon, 'TON')} puis ${amt(collectedUsdt, 'USDT')} vers ${A(w, relay)}, à quelques minutes d'intervalle et sans commentaire. Le relais n'a pas d'autre activité : il sert à couper le lien direct entre l'adresse affichée par la mini-application, désormais signalée, et les comptes des services de sortie. Il ne conserve rien : tout repart dans les heures suivantes.`,
+          hint: 'Écartez les petits « bonus » renvoyés aux victimes : la seule grosse sortie de l\'adresse de collecte, en TON puis en USDT, mène à cette adresse.',
+          explanation: `Le ${fmtDate(mvTon.time)}, l'adresse de collecte transfère ${amt(moveTon, 'TON')} puis ${amt(collectedUsdt, 'USDT')} vers ${A(w, relay)}, à quelques minutes d'intervalle et sans commentaire. Ce n'est pas une adresse jetable : elle existe depuis le ${fmtDate(h1.time, false)}, a été alimentée par des retraits ${adminEx.entity.name}, a acheté un pseudonyme Telegram et des « membres » pour le canal du bot. C'est le portefeuille de travail de l'administrateur, qui sert de relais entre l'adresse affichée par la mini-application, exposée aux signalements, et les services de sortie.`,
+        },
+        {
+          id: 'o13', type: 'tx', points: 10,
+          prompt: 'Quelle transaction antérieure aux faits rattache ce portefeuille à un compte Telegram ?',
+          answer: [usernameTx.id],
+          hint: 'Remontez l\'historique du portefeuille qui reçoit les fonds collectés et lisez les commentaires de ses paiements vers des services attribués. Croisez avec la note de veille.',
+          explanation: `Le ${fmtDate(usernameTx.time, false)}, ${A(w, relay)} paie ${amt(usernameTx.transfers[0].value, 'TON')} à la place de marché Gramota avec le commentaire « Enchère n° ${auctionNo} — @${admin} » : il a acheté aux enchères le pseudonyme @${admin}, celui-là même qui administre le canal « ${bot} Official ». Le lien entre le portefeuille et le compte Telegram est donc établi par la blockchain, pas seulement par le contenu du canal. Les autres paiements antérieurs ne s'y prêtent pas : les retraits ${adminEx.entity.name} identifient un client de l'exchange (à requérir aussi), et les paiements « Boost membres ${bot} Official » à un vendeur non identifié ne désignent aucun compte. ${procedureFor(marketE)} La demande vise le compte Telegram connecté lors de l'enchère n° ${auctionNo}.`,
         },
         {
           id: 'o3', type: 'entity', points: 8,
-          prompt: 'Hors exchange, vers quel service une partie des TON a-t-elle été envoyée ?',
+          prompt: 'Vers quel service la plus grosse part des TON est-elle finalement envoyée ?',
           answer: ['tonpocket'],
-          hint: 'Suivez les fonds sortis de l\'adresse de collecte : ils passent par une adresse relais, puis partent vers deux adresses attribuées à des services différents.',
-          explanation: `Le relais ${A(w, relay)} envoie ${amt(toPocket, 'TON')} à l'adresse partagée de TonPocket avec le commentaire ${pocketMemo}. Ce commentaire désigne un compte client TonPocket : ${procedureFor(pocket.entity)}`,
+          hint: 'Depuis le portefeuille relais, triez les sorties de TON par montant : les deux petites vers des adresses neuves sont des mises de côté ; parmi les services attribués, cherchez le plus gros transfert.',
+          explanation: `En dernier, le ${fmtDate(pocketTx.time)}, le relais ${A(w, relay)} envoie ${amt(toPocket, 'TON')} à l'adresse partagée de TonPocket, portefeuille custodial intégré à Telegram, avec le commentaire ${pocketMemo} : c'est plus que tout ce qui est parti vers l'exchange en TON (${amt(exTonV, 'TON')}). Une fois chez TonPocket, les fonds peuvent circuler entre comptes du service sans laisser de trace on-chain : seul le prestataire peut dire ce qu'ils sont devenus. ${procedureFor(pocket.entity)} Les autres sorties ne sont pas la piste principale : ${amt(reserveV, 'TON')} dorment sur ${A(w, reserveAddr).slice(0, 12)}… (réserve à surveiller), ${amt(giftV, 'TON')} partent sur ${A(w, giftAddr).slice(0, 12)}…, qui achète des cartes cadeaux chez ${shopName} ; les micro-transferts entrants viennent d'adresses sosies (empoisonnement).`,
         },
         {
           id: 'o10', type: 'number', points: 9, tolerance: 0, unit: 'commentaire',
@@ -297,7 +372,7 @@ export const tonTelegramScam: ScenarioTemplate = {
         },
         {
           id: 'o4', type: 'entity', points: 9,
-          prompt: 'Sur quel exchange le reste des fonds a-t-il été déposé ?',
+          prompt: 'Sur quel exchange les USDT et une partie des TON ont-ils été déposés ?',
           answer: [destKey],
           hint: 'Le relais effectue trois dépôts (TON et USDT) vers une même adresse, étiquetée comme hot wallet d\'un exchange.',
           explanation: `Trois dépôts du relais (${amt(u1, 'USDT')}, ${amt(exTonV, 'TON')}, ${amt(u2, 'USDT')}, soit ${usd0(depositedUsd)}) arrivent sur l'adresse partagée de l'exchange ${destName}, étiquetée comme son hot wallet.`,
@@ -337,19 +412,21 @@ export const tonTelegramScam: ScenarioTemplate = {
         },
       ],
       truth: {
-        path: [vFundTon.id, vFundUsdt.id, vPay1.id, bonusTx.id, vPay2.id, ...pays.filter((p) => p.victim !== victimAddr).map((p) => p.tx.id), mvTon.id, mvUsdt.id, pocketTx.id, ...depTxs.map((t) => t.id)],
-        addresses: [collect, relay, pocket.hot, dest.hot],
+        path: [vFundTon.id, vFundUsdt.id, vPay1.id, bonusTx.id, vPay2.id, ...pays.filter((p) => p.victim !== victimAddr).map((p) => p.tx.id), mvTon.id, mvUsdt.id, ...depTxs.map((t) => t.id), pocketTx.id],
+        addresses: [collect, relay, pocket.hot, dest.hot, reserveAddr, giftAddr],
         debrief:
           `1. Le bot @${bot}_bot affiche l'adresse ${collectEq} (forme bounceable de ${A(w, collect)}) et exige l'identifiant Telegram de la victime en commentaire, pour donner l'illusion d'un compte crédité.\n` +
           `2. ${nVictims} portefeuilles y envoient ${pays.length} paiements : ${amt(collectedTon, 'TON')} et ${amt(collectedUsdt, 'USDT')} (${usd0(collectedUsd)}). ${bonusOthers.length + 1} victimes, dont ${victimName}, reçoivent un faux « bonus » pour les inciter à renvoyer des fonds.\n` +
-          `3. Le ${fmtDate(tMove, false)}, les fonds passent sur le relais ${A(w, relay)} ; quelques TON (${amt(keepTon, 'TON')}) restent sur l'adresse de collecte pour les frais.\n` +
-          `4. Le relais envoie ${amt(toPocket, 'TON')} à TonPocket (commentaire ${pocketMemo}) et dépose ${amt(exTonV, 'TON')} et ${amt(collectedUsdt, 'USDT')} sur ${destName} (commentaire ${exMemo}).\n\n` +
-          `À retenir : sur TON, comme sur XRP, les services utilisent souvent une adresse partagée et identifient le client par le commentaire. Trois commentaires circulent dans ce dossier, avec des sens très différents : l'identifiant Telegram de la victime (sans valeur pour la réquisition), le compte TonPocket et le compte ${destName} de l'escroc. Deux réquisitions sont possibles, chacune citant le commentaire, les hash, dates et montants. Pensez à décliner l'adresse sous ses différentes formes (EQ, UQ, brute).`,
+          `3. Le ${fmtDate(tMove, false)}, les fonds passent sur ${A(w, relay)}, le portefeuille de travail de l'administrateur : alimenté depuis le ${fmtDate(h1.time, false)} par des retraits ${adminEx.entity.name}, il a payé aux enchères Gramota le pseudonyme @${admin} (« Enchère n° ${auctionNo} ») qui administre le canal du bot, et acheté des « membres » pour ce canal (${promoTxs.length} paiements). Quelques TON (${amt(keepTon, 'TON')}) restent sur l'adresse de collecte pour les frais.\n` +
+          `4. Le relais met ${amt(reserveV, 'TON')} de côté sur ${A(w, reserveAddr)} (qui dort) et ${amt(giftV, 'TON')} sur ${A(w, giftAddr)} (cartes cadeaux ${shopName}), dépose ${amt(collectedUsdt, 'USDT')} et ${amt(exTonV, 'TON')} sur ${destName} (commentaire ${exMemo}), puis envoie en dernier l'essentiel, ${amt(toPocket, 'TON')}, à TonPocket (commentaire ${pocketMemo}), où les fonds sortent du champ de la blockchain.\n\n` +
+          `Fausses pistes : les mises de côté et les cartes cadeaux, la poussière envoyée par des sosies du relais, les dépôts d'autres clients de ${destName} au même moment, et l'identifiant Telegram de la victime porté en commentaire.\n\n` +
+          `À retenir : sur TON, comme sur XRP, les services utilisent souvent une adresse partagée et identifient le client par le commentaire. Trois commentaires de paiement circulent dans ce dossier, avec des sens très différents : l'identifiant Telegram de la victime (sans valeur pour la réquisition), le compte TonPocket et le compte ${destName} de l'escroc ; un quatrième, plus ancien, rattache le relais au pseudonyme @${admin}. Quatre demandes sont possibles : TonPocket et ${destName} (commentaire, hash, dates, montants), Gramota (enchère n° ${auctionNo}) et ${adminEx.entity.name} (retraits vers le relais). Pensez à décliner l'adresse sous ses différentes formes (EQ, UQ, brute).`,
       },
       hints: [
         'Partez du portefeuille de la victime et ouvrez son premier paiement : le destinataire est l\'adresse de collecte.',
         'L\'adresse de collecte ne fait que deux types de sorties : des petits « bonus » aux victimes et le transfert vers un relais.',
-        'Depuis le relais, les fonds partent vers deux adresses partagées. Dans le détail de chaque transaction, lisez le champ « Commentaire (memo) ».',
+        'Le relais a un passé : remontez ses premières transactions et lisez les commentaires de ses paiements.',
+        'Depuis le relais, les fonds partent vers deux adresses neuves et deux adresses partagées de services. Dans le détail de chaque transaction, lisez le champ « Commentaire (memo) ».',
         'L\'exchange reçoit de nombreux dépôts au même moment : ne retenez que ceux qui viennent du relais.',
         'Pour les autres victimes, regardez d\'où viennent les fonds des portefeuilles payeurs : certains sortent tout juste d\'un exchange.',
       ],

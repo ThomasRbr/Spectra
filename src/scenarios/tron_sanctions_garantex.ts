@@ -1,6 +1,7 @@
 import { World, type Tx } from '../engine/world'
 import { exchange, swapper, HOUR, DAY, type ExchangeKit } from '../engine/patterns'
 import { roundAsset } from '../engine/chains'
+import { exposure } from '../engine/analysis'
 import type { ScenarioTemplate } from './types'
 import { A, amt, choice, fakeCity, fakePerson, fmtDate, procedureFor } from './util'
 
@@ -58,11 +59,11 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
   title: 'Contournement de sanctions : la filière Garantex',
   tagline: 'Des factures, des USDT et un exchange sanctionné : mesurer l\'exposition et séparer le légitime de l\'illicite.',
   description:
-    'TRACFIN signale une société française d\'import-export de composants électroniques dont le gérant achète de gros volumes d\'USDT. Une partie paie de vrais fournisseurs, une autre aboutit, directement ou via des intermédiaires et un changement de réseau, chez Garantex, exchange russe sanctionné. Mesurez l\'exposition, identifiez les intermédiaires, calculez le total parvenu à Garantex et choisissez la bonne voie procédurale.',
+    'TRACFIN signale une société française d\'import-export de composants électroniques dont le gérant achète de gros volumes d\'USDT. Une partie paie de vrais fournisseurs, une autre aboutit, directement ou via des intermédiaires et un changement de réseau, chez Garantex, exchange russe sanctionné. Mesurez l\'exposition, identifiez les intermédiaires (qui servent aussi d\'autres clients), départagez les transferts jumeaux, calculez le total imputable à la société parvenu à Garantex et choisissez la bonne voie procédurale.',
   difficulty: 3,
   chains: ['tron', 'eth'],
   skills: ['tron', 'tokens', 'typologies', 'exchange_id', 'requisition'],
-  estMinutes: 65,
+  estMinutes: 75,
   lessons: ['exposition-risque', 'attribution-sources', 'blanchiment-pro', 'cooperation-internationale', 'tron-usdt'],
   generate(seed) {
     const w = new World(seed)
@@ -105,6 +106,9 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
     const nHop = r.int(1, 2)
     const nCn = r.int(1, 2)
     const kinds: Kind[] = r.shuffle(['legitE', 'legitT', 'legitU', 'gxDirect', ...Array<Kind>(nHop).fill('gxHop'), ...Array<Kind>(nCn).fill('gxCn')])
+    // La dernière facture réglée aboutit chez Garantex : c'est la fin de l'affaire
+    const lastGx = kinds.map((k) => k.startsWith('gx')).lastIndexOf(true)
+    ;[kinds[lastGx], kinds[kinds.length - 1]] = [kinds[kinds.length - 1], kinds[lastGx]]
     const start = w.at(-r.int(150, 180) * 24)
     const end = w.at(-r.int(12, 20) * 24)
     const times = kinds.map(() => Math.round(r.float(start + 10 * DAY, end))).sort((a, b) => a - b)
@@ -141,6 +145,7 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
     let boughtBitstamp = 0
     const cnPayouts: Tx[] = []
     const cnDeposits: Tx[] = []
+    const cnTwins: Tx[] = []
     for (const inv of invoices) {
       const onEth = inv.kind === 'legitE' || inv.kind === 'legitU' || inv.kind === 'gxCn'
       const buy = inv.amount + r.int(20, 600)
@@ -197,6 +202,10 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
           })
           const d = gx.receive(T1, ord.payoutValue, ord.payoutTx.time + Math.round(r.float(1, 5) * HOUR), { asset: 'USDT', depositAddr: G1 })
           inv.arrival = ord.payoutValue
+          // Paiement ChangeNOW jumeau : presque le même montant, quelques minutes d'écart, un autre client
+          const twinTo = w.addr('tron')
+          cnTwins.push(w.transfer({ time: ord.payoutTx.time + (r.chance(0.5) ? 1 : -1) * Math.round(r.float(3, 20) * 60), from: cn.hot('tron'), to: twinTo, value: r2(ord.payoutValue * (1 + (r.chance(0.5) ? 1 : -1) * r.float(0.001, 0.004))), asset: 'USDT', method: 'payout' }))
+          w.transfer({ time: ord.payoutTx.time + Math.round(r.float(1, 4) * DAY), from: twinTo, to: w.addr('tron'), value: r2(w.balanceOf(twinTo, 'USDT') * r.float(0.3, 0.6)), asset: 'USDT' })
           cnPayouts.push(ord.payoutTx)
           cnDeposits.push(ord.depositTx)
           inv.txs.push(inv.payTx.id, ord.depositTx.id, ord.payoutTx.id, d.tx.id)
@@ -207,6 +216,54 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
     // Un dernier dépôt du fournisseur malaisien, sans lien avec la société
     w.fundAccount(U, r2(r.float(3000, 30000)), 'USDT', end + r.int(1, 4) * DAY)
     kitU.receive(U, r2(w.balanceOf(U, 'USDT')), end + r.int(5, 8) * DAY, { asset: 'USDT', depositAddr: depU })
+
+    // ── La filière sert d'autres clients ─────────────────────────────────────
+    // Le relais Tron reçoit les paiements d'autres sociétés, souvent les mêmes
+    // jours, et transfère chacun vers le même compte Garantex.
+    const clientPay = (to: string, v: number, t: number) => {
+      const c = w.addr('tron')
+      w.fundAccount(c, v + r.int(5, 60), 'USDT', t - Math.round(r.float(2, 40) * HOUR))
+      return w.transfer({ time: t, from: c, to, value: v, asset: 'USDT' })
+    }
+    const hop0 = invoices.find((i) => i.kind === 'gxHop')!
+    const hop0Fwd = w.tx(hop0.txs[1])
+    const otherFwds: Tx[] = []
+    for (let i = 0, n = r.int(4, 6); i < n; i++) {
+      const t = (r.chance(0.6) ? r.pick(invoices).payT : Math.round(r.float(start, end))) + Math.round(r.float(-36, 36) * HOUR)
+      const v = Math.round(r.float(6000, 70000) / 10) * 10
+      clientPay(T2, v, t)
+      let tf = t + Math.round(r.float(2, 12) * HOUR)
+      // Pas d'autre transfert du relais dans les deux heures du paiement jumeau (objectif o13)
+      if (Math.abs(tf - hop0Fwd.time) < 2 * HOUR) tf = hop0Fwd.time + (tf >= hop0Fwd.time ? 1 : -1) * Math.round(r.float(3, 8) * HOUR)
+      if (tf <= t) tf = t + Math.round(r.float(1, 3) * HOUR)
+      otherFwds.push(gx.receive(T2, v, tf, { asset: 'USDT', depositAddr: G2 }).tx)
+    }
+    // Paiement jumeau : un autre client verse presque le même montant au relais,
+    // à la même heure que la société ; les deux transferts vers Garantex se suivent.
+    let twinV = Math.round((hop0.amount * (1 + (r.chance(0.5) ? 1 : -1) * r.float(0.0015, 0.004))) / 10) * 10
+    if (twinV === hop0.amount) twinV += 10
+    const twinIn = clientPay(T2, twinV, hop0.payT + (r.chance(0.5) ? 1 : -1) * Math.round(r.float(10, 40) * 60))
+    const twinFwd = gx.receive(T2, twinV, hop0Fwd.time + (r.chance(0.5) ? 1 : -1) * Math.round(r.float(8, 35) * 60), { asset: 'USDT', depositAddr: G2 }).tx
+    // L'intermédiaire Ethereum travaille aussi pour d'autres : entrées et sorties sans lien
+    const i1Others: Tx[] = []
+    for (let i = 0, n = r.int(2, 4); i < n; i++) {
+      const t = Math.round(r.float(start, end))
+      const v = Math.round(r.float(3000, 40000) / 10) * 10
+      const c = w.addr('eth')
+      w.fundAccount(c, v + r.int(5, 60), 'USDT', t - Math.round(r.float(2, 40) * HOUR))
+      w.transfer({ time: t, from: c, to: I1, value: v, asset: 'USDT' })
+      i1Others.push(w.transfer({ time: t + Math.round(r.float(1, 20) * HOUR), from: I1, to: w.addr('eth'), value: r2(v * r.float(0.97, 0.995)), asset: 'USDT' }))
+    }
+    // Le financeur de gas approvisionne d'autres relais : des branches sans issue pour la société
+    const R = [0, 1, 2].map(() => w.addr('tron', { entity: netE }))
+    const gasR = R.map((x) => w.transfer({ time: Math.round(r.float(start - 20 * DAY, end)), from: N, to: x, value: r.int(35, 70) * 10, asset: 'TRX' }))
+    // R[0] dort ; R[1] relaie un autre client vers un autre compte Garantex ; R[2] rend ses TRX
+    const G3 = gx.newDeposit()
+    // Suites bornées avant le jour de l'analyse (aucune transaction « future »)
+    const tCap = w.at(-36)
+    const r1In = clientPay(R[1], Math.round(r.float(8000, 50000) / 10) * 10, Math.min(gasR[1].time + Math.round(r.float(2, 20) * DAY), tCap - 10 * HOUR))
+    gx.receive(R[1], r1In.transfers[0].value, r1In.time + Math.round(r.float(1, 8) * HOUR), { asset: 'USDT', depositAddr: G3 })
+    w.transfer({ time: Math.min(gasR[2].time + Math.round(r.float(10, 40) * DAY), tCap), from: R[2], to: N, value: r2(gasR[2].transfers[0].value * r.float(0.8, 0.95)), asset: 'TRX' })
 
     // ── Bruit ────────────────────────────────────────────────────────────────
     gx.noise(14, start, w.at(0), 'USDT')
@@ -239,6 +296,14 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
     const recap = gxInv
       .map((i) => `   • ${i.no} (${i.supplier}) — ${amt(i.amount, 'USDT')} payés, ${amt(i.arrival ?? 0, 'USDT')} crédités chez Garantex (${i.kind === 'gxDirect' ? 'direct' : i.kind === 'gxHop' ? `via ${A(w, T2)}` : `via ${A(w, I1)}, ChangeNOW et ${A(w, T1)}`})`)
       .join('\n')
+    // Ce que l'outil d'exposition affiche réellement pour l'adresse Tron de la société
+    const expo = exposure(w, T0, 'out')
+    const expoIndirect = r2(expo.indirect.sanctioned ?? 0)
+    // Relais Tron : tout ce qu'il a transféré vers Garantex, dont la part des autres clients
+    const t2ToGx = r2(w.txsOf(T2).flatMap((x) => x.transfers).filter((x) => x.from === T2 && x.to === G2).reduce((s, x) => s + x.value, 0))
+    const hm = (ts: number) => fmtDate(ts)
+    const relayPair = [hop0Fwd, twinFwd].sort((a, b) => a.time - b.time)
+    const uDeps = w.txsOf(U).filter((x) => x.transfers.some((f) => f.from === U && f.to === depU)).length
 
     return {
       world: w,
@@ -275,7 +340,7 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
         {
           id: 'fiche', type: 'note', title: 'Fiche entité — Garantex', date: tSignal - 30 * DAY, author: 'Groupe d\'appui crypto-actifs',
           body:
-            `Exchange enregistré en Russie, inscrit en avril 2022 sur la liste SDN de l'OFAC (Trésor américain) pour avoir facilité le blanchiment au profit de rançongiciels, de marchés du darknet et de fraudeurs. Domaines saisis en mars 2025 ; activité reprise sous le nom Grinex.\n` +
+            `Exchange enregistré en Russie, inscrit en avril 2022 sur la liste SDN de l'OFAC (Trésor américain) pour avoir facilité le blanchiment au profit de rançongiciels, de marchés du darknet et de fraudeurs.${tSignal - 30 * DAY > Date.UTC(2025, 2, 10) / 1000 ? ' Domaines saisis en mars 2025 ; activité reprise sous le nom Grinex.' : ''}\n` +
             `Aucune coopération avec les autorités occidentales. Les adresses de dépôt sont attribuées dans la base de l'outil (catégorie « Entité sanctionnée »).\n` +
             `Rappel : l'exposition calculée automatiquement suit les flux on-chain ; elle s'arrête aux services qui « coupent » la trace, comme les échangeurs instantanés.`,
         },
@@ -287,7 +352,7 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
           prompt: 'Quelle est l\'exposition DIRECTE (un seul saut) de l\'adresse Tron de la société à Garantex, en USDT ?',
           answer: direct.amount,
           hint: 'Onglet Exposition de l\'adresse Tron de la société, sens sortant : lisez la ligne « Entité sanctionnée » dans la colonne directe.',
-          explanation: `${A(w, T0)} envoie ${amt(direct.amount, 'USDT')} directement à l'adresse de dépôt Garantex ${A(w, G2)} (facture ${direct.no}) : c'est l'exposition directe. L'outil affiche en plus ${amt(hopTotal, 'USDT')} d'exposition indirecte, passée par ${A(w, T2)} avant d'atteindre la même adresse de dépôt. Le règlement vers ${nameT} (${amt(invoices.find((i) => i.kind === 'legitT')!.amount, 'USDT')}) apparaît en direct dans la catégorie « Exchange centralisé », sans risque particulier.`,
+          explanation: `${A(w, T0)} envoie ${amt(direct.amount, 'USDT')} directement à l'adresse de dépôt Garantex ${A(w, G2)} (facture ${direct.no}) : c'est l'exposition directe. L'outil affiche en plus ${amt(expoIndirect, 'USDT')} d'exposition indirecte : les ${amt(hopTotal, 'USDT')} passés par ${A(w, T2)}, qui transfère tout ce qu'il reçoit vers la même adresse de dépôt (l'outil répartit au prorata ; les autres clients du relais ne sont pas imputés à la société). Le règlement vers ${nameT} (${amt(invoices.find((i) => i.kind === 'legitT')!.amount, 'USDT')}) apparaît en direct dans la catégorie « Exchange centralisé », sans risque particulier.`,
         },
         {
           id: 'o11', type: 'tx', points: 8,
@@ -301,14 +366,14 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
           prompt: 'L\'adresse Ethereum intermédiaire envoie ses USDT à ChangeNOW. Identifiez une transaction de paiement ChangeNOW sur Tron qui correspond à l\'un de ces dépôts.',
           answer: cnPayouts.map((t) => t.id),
           hint: `Corrélation : émetteur ChangeNOW, chaîne Tron, à partir de l'heure du dépôt ERC-20, fenêtre d'environ 1 h, tolérance de 2 à 3 %. Le candidat retenu doit ensuite alimenter Garantex.`,
-          explanation: `${cns.map((i, k) => `Dépôt de ${amt(i.amount, 'USDT')} (ERC-20) chez ChangeNOW (${cnDeposits[k].hash.slice(0, 14)}…), puis ${Math.round((cnPayouts[k].time - cnDeposits[k].time) / 60)} minutes plus tard paiement de ${amt(i.arrival ?? 0, 'USDT')} (TRC-20) à ${A(w, T1)}`).join(' ; ')}. Seul le montant diminué de la commission (1 à 2 %) et le délai relient les deux transactions ; la suite (dépôt immédiat chez Garantex) confirme l'hypothèse.`,
+          explanation: `${cns.map((i, k) => `Dépôt de ${amt(i.amount, 'USDT')} (ERC-20) chez ChangeNOW (${cnDeposits[k].hash.slice(0, 14)}…), puis ${Math.round((cnPayouts[k].time - cnDeposits[k].time) / 60)} minutes plus tard paiement de ${amt(i.arrival ?? 0, 'USDT')} (TRC-20) à ${A(w, T1)}`).join(' ; ')}. Seul le montant diminué de la commission (1 à 2 %) et le délai relient les deux transactions, et ils ne suffisent pas : ${cnTwins.length > 1 ? 'chaque fois, un autre paiement' : 'un autre paiement'} ChangeNOW de montant presque identique part à quelques minutes d'écart vers ${cnTwins.map((x) => `${A(w, x.transfers[0].to).slice(0, 12)}… (${amt(x.transfers[0].value, 'USDT')})`).join(', ')}. C'est la suite qui tranche : ${A(w, T1).slice(0, 12)}… dépose aussitôt chez Garantex et a reçu ses TRX du même financeur que l'autre relais de la filière, alors que le paiement jumeau va à un client sans lien, qui dépense ensuite ailleurs.`,
         },
         {
           id: 'o3', type: 'addresses', points: 10,
           prompt: 'Sélectionnez les adresses intermédiaires contrôlées par la filière entre la société et Garantex (hors adresses de services).',
           answer: [T2, I1, T1],
-          hint: 'Trois adresses : une sur Tron entre la société et Garantex, une sur Ethereum avant ChangeNOW, une sur Tron après ChangeNOW. Le portefeuille d\'un fournisseur légitime n\'en fait pas partie.',
-          explanation: `${A(w, T2)} (Tron, relais vers Garantex), ${A(w, I1)} (Ethereum, avant ChangeNOW) et ${A(w, T1)} (Tron, après ChangeNOW). ${A(w, T2)} et ${A(w, T1)} reçoivent leurs TRX de frais d'un même portefeuille, ce qui conforte leur rattachement à un même opérateur. Le portefeuille ${A(w, U)} reçoit des règlements de nombreux clients et dépose chez ${nameU} : c'est celui du fournisseur ${LEGIT[2].name}, pas un intermédiaire.`,
+          hint: 'Trois adresses : une sur Tron entre la société et Garantex, une sur Ethereum avant ChangeNOW, une sur Tron après ChangeNOW. Le portefeuille d\'un fournisseur légitime n\'en fait pas partie, ni les autres adresses approvisionnées en TRX par le même financeur si elles n\'ont jamais touché les fonds de la société.',
+          explanation: `${A(w, T2)} (Tron, relais vers Garantex), ${A(w, I1)} (Ethereum, avant ChangeNOW) et ${A(w, T1)} (Tron, après ChangeNOW). ${A(w, T2)} et ${A(w, T1)} reçoivent leurs TRX de frais d'un même portefeuille, ce qui conforte leur rattachement à un même opérateur. Ce financeur approvisionne aussi ${R.length} autres adresses (${R.map((x) => A(w, x).slice(0, 10) + '…').join(', ')}) : l'une dort, une autre relaie un autre client vers un autre compte Garantex, la dernière rend ses TRX. Elles appartiennent vraisemblablement à la filière, mais aucune ne relaie des fonds de la société : ce sont des branches sans issue pour ce dossier, à signaler sans les imputer à la société. Le portefeuille ${A(w, U)} reçoit des règlements de nombreux clients et dépose chez ${nameU} : c'est celui du fournisseur ${LEGIT[2].name}, pas un intermédiaire.`,
         },
         {
           id: 'o8', type: 'address', points: 9,
@@ -322,7 +387,7 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
           prompt: 'Sélectionnez les adresses de dépôt Garantex qui ont reçu des fonds issus de la société.',
           answer: [G1, G2],
           hint: 'Suivez chaque branche (directe, relais Tron, passage par ChangeNOW) jusqu\'à une adresse étiquetée Garantex ; deux branches convergent.',
-          explanation: `${A(w, G2)} reçoit le paiement direct et le flux relayé par ${A(w, T2)} ; ${A(w, G1)} reçoit le produit des commandes ChangeNOW via ${A(w, T1)}. Deux adresses de dépôt distinctes signifient probablement deux comptes clients Garantex : la filière cloisonne ses circuits, mais chaque compte est documenté avec ses dates et montants dans le signalement.`,
+          explanation: `${A(w, G2)} reçoit le paiement direct et le flux relayé par ${A(w, T2)} ; ${A(w, G1)} reçoit le produit des commandes ChangeNOW via ${A(w, T1)}. Deux adresses de dépôt distinctes signifient probablement deux comptes clients Garantex : la filière cloisonne ses circuits, mais chaque compte est documenté avec ses dates et montants dans le signalement. Une troisième adresse de dépôt Garantex, ${A(w, G3).slice(0, 12)}…, est alimentée par une autre adresse approvisionnée par le même financeur de gas, mais avec l'argent d'un autre client : elle n'a reçu aucun fonds de la société.`,
         },
         {
           id: 'o4', type: 'number', points: 9,
@@ -335,8 +400,18 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
           id: 'o5', type: 'amount', points: 11, unit: 'USDT', tolerance: 0.005,
           prompt: 'Quel montant total d\'USDT issu de la société a été crédité sur des adresses de dépôt Garantex ?',
           answer: totalGx,
-          hint: 'Additionnez ce qui arrive réellement sur les adresses de dépôt Garantex, pas les montants facturés : le passage par ChangeNOW coûte une commission.',
-          explanation: `${amt(totalGx, 'USDT')} : ${amt(direct.amount + hopTotal, 'USDT')} sur ${A(w, G2)} (direct et via ${A(w, T2)}) et ${amt(cnTotal, 'USDT')} sur ${A(w, G1)} (via ChangeNOW). Les factures correspondantes totalisent ${amt(invoicedGx, 'USDT')} : l'écart de ${amt(r2(invoicedGx - totalGx), 'USDT')} correspond aux commissions de ChangeNOW. Deux adresses de dépôt distinctes signifient probablement deux comptes Garantex. L'outil d'exposition seul aurait manqué ${amt(cnTotal, 'USDT')}.`,
+          hint: 'Additionnez ce qui arrive réellement sur les adresses de dépôt Garantex, pas les montants facturés : le passage par ChangeNOW coûte une commission. Le relais Tron transfère aussi l\'argent d\'autres clients : ne comptez que les transferts qui correspondent aux paiements de la société.',
+          explanation: `${amt(totalGx, 'USDT')} : ${amt(direct.amount + hopTotal, 'USDT')} sur ${A(w, G2)} (direct et via ${A(w, T2)}) et ${amt(cnTotal, 'USDT')} sur ${A(w, G1)} (via ChangeNOW). Les factures correspondantes totalisent ${amt(invoicedGx, 'USDT')} : l'écart de ${amt(r2(invoicedGx - totalGx), 'USDT')} correspond aux commissions de ChangeNOW. Attention au relais : ${A(w, T2).slice(0, 12)}… a transféré au total ${amt(t2ToGx, 'USDT')} vers ${A(w, G2).slice(0, 12)}…, dont ${amt(r2(t2ToGx - hopTotal), 'USDT')} venus d'autres clients de la filière ; les additionner gonflerait le signalement. L'outil d'exposition seul aurait manqué ${amt(cnTotal, 'USDT')}.`,
+        },
+        {
+          id: 'o13', type: 'tx', points: 10,
+          prompt: `Le relais Tron transfère vers Garantex l'argent de plusieurs clients. Quelle transaction transfère le paiement de la facture ${hop0.no} ?`,
+          answer: [hop0Fwd.id],
+          hint: 'Deux transferts de montant presque identique partent du relais vers Garantex à moins d\'une heure d\'écart. Comparez leur montant au centime près avec la facture, et regardez qui a alimenté le relais juste avant chacun.',
+          explanation:
+            `${relayPair.map((x) => `${hm(x.time)} : ${amt(x.transfers[0].value, 'USDT')}`).join(' ; ')}. Les deux partent de ${A(w, T2).slice(0, 12)}… vers ${A(w, G2).slice(0, 12)}…, à ${Math.round(Math.abs(twinFwd.time - hop0Fwd.time) / 60)} minutes d'écart. ` +
+            `Le bon (${hop0Fwd.hash.slice(0, 14)}…) porte exactement le montant de la facture ${hop0.no} (${amt(hop0.amount, 'USDT')}), versé par ${A(w, T0).slice(0, 12)}… le ${fmtDate(hop0.payT)}. ` +
+            `Le jumeau (${twinFwd.hash.slice(0, 14)}…, ${amt(twinV, 'USDT')}) correspond au versement d'une autre adresse, sans lien avec la société, arrivé à ${Math.round(Math.abs(twinIn.time - hop0.payT) / 60)} minutes d'écart. Un écart de ${amt(Math.abs(twinV - hop0.amount), 'USDT')} suffit à écarter un rapprochement : à ce niveau de détail, la facture fait foi. Les deux finissent chez Garantex, mais seul le premier est imputable à la société.`,
         },
         {
           id: 'o6', type: 'choice', points: 8,
@@ -349,7 +424,7 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
               'Paiement à exclure de l\'analyse : seuls les flux sur Tron sont pertinents en matière de sanctions',
             ]),
           hint: 'Regardez les autres entrées de cette adresse et la destination de ses sorties.',
-          explanation: `${A(w, U)} reçoit des USDT de plusieurs expéditeurs sans lien avec la société, puis les dépose régulièrement sur une même adresse ${nameU} ${A(w, depU)}. C'est le profil d'un portefeuille d'encaissement commercial, cohérent avec un fournisseur établi (sources ouvertes). L'attribution ne se présume pas : une adresse inconnue n'est ni suspecte ni innocente par défaut, et une réquisition à ${nameU} permettra de confirmer le titulaire. Gonfler l'exposition avec ce flux affaiblirait la procédure.`,
+          explanation: `${A(w, U)} reçoit des USDT de plusieurs expéditeurs sans lien avec la société, puis les dépose, en ${uDeps} fois, sur une même adresse ${nameU} ${A(w, depU)}. C'est le profil d'un portefeuille d'encaissement commercial, cohérent avec un fournisseur établi (sources ouvertes). L'attribution ne se présume pas : une adresse inconnue n'est ni suspecte ni innocente par défaut, et une réquisition à ${nameU} permettra de confirmer le titulaire. Gonfler l'exposition avec ce flux affaiblirait la procédure.`,
         },
         {
           id: 'o10', type: 'amount', points: 9, unit: 'USDT', tolerance: 0.01,
@@ -393,7 +468,7 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
           `2. ${invoices.length - nGx} factures de fournisseurs établis sont réglées vers ${nameE}, ${nameT} et le portefeuille commercial de ${LEGIT[2].name} (qui dépose chez ${nameU}) : flux légitimes en apparence.\n` +
           `3. ${nGx} factures de sociétés-écrans aboutissent chez Garantex :\n${recap}\n` +
           `4. Total crédité chez Garantex : ${amt(totalGx, 'USDT')} (${amt(direct.amount, 'USDT')} d'exposition directe, ${amt(hopTotal, 'USDT')} d'exposition indirecte détectée par l'outil, ${amt(cnTotal, 'USDT')} invisibles sans corrélation à cause du passage ERC-20 → TRC-20 par ChangeNOW).\n` +
-          `5. Les relais ${A(w, T1)} et ${A(w, T2)} partagent le même financeur de TRX ${A(w, N)}.\n` +
+          `5. Les relais ${A(w, T1)} et ${A(w, T2)} partagent le même financeur de TRX ${A(w, N)}, qui approvisionne aussi ${R.length} autres adresses sans lien avec les fonds de la société. Le relais ${A(w, T2).slice(0, 12)}… sert d'autres clients (${amt(r2(t2ToGx - hopTotal), 'USDT')} transférés vers Garantex pour leur compte), dont un versement jumeau de ${amt(twinV, 'USDT')} à ${Math.round(Math.abs(twinIn.time - hop0.payT) / 60)} minutes d'un paiement de la société ; sur Ethereum, l'intermédiaire travaille aussi pour d'autres, et ChangeNOW paie dans la même fenêtre des montants presque identiques à d'autres clients.\n` +
           `6. Il reste ${amt(t0Left, 'USDT')} sur l'adresse Tron de la société, gelables par l'émetteur (Tether).\n\n` +
           `À retenir : l'exposition calculée par un outil n'est qu'un point de départ. Elle mesure bien les flux directs et à quelques sauts, mais s'arrête aux services qui coupent la trace (échangeurs instantanés, changement de réseau). À l'inverse, toute adresse inconnue n'est pas un intermédiaire : le rapprochement avec les factures et le comportement des adresses permettent de séparer les règlements légitimes des flux vers l'entité sanctionnée. Garantex ne répond à aucune réquisition : on documente, on signale et on agit sur les prestataires régulés où la société détient ses comptes.`,
       },
@@ -402,6 +477,7 @@ export const tronSanctionsGarantex: ScenarioTemplate = {
         'Rapprochez chaque facture d\'un paiement on-chain de même montant : les fournisseurs établis aboutissent sur des exchanges régulés.',
         'Sur Ethereum, l\'intermédiaire envoie ses USDT à ChangeNOW : corrélez sur Tron (USDT, émetteur ChangeNOW) pour retrouver l\'adresse qui alimente Garantex.',
         'Les relais Tron ont besoin de TRX pour payer leurs frais : leur premier financement révèle un opérateur commun. Pensez aussi au solde restant sur les adresses de la société.',
+        'Le relais Tron et l\'intermédiaire Ethereum servent d\'autres clients : rapprochez chaque transfert du montant exact d\'une facture avant de l\'imputer à la société.',
       ],
     }
   },

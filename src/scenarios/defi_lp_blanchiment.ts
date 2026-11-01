@@ -3,14 +3,31 @@ import { dex, exchange, DAY, HOUR } from '../engine/patterns'
 import { addLiquidity, aggregator, lpNoise, removeLiquidity } from '../engine/defi'
 import { fromUsd, roundAsset, usd, type AssetId } from '../engine/chains'
 import type { ScenarioTemplate } from './types'
-import { A, amt, choice, fakeCity, fakePerson, fmtDate, procedureFor } from './util'
+import { A, amt, choice, de, fakeCity, fakePerson, fmtDate, procedureFor } from './util'
+import { dusting, lookalikeFlows, otherVictimPayments, personalSpending, type Dressing } from '../engine/realism'
+
+/** Liste française : « A », « A et B », « A, B et C ». */
+const listFr = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} et ${xs[xs.length - 1]}`)
+
+/** Ce que révèlent des dépenses personnelles : commerçants payés (lus dans le monde) et particuliers. */
+function spendingSummary(w: World, d: Dressing): { shops: string[]; nPeople: number } {
+  const shops: string[] = []
+  let nPeople = 0
+  for (const a of d.addresses) {
+    const e = w.get(a).entityId ? w.entities.get(w.get(a).entityId!) : undefined
+    if (e) {
+      if (!shops.includes(e.name)) shops.push(e.name)
+    } else nPeople++
+  }
+  return { shops, nPeople }
+}
 
 export const defiLpBlanchiment: ScenarioTemplate = {
   id: 'lp-blanchiment',
   title: 'Le détour par le pool',
   tagline: 'De l\'ETH volé placé en liquidité sur Uniswap, des parts LP cédées à une adresse « propre », un retrait vers une troisième adresse.',
   description:
-    'Les ETH d\'une victime, volés après la saisie de sa phrase de récupération dans une fausse application, sont convertis en partie en USDC puis déposés comme liquidité dans le pool ETH/USDC d\'Uniswap. Les parts LP sont cédées à une adresse neuve, financée en gas par un tiers, qui retire la liquidité vers une troisième adresse avant un dépôt sur un exchange. Lisez les créations et destructions de parts LP, l\'argument « to » du retrait, et l\'origine du gas de l\'adresse « propre ».',
+    'Les ETH d\'une victime, volés après la saisie de sa phrase de récupération dans une fausse application, sont convertis en partie en USDC puis déposés comme liquidité dans le pool ETH/USDC d\'Uniswap. Les parts LP sont cédées à une adresse neuve, financée en gas par un tiers, qui retire la liquidité vers une troisième adresse : l\'ETH file sur un exchange, mais les USDC s\'arrêtent sur une adresse contrôlée, encore gelables par Circle. Lisez les créations et destructions de parts LP, l\'argument « to » du retrait, l\'origine du gas, et triez une adresse de collecte qui mêle plusieurs victimes et des dépenses personnelles.',
   difficulty: 4,
   chains: ['eth'],
   skills: ['evm', 'defi', 'dex', 'tokens', 'exchange_id', 'requisition'],
@@ -50,7 +67,7 @@ export const defiLpBlanchiment: ScenarioTemplate = {
     const S = roundAsset('ETH', w.balanceOf(V, 'ETH') - r.float(0.002, 0.01))
 
     // ── Le tiers qui fournira le gas ─────────────────────────────────────────
-    const gW = exG.withdraw(G, roundAsset('ETH', r.float(0.3, 1.2)), w.at(-r.float(10, 30) * 24))
+    const gW = exG.withdraw(G, roundAsset('ETH', r.float(0.6, 1.4)), w.at(-r.float(10, 30) * 24))
     for (let i = 0; i < r.int(2, 4); i++) w.transfer({ time: w.at(-r.float(2, 9) * 24), from: G, to: w.addr('eth'), value: roundAsset('ETH', r.float(0.01, 0.06)), asset: 'ETH' })
 
     // ── Le vol et la mise en liquidité ───────────────────────────────────────
@@ -69,10 +86,35 @@ export const defiLpBlanchiment: ScenarioTemplate = {
     // ── Retrait de la liquidité vers une troisième adresse ───────────────────
     const drift = (r.chance(0.5) ? 1 : -1) * r.float(0.03, 0.08)
     const rem = removeLiquidity(w, uni, { from: P, assetA: 'ETH', assetB: 'USDC', lp, to: Q, drift, time: w.at(r.float(3, 6) * 24) })
+    // L'ETH part sur un exchange ; les USDC, eux, restent sur une adresse
+    // contrôlée (encore gelables par leur émetteur tant qu'ils y demeurent).
     const depEth = ex.receive(Q, rem.amountA, rem.tx.time + r.float(1, 5) * HOUR)
-    const depUsdc = ex.receive(Q, rem.amountB, depEth.tx.time + r.float(0.3, 2) * HOUR, { asset: 'USDC', depositAddr: depEth.deposit })
     const deposit = depEth.deposit
-    const tLeftEth = roundAsset('ETH', w.balanceOf(T, 'ETH'))
+    const circle = w.entity('circle')
+    const R = w.addr('eth', { entity: thiefE })
+    const usdcHold = w.transfer({ time: depEth.tx.time + r.float(12, 20) * HOUR, from: Q, to: R, value: rem.amountB, asset: 'USDC' })
+
+    // ── Habillage des adresses du voleur et fausses pistes ───────────────────
+    // L'adresse de collecte reçoit l'argent d'autres victimes de la fausse appli,
+    // paie des services, subit de l'empoisonnement ; le tiers qui fournit le gas
+    // a sa propre vie ; des tiers sans lien envoient le même montant à la même heure.
+    otherVictimPayments(w, T, { start: w.at(-30 * 24), end: w.at(-1), n: 5, minUsd: 400, maxUsd: 6000, asset: 'ETH' })
+    // Frais de l'escroquerie elle-même : promotion de la fausse appli, hébergement, compte développeur
+    const thiefShops = [
+      w.customEntity({ name: 'Publivo (régie publicitaire mobile)', category: 'merchant', known: true, description: 'Régie publicitaire pour applications mobiles (fictive), payable en crypto-actifs : conserve les comptes annonceurs et les campagnes diffusées.' }),
+      w.customEntity({ name: 'Nubehost (hébergement web)', category: 'merchant', known: true, description: 'Hébergeur web et VPS (fictif) acceptant l\'ETH : conserve l\'adresse e-mail du client, les noms de domaine et les adresses IP de connexion.' }),
+      w.customEntity({ name: 'StoreKit Pro (comptes développeur)', category: 'merchant', known: true, description: 'Revendeur (fictif) de comptes développeur pour boutiques d\'applications, payable en crypto-actifs.' }),
+    ]
+    const tSpend = spendingSummary(w, personalSpending(w, T, { start: w.at(2), end: w.at(20 * 24), n: 3, merchants: thiefShops, maxUsd: 450, asset: 'ETH' }))
+    dusting(w, T, { time: w.at(0), n: 4, spreadH: 40 })
+    // Vie propre du tiers, postérieure à son premier financement (aucun apport extérieur : petits montants)
+    const gShops = [
+      w.customEntity({ name: 'Rechargo (recharges mobiles)', category: 'merchant', known: true, description: 'Vente en ligne (fictive) de recharges de téléphone prépayé payables en crypto-actifs : conserve le numéro rechargé.' }),
+      w.customEntity({ name: 'Lucky Spin (casino en ligne)', category: 'gambling', known: true, description: 'Casino en ligne (fictif) acceptant l\'ETH, licence offshore, KYC au-delà d\'un seuil de retrait.' }),
+    ]
+    personalSpending(w, G, { start: gW.time + 1 * DAY, end: w.at(-2 * 24), n: 4, merchants: gShops, maxUsd: 45, asset: 'ETH' })
+    lookalikeFlows(w, { chain: 'eth', value: S, time: theft.time, n: 3, asset: 'ETH' })
+    lookalikeFlows(w, { chain: 'eth', value: rem.amountA, time: depEth.tx.time, n: 2, asset: 'ETH' })
 
     // ── Bruit de fond ────────────────────────────────────────────────────────
     lpNoise(w, uni, ['ETH', 'USDC'], 26, w.at(-20 * 24), w.at(8 * 24))
@@ -95,6 +137,12 @@ export const defiLpBlanchiment: ScenarioTemplate = {
     ch.noise(6, w.at(-5 * 24), w.at(3 * 24), 'ETH')
 
     const d = (ts: number) => fmtDate(ts)
+    // « depuis mars 2023 » : mois du premier achat de la victime
+    const sinceBuy = fmtDate(buys[0].time, false).replace(/^\d+(er)? /, '')
+    const people = tSpend.nPeople === 1 ? 'd\'un particulier' : `de ${tSpend.nPeople} particuliers`
+    const spendTxt = tSpend.shops.length
+      ? `chez ${listFr(tSpend.shops.map((s) => s.replace(/ \(.*\)$/, '')))}, des prestataires qui connaissent leur client (pistes de réquisition secondaires)${tSpend.nPeople ? `, ainsi qu'auprès ${people}` : ''}`
+      : `auprès ${people}`
     const addUsd = usd('ETH', a) + usd('USDC', add.amountB)
     const remUsd = usd('ETH', rem.amountA) + usd('USDC', rem.amountB)
 
@@ -102,14 +150,14 @@ export const defiLpBlanchiment: ScenarioTemplate = {
       world: w,
       title: `Vol de phrase de récupération — ${city}`,
       briefing:
-        `${victim.name} (${city}) a installé « ${appName} », présentée comme un portefeuille mobile sécurisé, et y a saisi sa phrase de récupération pour « importer » son portefeuille. Dans l'heure, tous ses ETH, achetés sur Coinhouse en plusieurs années, ont été transférés vers une adresse inconnue.\n\n` +
+        `${victim.name} (${city}) a installé « ${appName} », présentée comme un portefeuille mobile sécurisé, et y a saisi sa phrase de récupération pour « importer » son portefeuille. Une heure plus tard, la quasi-totalité de ses ETH, achetés sur Coinhouse depuis ${sinceBuy}, a été transférée vers une adresse inconnue.\n\n` +
         `Le voleur ne s'est pas contenté de swaps. Il a déposé une partie des fonds comme liquidité dans un pool Uniswap : en échange, le pool crée des parts (jetons LP), qui se transfèrent comme n'importe quel jeton. Les parts peuvent être cédées à une autre adresse, qui retire la liquidité et désigne librement le destinataire des actifs. Les montants retirés diffèrent des montants déposés, car le prix du pool a bougé.\n\n` +
-        `Objectifs : suivre l'ETH volé jusqu'au pool, compter les parts LP créées et suivre leur cession, identifier qui a financé le gas de l'adresse « propre », lire le retrait de liquidité (argument « to », montants), puis identifier l'exchange et l'adresse de dépôt à requérir.`,
+        `Objectifs : suivre l'ETH volé jusqu'au pool, compter les parts LP créées et suivre leur cession, identifier qui a financé le gas de l'adresse « propre », lire le retrait de liquidité (argument « to », montants), puis séparer les deux sorties — l'ETH vers un exchange à requérir, les USDC laissés sur une adresse que l'émetteur peut encore geler.`,
       evidence: [
         {
           id: 'plainte', type: 'plainte', title: 'Procès-verbal de plainte (extrait)', date: w.at(2 * 24), author: victim.name,
           body:
-            `« J'ai téléchargé l'application depuis une publicité. Elle m'a demandé mes douze mots pour retrouver mon portefeuille, ce que j'ai fait. Le soir même, mon solde était à zéro.\n\n` +
+            `« J'ai téléchargé l'application depuis une publicité. Elle m'a demandé mes douze mots pour retrouver mon portefeuille, ce que j'ai fait. Une heure plus tard à peine, le ${d(theft.time)}, mon solde était presque à zéro.\n\n` +
             `Mon adresse : ${A(w, V)}\n` +
             `La transaction que je n'ai jamais faite : ${theft.hash}\n\n` +
             `Je n'ai jamais donné mes mots à personne d'autre. »`,
@@ -145,7 +193,7 @@ export const defiLpBlanchiment: ScenarioTemplate = {
           prompt: 'Quelle adresse reçoit les ETH volés ?',
           answer: [T],
           hint: 'Ouvrez la transaction citée dans la plainte.',
-          explanation: `La transaction ${theft.hash.slice(0, 18)}…, signée avec la clé de la victime (dérivée de la phrase de récupération volée), envoie ${amt(S, 'ETH')} à ${A(w, T)}. Le voleur y laissera ${amt(tLeftEth, 'ETH')} et le reliquat d'USDC du swap.`,
+          explanation: `La transaction ${theft.hash.slice(0, 18)}…, signée avec la clé de la victime (dérivée de la phrase de récupération volée), envoie ${amt(S, 'ETH')} à ${A(w, T)}. Cette adresse de collecte n'a pas reçu que les fonds ${g('du plaignant', 'de la plaignante')} : d'autres victimes de la fausse application y ont été drainées, et le voleur en dépense une partie ${spendTxt}. Attention aussi aux micro-dépôts d'adresses sosies (empoisonnement), à ignorer.`,
         },
         {
           id: 'o2', type: 'amount', points: 9, unit: 'LP', tolerance: 0.01,
@@ -204,43 +252,56 @@ export const defiLpBlanchiment: ScenarioTemplate = {
         },
         {
           id: 'o9', type: 'entity', points: 9,
-          prompt: 'Sur quel exchange l\'adresse destinataire du retrait dépose-t-elle les fonds ?',
+          prompt: 'Sur quel exchange l\'ETH retiré du pool est-il déposé ?',
           answer: [exKey],
-          hint: 'Suivez les sorties de l\'adresse qui a reçu les actifs du pool : ETH et USDC partent vers la même adresse, balayée vers un hot wallet étiqueté.',
-          explanation: `L'ETH et les USDC partent vers une même adresse de dépôt de ${ex.entity.name}, balayée vers son hot wallet. ${procedureFor(ex.entity)}`,
+          hint: 'Suivez la sortie d\'ETH de l\'adresse qui a reçu les actifs du pool : elle part vers une adresse de dépôt balayée vers un hot wallet étiqueté. Les USDC, eux, ne bougent pas vers l\'exchange.',
+          explanation: `Seul l'ETH part vers une adresse de dépôt ${de(ex.entity.name)}, balayée vers son hot wallet ; les USDC, gelables, restent sur une adresse contrôlée (voir plus loin). ${procedureFor(ex.entity)}`,
         },
         {
           id: 'o10', type: 'address', points: 9,
-          prompt: 'Quelle adresse de dépôt citer dans la réquisition ?',
+          prompt: 'Quelle adresse de dépôt citer dans la réquisition à cet exchange ?',
           answer: [deposit],
-          hint: 'C\'est l\'adresse qui reçoit les deux dépôts, pas le hot wallet.',
-          explanation: `${A(w, deposit)} reçoit ${amt(rem.amountA, 'ETH')} (${depEth.tx.hash.slice(0, 12)}…) puis ${amt(rem.amountB, 'USDC')} (${depUsdc.tx.hash.slice(0, 12)}…). La réquisition à ${ex.entity.name} vise l'identité du titulaire, les adresses IP de connexion, l'historique du compte et le gel du solde.`,
+          hint: 'C\'est l\'adresse qui reçoit l\'ETH, pas le hot wallet.',
+          explanation: `${A(w, deposit)} reçoit ${amt(rem.amountA, 'ETH')} (${depEth.tx.hash.slice(0, 12)}…). La réquisition à ${ex.entity.name} vise l'identité du titulaire, les adresses IP de connexion, l'historique du compte et le gel du solde.`,
         },
         {
-          id: 'o11', type: 'address', points: 9,
-          prompt: 'Quelle adresse a fourni le gas de l\'adresse « propre » qui a reçu les parts LP ?',
-          answer: [G],
-          hint: 'Regardez le tout premier flux entrant de l\'adresse qui reçoit les parts LP (outil de premier financement ou liste des transactions par date).',
-          explanation: `${A(w, G)} verse ${amt(gas.transfers[0].value, 'ETH')} à l'adresse « propre » le ${d(gas.time)}, avant la cession des parts LP : sans ce gas, elle n'aurait pas pu signer le retrait de liquidité. Ce tiers n'apparaît nulle part ailleurs dans le flux : complice, prête-nom ou service rémunéré, il relie l'opération à un autre portefeuille.`,
+          id: 'o11', type: 'address', points: 10,
+          prompt: 'Quelle adresse détient encore les USDC retirés du pool, et peut faire l\'objet d\'un gel ?',
+          answer: [R],
+          hint: 'Dans le retrait de liquidité, l\'ETH et les USDC vont d\'abord à la même adresse ; suivez ensuite uniquement les USDC. L\'ETH part sur l\'exchange, les USDC s\'arrêtent ailleurs.',
+          explanation: `${A(w, R)} reçoit ${amt(rem.amountB, 'USDC')} le ${d(usdcHold.time)} (${usdcHold.hash.slice(0, 12)}…) et les y conserve : c'est le seul endroit où des fonds issus du vol restent immobilisés et gelables. Ne pas confondre avec l'adresse de dépôt de l'exchange, qui ne reçoit que l'ETH.`,
         },
         {
-          id: 'o12', type: 'entity', points: 9,
-          prompt: 'De quelle plateforme proviennent les ETH de ce tiers ?',
+          id: 'o12', type: 'choice', points: 9,
+          prompt: 'Quelle démarche permet de bloquer ces USDC encore détenus ?',
+          hint: 'Qui a le pouvoir d\'agir sur un solde d\'USDC détenu par une adresse auto-hébergée ?',
+          ...choice(r,
+            `Une réquisition à ${circle.name}, émetteur de l'USDC, qui peut inscrire l'adresse sur la liste noire du contrat tant que les jetons s'y trouvent`,
+            [
+              'Une réquisition à Uniswap, qui peut annuler le retrait de liquidité',
+              'Une réquisition à l\'exchange où l\'ETH a été déposé, qui bloque aussi les USDC',
+              'Aucune : des USDC sur une adresse auto-hébergée ne peuvent jamais être gelés',
+            ]),
+          explanation: `L'USDC est un stablecoin centralisé : ${circle.name} peut, sur réquisition motivée, inscrire ${A(w, R).slice(0, 12)}… sur la liste noire du contrat et figer les ${amt(rem.amountB, 'USDC')} tant qu'ils y demeurent. Uniswap est un protocole sans opérateur ; l'exchange ne détient que l'ETH ; et un jeton centralisé reste gelable même sur une adresse auto-hébergée. D'où l'urgence : la demande doit partir avant que le voleur ne déplace les USDC.`,
+        },
+        {
+          id: 'o13', type: 'entity', points: 8,
+          prompt: 'De quelle plateforme proviennent les ETH du tiers qui a financé le gas de l\'adresse « propre » ?',
           answer: [exGKey],
-          hint: 'Remontez le premier financement du tiers lui-même.',
-          explanation: `${A(w, G).slice(0, 12)}… a été approvisionné par un retrait de ${amt(gW.transfers[0].value, 'ETH')} depuis ${exG.entity.name} le ${d(gW.time)}. Ce retrait est rattaché à un compte client identifié : une seconde réquisition, à ${exG.entity.name}, peut révéler l'identité de la personne qui a financé le gas. ${procedureFor(exG.entity)}`,
+          hint: 'Trouvez d\'abord l\'adresse qui a envoyé le gas, puis remontez son propre premier financement.',
+          explanation: `L'adresse « propre » ${A(w, P).slice(0, 10)}… a reçu son gas de ${A(w, G)} (${amt(gas.transfers[0].value, 'ETH')}, le ${d(gas.time)}), lui-même approvisionné par un retrait de ${amt(gW.transfers[0].value, 'ETH')} depuis ${exG.entity.name} le ${d(gW.time)}. Ce tiers n'apparaît nulle part ailleurs dans le flux : complice ou prête-nom. Une seconde réquisition, à ${exG.entity.name}, peut révéler son identité. ${procedureFor(exG.entity)}`,
         },
       ],
       truth: {
-        path: [theft.id, sw.tx.id, add.tx.id, gW.id, gas.id, lpMove.id, rem.tx.id, depEth.tx.id, ...(depEth.sweep ? [depEth.sweep.id] : []), depUsdc.tx.id, ...(depUsdc.sweep ? [depUsdc.sweep.id] : [])],
-        addresses: [T, P, Q, deposit, G],
+        path: [theft.id, sw.tx.id, add.tx.id, gW.id, gas.id, lpMove.id, rem.tx.id, depEth.tx.id, ...(depEth.sweep ? [depEth.sweep.id] : []), usdcHold.id],
+        addresses: [T, P, Q, deposit, G, R],
         debrief:
           `1. Avec la phrase de récupération saisie dans « ${appName} », le voleur transfère ${amt(S, 'ETH')} de ${A(w, V)} vers ${A(w, T)}.\n` +
           `2. Il convertit ${amt(sA, 'ETH')} en ${amt(sw.amountOut, 'USDC')} via 1inch (ETH → USDT → USDC, deux pools), puis dépose ${amt(a, 'ETH')} et ${amt(add.amountB, 'USDC')} dans le pool ETH/USDC d'Uniswap : ${amt(lp, 'LP')} parts sont créées à son profit.\n` +
           `3. Un tiers, ${A(w, G)}, approvisionné par ${exG.entity.name}, envoie du gas à l'adresse neuve ${A(w, P)}, qui reçoit ensuite les parts LP.\n` +
           `4. Cette adresse retire la liquidité vers ${A(w, Q)} : ${amt(rem.amountA, 'ETH')} et ${amt(rem.amountB, 'USDC')}, répartition déplacée par l'évolution du prix.\n` +
-          `5. Les deux actifs sont déposés sur ${ex.entity.name}, adresse ${A(w, deposit)}.\n\n` +
-          `À retenir : une part LP est un jeton qui représente une créance sur un pool. On la suit comme n'importe quel jeton : création depuis l'adresse nulle au dépôt, transferts, destruction au retrait. Le retrait peut viser une autre adresse que le signataire (argument « to ») et ne rend pas les montants déposés. Enfin, une adresse « propre » doit payer son gas : son premier financement est souvent le maillon qui relie l'opération à une personne identifiable.`,
+          `5. L'ETH est déposé sur ${ex.entity.name} (adresse ${A(w, deposit)}), mais les ${amt(rem.amountB, 'USDC')} restent sur ${A(w, R)} : encore gelables par ${circle.name} tant qu'ils y demeurent.\n\n` +
+          `À retenir : une part LP est un jeton qui représente une créance sur un pool. On la suit comme n'importe quel jeton : création depuis l'adresse nulle au dépôt, transferts, destruction au retrait. Le retrait peut viser une autre adresse que le signataire (argument « to ») et ne rend pas les montants déposés. Une adresse « propre » doit payer son gas : son premier financement relie souvent l'opération à une personne identifiable. Enfin, tant que le voleur n'a pas déplacé les USDC, l'émetteur peut les figer : la demande de gel à ${circle.name} est une urgence, au même titre que la réquisition à l'exchange qui détient l'ETH. L'adresse de collecte mêle les fonds de plusieurs victimes et des dépenses personnelles : il faut trier.`,
       },
       hints: [
         'Partez de la transaction de la plainte, puis ouvrez les transactions du voleur : un appel unoswap, puis un addLiquidityETH.',

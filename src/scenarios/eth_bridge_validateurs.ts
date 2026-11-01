@@ -3,9 +3,18 @@ import { bridge, coinjoin, dex, exchange, privacyPool, HOUR, DAY, type BridgeKit
 import { aggregator, safeExec } from '../engine/defi'
 import { fromUsd, roundAsset, usd } from '../engine/chains'
 import type { ScenarioTemplate } from './types'
-import { A, amt, choice, fakeHandle, fakePerson, fmtDate, procedureFor } from './util'
+import { A, amt, choice, de, fakeHandle, fakePerson, fmtDate, procedureFor } from './util'
+import { personalSpending, twinTransfers } from '../engine/realism'
 
 const MIN = 60
+/** Délai lisible : « 35 min », « 2 h 10 », « 5 h ». */
+const delai = (s: number) => {
+  const m = Math.round(s / 60)
+  if (m < 60) return `${m} min`
+  const h = Math.floor(m / 60)
+  const mm = m % 60
+  return mm ? `${h} h ${String(mm).padStart(2, '0')}` : `${h} h`
+}
 const r8 = (v: number) => Math.round(v * 1e8) / 1e8
 const r2 = (v: number) => Math.round(v * 100) / 100
 const usdFmt = (v: number) => `${Math.round(v).toLocaleString('fr-FR')} $`
@@ -140,12 +149,17 @@ export const ethBridgeValidateurs: ScenarioTemplate = {
     const B = w.addr('eth', { entity: hk })
     const btcEth = r.int(15, 30) * 100
     const btcHopT = ppHopT + Math.round(r.float(1, 3) * DAY)
-    const hopBtc = w.transfer({ time: btcHopT, from: H0, to: B, value: btcEth + 0.3, asset: 'ETH' })
+    const half = Math.round(btcEth * r.float(0.4, 0.6) / 10) * 10
+    // Transferts jumeaux de la seconde relais (même montant que le premier envoi au bridge, même
+    // demi-heure), payés sur les fonds volés : la relais reçoit donc de quoi les couvrir.
+    const twinVals = Array.from({ length: 3 }, () => roundAsset('ETH', half * (1 + r.float(-0.004, 0.004))))
+    const twinsBTotal = roundAsset('ETH', twinVals.reduce((s, v) => s + v, 0))
+    const hopBtc = w.transfer({ time: btcHopT, from: H0, to: B, value: roundAsset('ETH', btcEth + 0.3 + twinsBTotal), asset: 'ETH' })
     const reserve = br.contract('btc')
     w.sweepInto(reserve, r8(fromUsd('BTC', usd('ETH', btcEth)) * r.float(1.6, 2.2)), T - Math.round(r.float(3, 8) * DAY))
     const Xb = w.addr('btc', { entity: hk, kind: 'p2wpkh' })
-    const half = Math.round(btcEth * r.float(0.4, 0.6) / 10) * 10
     const b1 = bridgeToBtc(w, br, nonce, { from: B, value: half, time: btcHopT + Math.round(r.float(1, 5) * HOUR), recipient: Xb })
+    const twinsB = twinVals.map((v) => w.transfer({ time: b1.outTx.time + r.int(-25, 25) * MIN, from: B, to: w.addr('eth', { entity: hk }), value: v, asset: 'ETH' }))
     const b2 = bridgeToBtc(w, br, nonce, { from: B, value: btcEth - half, time: b1.outTx.time + Math.round(r.float(2, 9) * HOUR), recipient: Xb })
     const btcIn = r8(b1.received + b2.received)
 
@@ -154,7 +168,7 @@ export const ethBridgeValidateurs: ScenarioTemplate = {
     const m = Math.max(3, Math.floor((btcIn * 0.85) / (D + PREMIX_EXTRA)))
     const premix = w.addrs('btc', m, { entity: hk, kind: 'p2wpkh' })
     const toxic = w.addr('btc', { entity: hk, kind: 'p2wpkh' })
-    const splitTx = w.utxoTx({ time: splitT, from: [Xb], to: premix.map((p) => ({ address: p, value: r8(D + PREMIX_EXTRA) })), change: toxic, fee: w.estimateFee('btc', 2, m + 1), spendAll: true, method: 'découpage pré-mix' })
+    const splitTx = w.utxoTx({ time: splitT, from: [Xb], to: premix.map((p) => ({ address: p, value: r8(D + PREMIX_EXTRA) })), change: toxic, fee: w.estimateFee('btc', 2, m + 1), spendAll: true, method: 'découpage avant mixage' })
     const nRounds = Math.ceil(m / 8)
     const groups: string[][] = Array.from({ length: nRounds }, () => [])
     premix.forEach((p, i) => groups[i % nRounds].push(p))
@@ -165,6 +179,42 @@ export const ethBridgeValidateurs: ScenarioTemplate = {
       cjs.push(coinjoin(w, { chain: 'btc', time: Math.round(tc), denom: D, participants: grp.map((p) => ({ from: p, changeTo: null })), extra, coordinatorFee: r8(0.00002 * (grp.length + extra)) }).tx)
       tc += r.float(2, 9) * HOUR
     }
+
+    // ── Fausses pistes autour du flux : branches mortes et transferts jumeaux ──
+    // L'attaquant parque de petites sommes sur des adresses dormantes (branches
+    // sans issue) et, à l'heure de ses mouvements réels, en envoie d'autres de
+    // montant quasi identique vers des adresses sans suite (pièges au corrélateur).
+    const B2 = w.addr('eth', { entity: hk })
+    let decoyBranchEth = 0
+    let nEntamees = 0
+    const deadEnd = (from: string, perEth: number, n: number, t0: number) => {
+      let t = t0
+      for (let i = 0; i < n; i++) {
+        const d = w.addr('eth', { entity: hk })
+        const v = roundAsset('ETH', perEth * r.float(0.8, 1.2))
+        if (i > 0) t += r.int(2, 9) * HOUR
+        w.transfer({ time: t, from, to: d, value: v, asset: 'ETH' })
+        decoyBranchEth += v
+        // Suite éventuelle, toujours postérieure à l'arrivée des fonds sur la branche
+        if (r.chance(0.6)) {
+          nEntamees++
+          w.transfer({ time: t + r.int(6, 30) * HOUR, from: d, to: w.addr('eth'), value: roundAsset('ETH', v * r.float(0.2, 0.5)), asset: 'ETH' })
+        }
+      }
+    }
+    deadEnd(H0, r.float(50, 110), 4, discT + r.int(6, 24) * HOUR)
+    decoyBranchEth = roundAsset('ETH', decoyBranchEth)
+    const twinsH0 = twinTransfers(w, H0, { value: exAmt, time: hopEx.time, n: 3, asset: 'ETH' })
+    const twinsH0Total = roundAsset('ETH', twinsH0.txs.reduce((s, t) => s + t.transfers[0].value, 0))
+    // Portefeuille plus ancien de l'attaquant, qui a payé des prestataires techniques avant les faits
+    const b2Shops = [
+      w.customEntity({ name: 'Nimbra Cloud (serveurs VPS)', category: 'merchant', known: true, description: 'Hébergeur de serveurs privés virtuels (fictif) acceptant l\'ETH : conserve l\'e-mail du client, les adresses IP de connexion et les serveurs loués.' }),
+      w.customEntity({ name: 'DomainWave (noms de domaine)', category: 'merchant', known: true, description: 'Bureau d\'enregistrement de noms de domaine (fictif) payable en crypto-actifs : conserve les domaines achetés et les données de contact.' }),
+    ]
+    const b2Spend = personalSpending(w, B2, { start: T - 40 * DAY, end: T - 2 * DAY, n: 4, merchants: b2Shops, asset: 'ETH' })
+    const b2ShopNames = [...new Set(b2Spend.addresses.map((a) => w.get(a).entityId).filter((e): e is string => !!e).map((e) => w.entities.get(e)!.name.replace(/ \(.*\)$/, '')))]
+    const toB2 = roundAsset('ETH', r.float(20, 60))
+    w.transfer({ time: discT + r.int(1, 3) * DAY, from: H0, to: B2, value: toB2, asset: 'ETH' })
 
     // ── Bruit ────────────────────────────────────────────────────────────────
     uni.noise(30, T - 2 * DAY, T + 10 * DAY, [['ETH', 'USDC'], ['ETH', 'USDT']])
@@ -181,9 +231,19 @@ export const ethBridgeValidateurs: ScenarioTemplate = {
     // Leurre du forum : un retrait de 100 ETH du pool vers une adresse sans lien, peu après les dépôts
     const decoyAddr = w.addr('eth')
     const decoyW = pp.withdraw(decoyAddr, POOL_DENOM, ppDeps[nDep - 1].time + r.int(30, 150) * MIN, true)
+    // Le pool de 100 ETH reste actif autour de ce retrait : d'autres utilisateurs déposent et retirent
+    pp.noise(POOL_DENOM, r.int(5, 8), decoyW.time - 8 * HOUR, decoyW.time + 8 * HOUR)
+    const ppOthers = w.txsOf(pp.pool(POOL_DENOM)).filter((t) => Math.abs(t.time - decoyW.time) <= 12 * HOUR && t.id !== decoyW.id && !ppDeps.includes(t)).length
+    const decoyDelayMin = Math.round((decoyW.time - ppDeps[nDep - 1].time) / MIN)
+    const decoyDelayTxt = decoyDelayMin < 60 ? `${decoyDelayMin} minutes` : decoyDelayMin < 90 ? 'une heure' : `${Math.round(decoyDelayMin / 60)} heures`
 
     // ── Réponses ─────────────────────────────────────────────────────────────
     const held = roundAsset('ETH', w.balanceOf(H0, 'ETH'))
+    // Décomposition du solde, lue dans le monde (entrées hors vol et conversion : gas et messages)
+    const gasIn = roundAsset('ETH', gasTx.transfers.filter((x) => x.to === H0).reduce((s, x) => s + x.value, 0))
+    const msgIn = roundAsset('ETH', w.txsOf(H0).filter((t) => t.method === 'transfer + message').reduce((s, t) => s + w.flowIn(t, H0).reduce((a, f) => a + f.value, 0), 0))
+    const gasAgoH = (T - gasTx.time) / HOUR
+    const gasAgo = gasAgoH < 48 ? `${Math.round(gasAgoH)} heures plus tôt` : `${Math.round(gasAgoH / 24)} jours plus tôt`
     const exName = ex.entity.name
     const totalEth = roundAsset('ETH', stolenEth + swapOut)
     const nCj = cjs.length
@@ -203,7 +263,7 @@ export const ethBridgeValidateurs: ScenarioTemplate = {
             `Les dépôts et retraits du bridge sont suspendus. Nous travaillons avec les autorités et les plateformes pour bloquer les fonds. L'attaquant est invité à nous contacter.`,
         },
         {
-          id: 'postmortem', type: 'rapport', title: 'Rapport d\'incident technique (version transmise aux enquêteurs)', date: discT + r.int(2, 5) * DAY, author: `${cto.name}, directeur technique de Nexus`,
+          id: 'postmortem', type: 'rapport', title: 'Rapport d\'incident technique (version transmise aux enquêteurs)', date: discT + r.int(2, 5) * DAY, author: `${cto.name}, ${cto.g('directeur technique', 'directrice technique')} de Nexus`,
           body:
             `• Quatre des neuf clés de validateurs étaient opérées par nos équipes sur la même infrastructure. Un ingénieur a reçu une offre d'emploi très attractive ; le document « d'offre » piégé a compromis son poste, puis nos serveurs de signature.\n` +
             `• La cinquième signature provient d'un validateur partenaire : une autorisation temporaire, accordée lors d'un pic de charge, permettait à notre infrastructure de signer en son nom. Elle n'avait jamais été révoquée.\n` +
@@ -224,7 +284,7 @@ export const ethBridgeValidateurs: ScenarioTemplate = {
         {
           id: 'forum', type: 'forum', title: 'Message d\'un « détective » sur un réseau social', date: decoyW.time + r.int(2, 10) * HOUR, author: `@${handle}`,
           body:
-            `Je tiens le pirate de Nexus : une heure après ses derniers dépôts de 100 ETH dans Tornado, 100 ETH ressortent vers ${A(w, decoyAddr)}. Même montant, même heure, c'est lui. Il faut geler cette adresse !`,
+            `Je tiens le pirate de Nexus : ${decoyDelayTxt} après ses derniers dépôts de 100 ETH dans Tornado, 100 ETH ressortent vers ${A(w, decoyAddr)}. Même montant, même heure, c'est lui. Il faut geler cette adresse !`,
         },
       ],
       seeds: [vault],
@@ -234,7 +294,7 @@ export const ethBridgeValidateurs: ScenarioTemplate = {
           prompt: 'Quelle est l\'adresse de l\'attaquant, bénéficiaire des retraits frauduleux ?',
           answer: [H0],
           hint: 'Parmi les sorties du contrat de garde à la date indiquée par le communiqué, deux retraits sont sans commune mesure avec les autres.',
-          explanation: `${A(w, H0)} reçoit les deux retraits du ${fmtDate(T)}, exécutés par elle-même (c'est elle qui signe la transaction et paie le gas) avec les signatures des validateurs. Son gas venait d'un retrait de 1 ETH de Tornado Cash quelques jours plus tôt (${gasTx.hash.slice(0, 12)}…) : préparation classique pour ne laisser aucune origine identifiable.`,
+          explanation: `${A(w, H0)} reçoit les deux retraits du ${fmtDate(T)}, exécutés par elle-même (c'est elle qui signe la transaction et paie le gas) avec les signatures des validateurs. Son gas venait d'un retrait du pool de 1 ETH de Tornado Cash (${amt(gasIn, 'ETH')} reçus, déduction faite de la commission du relayeur), ${gasAgo} (${gasTx.hash.slice(0, 12)}…) : préparation classique pour ne laisser aucune origine identifiable.`,
         },
         {
           id: 'o2', type: 'amount', points: 6, unit: 'ETH', tolerance: 0.001,
@@ -289,21 +349,21 @@ export const ethBridgeValidateurs: ScenarioTemplate = {
           prompt: 'Quelle est la dénomination (en ETH) du pool utilisé ?',
           answer: POOL_DENOM,
           hint: 'Lisez l\'étiquette du contrat qui reçoit les dépôts, ou le montant de chacun.',
-          explanation: `Pool de ${POOL_DENOM} ETH, la plus grosse dénomination de Tornado Cash : chaque dépôt est indiscernable des autres. Le message du forum illustre l'erreur à éviter : un retrait de 100 ETH « une heure après » ne prouve rien, des dizaines d'utilisateurs ayant déposé et retiré la même dénomination dans la même fenêtre. Seules des erreurs opérationnelles (adresse de retrait réutilisée, regroupement des retraits) permettent parfois un rapprochement, à présenter comme une présomption.`,
+          explanation: `Pool de ${POOL_DENOM} ETH, la plus grosse dénomination de Tornado Cash : chaque dépôt est indiscernable des autres. Le message du forum illustre l'erreur à éviter : un retrait de 100 ETH « ${decoyDelayTxt} après » ne prouve rien : d'autres utilisateurs déposent et retirent la même dénomination (le pool de 100 ETH enregistre ${ppOthers} autres opérations dans les 12 heures qui entourent ce retrait), et rien ne relie l'adresse de retrait aux dépôts de l'attaquant. Seules des erreurs opérationnelles (adresse de retrait réutilisée, regroupement des retraits) permettent parfois un rapprochement, à présenter comme une présomption.`,
         },
         {
           id: 'o9', type: 'address', points: 10,
           prompt: 'Sur quelle adresse Bitcoin arrivent les fonds passés par ArcBridge ?',
           answer: [Xb],
           hint: 'Une seconde adresse relais envoie de l\'ETH vers le contrat d\'ArcBridge : l\'événement du bridge (destinataire, nonce) ouvre la transaction d\'arrivée sur Bitcoin.',
-          explanation: `${A(w, B).slice(0, 12)}… envoie ${amt(half, 'ETH')} puis ${amt(btcEth - half, 'ETH')} vers ArcBridge ; les deux arrivées (${btc8(b1.received)} et ${btc8(b2.received)}) créditent ${A(w, Xb)}. Les fonds y sont découpés en ${m} UTXO de ${btc8(D)} + marge (rendu de ${btc8(splitTx.outputs.find((o) => o.address === toxic)!.value)}), puis engagés dans ${nCj > 1 ? `${nCj} CoinJoin` : 'un CoinJoin'}. Au-delà, sans erreur post-mix, la piste s'arrête : on documente la sortie vers le CoinJoin et on surveille le rendu non mixé.`,
+          explanation: `${A(w, B).slice(0, 12)}… envoie ${amt(half, 'ETH')} puis ${amt(btcEth - half, 'ETH')} vers ArcBridge ; les deux arrivées (${btc8(b1.received)} et ${btc8(b2.received)}) créditent ${A(w, Xb)}. Dans la même demi-heure que le premier envoi, ${twinsB.length} transferts de montant quasi identique (${twinsB.map((t) => amt(t.transfers[0].value, 'ETH')).join(', ')}) partent du même relais vers des adresses neuves restées immobiles (${amt(twinsBTotal, 'ETH')} au total, à signaler) : ce ne sont pas des passages au bridge, aucun événement ne les relie à Bitcoin. Sur ${A(w, Xb).slice(0, 12)}…, les fonds sont découpés en ${m} UTXO de ${btc8(D)} + marge (rendu de ${btc8(splitTx.outputs.find((o) => o.address === toxic)!.value)}), puis engagés dans ${nCj > 1 ? `${nCj} CoinJoin` : 'un CoinJoin'}. Au-delà, sans erreur post-mix, la piste s'arrête : on documente la sortie vers le CoinJoin et on surveille le rendu non mixé.`,
         },
         {
           id: 'o10', type: 'entity', points: 8,
           prompt: 'Sur quelle plateforme régulée l\'attaquant commet-il l\'erreur de déposer des fonds ?',
           answer: [exKey],
-          hint: 'Après la découverte, l\'adresse de l\'attaquant envoie quelques centaines d\'ETH à une adresse relais, qui les dépose aussitôt sur une adresse étiquetée.',
-          explanation: `${A(w, E1).slice(0, 12)}… reçoit ${amt(exAmt, 'ETH')} de l'attaquant et dépose ${amt(exDepAmt, 'ETH')} sur une adresse de dépôt de ${exName}, balayée vers son portefeuille chaud. Un seul saut depuis une adresse publiquement signalée : l'alerte de conformité de la plateforme est quasi certaine. ${procedureFor(ex.entity)} Le compte est gelé ; la saisie pénale porte sur la créance du titulaire envers la plateforme, et son KYC devient une piste d'identification.`,
+          hint: 'Après la découverte, l\'adresse de l\'attaquant envoie à quelques minutes d\'intervalle plusieurs montants voisins de quelques centaines d\'ETH : une seule des adresses destinataires dépose ensuite sur une adresse étiquetée.',
+          explanation: `${A(w, E1).slice(0, 12)}… reçoit ${amt(exAmt, 'ETH')} de l'attaquant et dépose ${amt(exDepAmt, 'ETH')} ${delai(exRes.tx.time - hopEx.time)} plus tard sur une adresse de dépôt ${de(exName)}, balayée vers son portefeuille chaud. Les ${twinsH0.txs.length} autres envois de montant quasi identique, dans la même demi-heure, aboutissent sur des adresses neuves qui n'ont plus bougé : ce sont des leurres. Un seul saut depuis une adresse publiquement signalée : l'alerte de conformité de la plateforme est quasi certaine. ${procedureFor(ex.entity)} Le compte peut être gelé ; la saisie pénale porte sur la créance du titulaire envers la plateforme, et son KYC devient une piste d'identification.`,
         },
         {
           id: 'o11', type: 'address', points: 8,
@@ -316,26 +376,27 @@ export const ethBridgeValidateurs: ScenarioTemplate = {
           id: 'o12', type: 'amount', points: 10, unit: 'ETH', tolerance: 0.005,
           prompt: 'Combien d\'ETH restent sur l\'adresse de l\'attaquant à la fin de la période étudiée ?',
           answer: held,
-          hint: 'Solde de l\'adresse principale : ETH volé + ETH issu de la conversion + apports, moins les envois vers les trois adresses relais.',
-          explanation: `${amt(stolenEth, 'ETH')} volés + ${amt(roundAsset('ETH', swapOut), 'ETH')} issus de l'USDC + 1 ETH de gas et quelques messages entrants, moins ${amt(exAmt, 'ETH')} (plateforme), ${amt(nDep * POOL_DENOM + 0.5, 'ETH')} (pool) et ${amt(btcEth + 0.3, 'ETH')} (Bitcoin) : il reste ${amt(held, 'ETH')} (${usdFmt(usd('ETH', held))}), soit l'essentiel du butin. Ces fonds sont identifiés, immobiles et signalés : toute sortie vers un service régulé déclenchera une alerte. Comme dans l'affaire Ronin, l'attaquant blanchit lentement, par tranches.`,
+          hint: 'Solde de l\'adresse principale : ETH volé + ETH issu de la conversion + apports, moins tous les envois sortants (relais, leurres, ancien portefeuille).',
+          explanation: `${amt(stolenEth, 'ETH')} volés + ${amt(roundAsset('ETH', swapOut), 'ETH')} issus de l'USDC + ${amt(gasIn, 'ETH')} de gas et ${amt(msgIn, 'ETH')} de messages entrants, moins ${amt(exAmt, 'ETH')} (relais vers la plateforme), ${amt(nDep * POOL_DENOM + 0.5, 'ETH')} (relais du pool), ${amt(hopBtc.transfers[0].value, 'ETH')} (relais du bridge, jumeaux compris), ${amt(twinsH0Total, 'ETH')} (${twinsH0.txs.length} jumeaux de l'envoi vers la plateforme), ${amt(decoyBranchEth, 'ETH')} (4 adresses de leurre, dont ${nEntamees === 0 ? 'aucune n\'est entamée' : nEntamees === 1 ? 'une seule est entamée' : `${nEntamees} sont à peine entamées`}) et ${amt(toB2, 'ETH')} (ancien portefeuille ${A(w, B2).slice(0, 12)}…) : il reste ${amt(held, 'ETH')} (${usdFmt(usd('ETH', held))}), soit environ ${Math.round((held / totalEth) * 100)} % de l'ETH détenu après la conversion. Attention aux pièges : plusieurs sorties de même montant, à la même heure que les mouvements réels, partent vers des adresses sans suite — ne les comptez pas comme des étapes du flux. Ces fonds restants sont identifiés, immobiles et signalés : toute sortie vers un service régulé déclenchera une alerte. Comme dans l'affaire Ronin, l'attaquant blanchit lentement, par tranches.`,
         },
       ],
       truth: {
         path: [gasTx.id, d1.id, d2.id, sw.tx.id, bounty.id, hopEx.id, exRes.tx.id, ...(exRes.sweep ? [exRes.sweep.id] : []), hopPp.id, ...ppDeps.map((x) => x.id), hopBtc.id, b1.outTx.id, b1.inTx.id, b2.outTx.id, b2.inTx.id, splitTx.id, ...cjs.map((x) => x.id)],
         addresses: [H0, E1, exRes.deposit, P, B, Xb, toxic, ...premix],
         debrief:
-          `1. Préparation : ${A(w, H0)} reçoit 1 ETH de Tornado Cash. Les clés de 5 validateurs sur 9 ont été obtenues : quatre par un faux recrutement visant un ingénieur, la cinquième par une délégation de signature jamais révoquée.\n` +
+          `1. Préparation : ${A(w, H0)} reçoit son gas du pool de 1 ETH de Tornado Cash. Les clés de 5 validateurs sur 9 ont été obtenues : quatre par un faux recrutement visant un ingénieur, la cinquième par une délégation de signature jamais révoquée.\n` +
           `2. Vol, le ${fmtDate(T)} : ${amt(stolenEth, 'ETH')} et ${amt(stolenUsdc, 'USDC')} (${musd(stolenUsd)}) sortent du contrat de garde par deux appels porteurs de 5 signatures.\n` +
           `3. ${Math.round((swapT - d2.time) / MIN)} minutes plus tard, l'USDC est converti en ${amt(roundAsset('ETH', swapOut), 'ETH')} via 1inch, hors de portée d'un gel de Circle. Le vol n'est découvert que ${discDays} jours après.\n` +
           `4. Blanchiment par tranches : ${nDep} dépôts de ${POOL_DENOM} ETH dans Tornado Cash depuis ${A(w, P).slice(0, 12)}… ; ${amt(btcEth, 'ETH')} vers Bitcoin par ArcBridge (arrivée ${A(w, Xb).slice(0, 14)}…), découpés en ${m} UTXO puis mixés dans ${nCj} CoinJoin.\n` +
           `5. Erreur : ${amt(exDepAmt, 'ETH')} déposés chez ${exName} (${A(w, exRes.deposit).slice(0, 12)}…) via un seul relais : gel et saisie possibles.\n` +
-          `6. ${amt(held, 'ETH')} restent sur l'adresse de l'attaquant (${amt(totalEth, 'ETH')} détenus après conversion).\n\n` +
+          `6. Fausses pistes : ${twinsH0.txs.length} jumeaux de l'envoi vers la plateforme et ${twinsB.length} jumeaux du premier passage au bridge, 4 adresses de leurre et un faux « retrait » cité sur un réseau social ; aucun ne mène plus loin. ${amt(toB2, 'ETH')} rejoignent en revanche ${A(w, B2)}, un portefeuille plus ancien de l'attaquant ${b2ShopNames.length ? `qui avait payé ${b2ShopNames.join(' et ')} avant les faits : piste d'identification secondaire (réquisition au prestataire)` : 'au passé propre (paiements à des particuliers)'}.\n` +
+          `7. ${amt(held, 'ETH')} restent sur l'adresse de l'attaquant (${amt(totalEth, 'ETH')} détenus après conversion).\n\n` +
           `À retenir : un bridge à validateurs est aussi sûr que la garde de ses clés ; le contrat ne voit qu'un retrait régulier. Côté enquête, l'ordre des démarches compte : gel des stablecoins chez l'émetteur dans les minutes, signalement des adresses aux plateformes, puis suivi patient d'un attaquant qui blanchit par tranches. Les pools de confidentialité et les CoinJoin cassent le lien on-chain ; un rapprochement « même montant, même heure » n'est pas une preuve. Ce sont les erreurs opérationnelles (dépôt sur une plateforme régulée) qui ouvrent la voie à la saisie et à l'identification. L'attribution à un groupe étatique, enfin, ne se déduit pas des flux.`,
       },
       hints: [
         'Partez du contrat de garde : ses sorties du jour des faits désignent l\'attaquant.',
         'Dans l\'appel décodé d\'un retrait, la taille du paramètre « signatures » donne le nombre de validateurs (65 octets chacun).',
-        'L\'adresse de l\'attaquant alimente trois adresses relais, chacune avec un rôle : une plateforme, un pool, un bridge.',
+        'Parmi les nombreuses sorties de l\'adresse de l\'attaquant, trois adresses relais ont chacune un rôle : une plateforme, un pool, un bridge. Les autres (montants jumeaux, adresses dormantes) ne mènent nulle part.',
         'Sur la transaction de départ vers ArcBridge, l\'événement du bridge permet d\'ouvrir directement la transaction d\'arrivée sur Bitcoin.',
         'Le solde restant se lit dans l\'onglet de l\'adresse principale ; vérifiez-le en refaisant le compte des entrées et sorties.',
       ],

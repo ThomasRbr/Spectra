@@ -2,6 +2,7 @@ import { World } from '../engine/world'
 import { dex, exchange, DAY, HOUR } from '../engine/patterns'
 import { failedTx, splitPayment, weth } from '../engine/defi'
 import { roundAsset } from '../engine/chains'
+import { decoyBranches, dusting, personalSpending, priorHistory } from '../engine/realism'
 import type { ScenarioTemplate } from './types'
 import { A, amt, choice, fakeCity, fakePerson, fmtDate, procedureFor } from './util'
 
@@ -10,20 +11,20 @@ const MIN = 60
 export const evmSplitterInternes: ScenarioTemplate = {
   id: 'splitter-internes',
   title: 'La rançon partagée',
-  tagline: 'Une rançon payée à un contrat non vérifié, redistribuée en transactions internes à trois complices.',
+  tagline: 'Une rançon payée à un contrat non vérifié, redistribuée en transactions internes à trois complices, puis noyée parmi des jumeaux.',
   description:
-    'Un cabinet victime d\'un vol de données a payé une rançon en ETH à l\'adresse indiquée par les maîtres chanteurs. Cette adresse est un contrat non vérifié qui redistribue chaque paiement, dans la même transaction, entre trois complices selon des parts fixes. Lisez les transactions internes, le statut d\'une transaction échouée et la création du contrat, puis suivez la part du meneur à travers l\'enveloppe WETH jusqu\'à un exchange.',
+    'Un cabinet victime d\'un vol de données a payé une rançon en ETH à l\'adresse indiquée par les maîtres chanteurs. Cette adresse est un contrat non vérifié qui redistribue chaque paiement, dans la même transaction, entre trois complices selon des parts fixes. Lisez les transactions internes, le statut d\'une transaction échouée et la création du contrat, puis suivez la part du meneur à travers l\'enveloppe WETH, un swap, des transferts jumeaux et des branches sans issue, jusqu\'à un exchange.',
   difficulty: 3,
   chains: ['eth'],
   skills: ['evm', 'defi', 'tokens', 'dex', 'ransomware', 'exchange_id', 'requisition'],
-  estMinutes: 40,
+  estMinutes: 55,
   lessons: ['transactions-internes', 'calldata-selecteurs', 'jetons-enveloppes'],
   generate(seed) {
     const w = new World(seed)
     const r = w.rng
     const boss = fakePerson(r)
     const city = fakeCity(r)
-    const firm = `${r.pick(['Cabinet', 'Étude', 'Groupe'])} ${r.pick(['Arnaud & Associés', 'Lemaire Conseil', 'Vasseur Expertise', 'Hautecour Audit', 'Delorme Avocats'])}`
+    const firm = `Cabinet ${r.pick(['Arnaud & Associés', 'Lemaire Conseil', 'Vasseur Expertise', 'Hautecour Audit', 'Delorme Avocats'])}`
     const gang = r.pick(['Nocturne', 'Basalte', 'Kraal', 'Silence Team', 'Obsidienne'])
 
     // ── Acteurs ──────────────────────────────────────────────────────────────
@@ -85,11 +86,39 @@ export const evmSplitterInternes: ScenarioTemplate = {
     const wrapAmt = roundAsset('ETH', w.balanceOf(C1, 'ETH') * r.float(0.75, 0.9))
     const wrapTx = wk.wrap(C1, wrapAmt, tPay + r.float(3, 9) * HOUR)
     const sell = uni.swap({ trader: C1, assetIn: 'WETH', amountIn: wrapAmt, assetOut: 'USDC', time: tPay + r.float(10, 18) * HOUR })
-    const dep = ex.receive(C1, sell.amountOut, tPay + r.float(22, 40) * HOUR, { asset: 'USDC' })
+    // Les USDC passent par un relais neuf, entre deux transferts jumeaux du même montant
+    const U = w.addr('eth', { entity: gangE })
+    const tRelay = Math.round(sell.tx.time + r.float(1, 4) * HOUR)
+    const relayTx = w.transfer({ time: tRelay, from: C1, to: U, value: sell.amountOut, asset: 'USDC' })
+    const twins = [0, 1].map(() => {
+      const v = roundAsset('USDC', sell.amountOut * (1 + r.float(0.0008, 0.004) * r.pick([1, -1])))
+      const t = tRelay + r.int(-25, 25) * MIN
+      w.fundAccount(C1, v, 'USDC', t - r.int(10, 50) * MIN)
+      return w.transfer({ time: t, from: C1, to: w.addr('eth'), value: v, asset: 'USDC' })
+    })
+    const dep = ex.receive(U, sell.amountOut, tRelay + Math.round(r.float(6, 20) * HOUR), { asset: 'USDC' })
 
     // ── Les autres complices ─────────────────────────────────────────────────
     const c2Out = roundAsset('ETH', w.balanceOf(C2, 'ETH') * r.float(0.9, 0.98))
     const dep2 = ex2.receive(C2, c2Out, tPay + r.float(5, 30) * HOUR)
+
+    // ── Habillage : vies propres des complices ───────────────────────────────
+    const host = w.customEntity({ name: 'Hébergeur « bulletproof » (fictif)', category: 'merchant', known: true, description: 'Hébergeur offshore (fictif) payable en crypto, utilisé pour des sites de fuite de données.' })
+    const vpn = w.customEntity({ name: r.pick(['HushLink VPN', 'Tunnelo VPN', 'NoTrace VPN']), category: 'merchant', known: true, description: 'Fournisseur VPN payable en crypto (fictif).' })
+    const giftShop = w.customEntity({ name: r.pick(['GiftNova', 'Kadoo Cards', 'VoucherBay']), category: 'merchant', known: true, description: 'Revendeur de cartes cadeaux payables en crypto (fictif). Conserve l\'e-mail de livraison des codes.' })
+    const casino = w.customEntity({ name: r.pick(['RoyalHash Casino', 'BetNebula', 'Lucky Satoshi Club']), category: 'gambling', known: true, description: 'Casino en ligne crypto (fictif), vérification d\'identité au-delà d\'un seuil de retrait.' })
+    priorHistory(w, C1, { start: w.at(-120 * 24), end: w.at(-62 * 24), nIn: 3, nOut: 2, maxUsd: 1800 })
+    // Le meneur paie l'hébergement du blog de fuite (écrit à la main : toujours présent)
+    for (const t of [w.at(-r.float(24, 30) * 24), w.at(-r.float(2, 8) * 24)]) w.transfer({ time: t, from: C1, to: w.addr('eth', { entity: host, label: `${host.name} — Paiement` }), value: roundAsset('ETH', r.float(0.01, 0.06)), asset: 'ETH' })
+    personalSpending(w, C1, { start: w.at(-30 * 24), end: w.at(6 * 24), n: 2, merchants: [vpn, giftShop], maxUsd: 220 })
+    const branches = decoyBranches(w, C1, { time: Math.round(tPay + r.float(26, 40) * HOUR), share: 0.7, branches: 3, returnTo: C1 })
+    dusting(w, C1, { time: tRelay + 3 * HOUR, n: 2, spreadH: 4, token: 'USDC' })
+    priorHistory(w, C2, { start: w.at(-90 * 24), end: w.at(-35 * 24), nIn: 3, nOut: 2, maxUsd: 1200 })
+    personalSpending(w, C2, { start: tPay + 2 * DAY, end: tPay + 6 * DAY, n: 2, merchants: [giftShop, vpn], maxUsd: 120 })
+    // Le troisième complice joue une partie de sa part au casino (écrit à la main), plus quelques dépenses
+    const bets = Array.from({ length: r.int(2, 3) }, (_, k) => w.transfer({ time: tPay + Math.round(r.float(8 + k * 30, 30 + k * 30) * HOUR), from: C3, to: w.addr('eth', { entity: casino, label: `${casino.name} — Dépôt joueur` }), value: roundAsset('ETH', c3Part * r.float(0.05, 0.12)), asset: 'ETH' }))
+    personalSpending(w, C3, { start: tPay + 6 * HOUR, end: tPay + 5 * DAY, n: 2, merchants: [giftShop], maxUsd: 300 })
+    dusting(w, C3, { time: tPay + 10 * HOUR, n: 2, spreadH: 8 })
 
     // ── Bruit de fond ────────────────────────────────────────────────────────
     uni.noise(32, w.at(-4 * 24), w.at(5 * 24), [['ETH', 'USDC'], ['WETH', 'USDC'], ['ETH', 'USDT']])
@@ -109,13 +138,26 @@ export const evmSplitterInternes: ScenarioTemplate = {
     ch.noise(8, w.at(-4 * 24), w.at(3 * 24), 'ETH')
 
     const nPayments = earlier.length + 1
+    const branchFate = (b: (typeof branches)[number]) => ({
+      dort: 'n\'a plus bougé',
+      dépensée: `dépensée en ${b.follow.length} petits paiements`,
+      retour: 'revenue sur l\'adresse du meneur',
+      éclatée: `ré-éclatée en ${b.follow.length} sous-adresses qui dorment`,
+    })[b.fate]
+    const nEarlier = earlier.length
+    const c2Pct = Math.round((c2Out / [...earlier, pay].reduce((s, t) => s + t.transfers.find((x) => x.to === C2)!.value, 0)) * 100)
+    const earlierTxt = nEarlier === 1 ? 'une autre victime paie' : `${nEarlier} autres victimes paient`
+    const noteToPayH = Math.round((tPay - tNote) / HOUR)
+    const failBeforeH = Math.round((tPay - fail.time) / HOUR)
+    const c3Left = roundAsset('ETH', w.balanceOf(C3, 'ETH'))
+    const betTotal = roundAsset('ETH', bets.reduce((s, b) => s + b.transfers[0].value, 0))
     const d = (ts: number) => fmtDate(ts)
 
     return {
       world: w,
       title: `Extorsion « ${gang} » — ${firm}`,
       briefing:
-        `Le ${firm}, à ${city}, a constaté l'exfiltration de dossiers clients. Le groupe « ${gang} » a menacé de les publier sauf paiement d'une rançon en ETH. Après plusieurs jours, ${boss.name}, ${boss.g('gérant', 'gérante')}, a payé ${amt(ransom, 'ETH')} à l'adresse indiquée, puis a déposé plainte.\n\n` +
+        `Le ${firm}, à ${city}, a constaté l'exfiltration de dossiers clients. Le groupe « ${gang} » a menacé de les publier sauf paiement d'une rançon en ETH. ${noteToPayH} heures après la demande, ${boss.name}, ${boss.g('gérant', 'gérante')}, a payé ${amt(ransom, 'ETH')} à l'adresse indiquée, puis a déposé plainte.\n\n` +
         `L'adresse fournie par le groupe n'est pas un portefeuille ordinaire : c'est un contrat non vérifié. Dans la transaction même du paiement, il redistribue l'ETH entre plusieurs bénéficiaires, en transactions internes. Ces mouvements n'émettent aucun événement et n'apparaissent pas dans la liste « normale » des transactions des bénéficiaires sur un explorateur : seul le détail de la transaction les montre.\n\n` +
         `Objectifs : identifier les bénéficiaires et leurs parts, exploiter la création du contrat et une transaction échouée pour rattacher les complices, puis suivre la part du meneur, enveloppée en WETH et vendue, jusqu'à l'exchange à requérir.`,
       evidence: [
@@ -162,14 +204,14 @@ export const evmSplitterInternes: ScenarioTemplate = {
           prompt: 'Quelle part de chaque paiement (en %) le principal bénéficiaire reçoit-il ?',
           answer: leadPct,
           hint: 'Divisez la plus grosse transaction interne par la valeur envoyée au contrat. Vérifiez sur un autre paiement reçu par le contrat.',
-          explanation: `${amt(c1Part, 'ETH')} sur ${amt(ransom, 'ETH')}, soit ${leadPct} %. Les autres paiements reçus par le contrat (${nPayments} au total, dont ${nPayments - 1} d'autres victimes) suivent exactement la même clé de répartition (${shareSet.map((p) => Math.round(p * 100)).join(' / ')}) : les parts sont inscrites dans le code. Cette répartition fixe trahit l'organisation du groupe et la place de chacun.`,
+          explanation: `${amt(c1Part, 'ETH')} sur ${amt(ransom, 'ETH')}, soit ${leadPct} %. Tous les paiements reçus par le contrat (${nPayments} : celui du cabinet et ${nEarlier === 1 ? 'celui d\'une autre victime' : `ceux de ${nEarlier} autres victimes`}) suivent exactement la même clé de répartition (${shareSet.map((p) => Math.round(p * 100)).join(' / ')}) : les parts sont inscrites dans le code. Cette répartition fixe trahit l'organisation du groupe et la place de chacun.`,
         },
         {
           id: 'o3', type: 'amount', points: 9, unit: 'ETH', tolerance: 0.01,
           prompt: `Combien d'ETH l'adresse ${A(w, C2).slice(0, 10)}… a-t-elle reçus sur la rançon du cabinet ?`,
           answer: c2Part,
           hint: 'C\'est l\'une des transactions internes du paiement du cabinet (pas d\'un paiement antérieur).',
-          explanation: `${A(w, C2).slice(0, 12)}… reçoit ${amt(c2Part, 'ETH')} (${Math.round(shareSet[1] * 100)} %). Elle en envoie ensuite ${amt(c2Out, 'ETH')} vers une adresse de dépôt ${ex2.entity.name} : une seconde réquisition est possible. ${procedureFor(ex2.entity)}`,
+          explanation: `${A(w, C2).slice(0, 12)}… reçoit ${amt(c2Part, 'ETH')} (${Math.round(shareSet[1] * 100)} %). Elle envoie ensuite ${amt(c2Out, 'ETH')} (${c2Pct} % de ce que le contrat lui a versé, ${nEarlier === 1 ? 'rançon précédente' : 'rançons précédentes'} comprise${nEarlier === 1 ? '' : 's'}) vers une adresse de dépôt ${ex2.entity.name} : une seconde réquisition est possible. ${procedureFor(ex2.entity)}`,
         },
         {
           id: 'o4', type: 'choice', points: 8,
@@ -233,29 +275,38 @@ export const evmSplitterInternes: ScenarioTemplate = {
           explanation: `Le swap ${sell.tx.hash.slice(0, 18)}… cède ${amt(wrapAmt, 'WETH')} au pool USDC/WETH d'Uniswap, qui verse ${amt(sell.amountOut, 'USDC')} au meneur. Le WETH n'a été qu'un intermédiaire : la valeur se suit sans rupture de la rançon jusqu'aux USDC.`,
         },
         {
+          id: 'o13', type: 'tx', points: 11,
+          prompt: `Après la vente, le meneur envoie trois montants d'environ ${amt(Math.round(sell.amountOut), 'USDC')} à quelques minutes d'intervalle. Quelle transaction est la continuation du produit de la rançon ?`,
+          answer: [relayTx.id],
+          hint: 'Comparez chaque montant au centime près avec le produit du swap, regardez les entrées qui précèdent chaque envoi, puis suivez les destinataires.',
+          explanation: `La transaction ${relayTx.hash.slice(0, 18)}… transfère exactement ${amt(sell.amountOut, 'USDC')}, le produit du swap au centime près, vers ${A(w, U)}, qui les dépose ${Math.round((dep.tx.time - relayTx.time) / HOUR)} h plus tard sur ${ex.entity.name}. Les deux jumeaux (${twins.map((t) => amt(t.transfers[0].value, 'USDC')).join(' et ')}) ne correspondent pas au produit du swap : chacun est précédé, peu avant, d'un apport exactement du même montant venu d'une adresse tierce, et leurs destinataires ne font plus rien. Les ETH restants du meneur sont par ailleurs éclatés en ${branches.length} branches (${branches.map((b) => `${amt(b.value, 'ETH')} : ${branchFate(b)}`).join(' ; ')}) qui n'atteignent aucun service de sortie.`,
+        },
+        {
           id: 'o11', type: 'entity', points: 9,
-          prompt: 'Sur quel exchange le meneur dépose-t-il ses USDC ?',
+          prompt: 'Sur quel exchange les USDC du meneur sont-ils finalement déposés ?',
           answer: [exKey],
-          hint: 'Suivez la sortie d\'USDC du meneur : l\'adresse destinataire est balayée vers un hot wallet étiqueté.',
-          explanation: `Les ${amt(sell.amountOut, 'USDC')} partent vers une adresse de dépôt de ${ex.entity.name}, balayée ensuite vers le hot wallet. ${procedureFor(ex.entity)}`,
+          hint: 'Suivez le relais qui reçoit le produit du swap : sa sortie part vers une adresse balayée vers un hot wallet étiqueté.',
+          explanation: `Le relais ${A(w, U).slice(0, 12)}… envoie les ${amt(sell.amountOut, 'USDC')} vers une adresse de dépôt de ${ex.entity.name}, balayée ensuite vers le hot wallet. ${procedureFor(ex.entity)}`,
         },
         {
           id: 'o12', type: 'address', points: 9,
           prompt: 'Quelle adresse de dépôt citer dans la réquisition visant le meneur ?',
           answer: [dep.deposit],
-          hint: 'Ce n\'est pas le hot wallet : c\'est l\'adresse qui reçoit les USDC du meneur avant le balayage.',
-          explanation: `${A(w, dep.deposit)} reçoit les USDC le ${d(dep.tx.time)}. Avec le hash ${dep.tx.hash.slice(0, 14)}…, elle permet à ${ex.entity.name} d'identifier le compte crédité et, le cas échéant, d'en geler le solde. Une demande parallèle à Circle n'aurait plus d'objet : les USDC ont quitté l'adresse du meneur pour la trésorerie de la plateforme.`,
+          hint: 'Ce n\'est pas le hot wallet ni le relais : c\'est l\'adresse qui reçoit les USDC du relais avant le balayage.',
+          explanation: `${A(w, dep.deposit)} reçoit les USDC le ${d(dep.tx.time)}. Avec le hash ${dep.tx.hash.slice(0, 14)}… et la chaîne complète (rançon → transaction interne → WETH → swap → relais → dépôt), elle permet à ${ex.entity.name} d'identifier le compte crédité et, le cas échéant, d'en geler le solde. Une demande parallèle à Circle n'aurait plus d'objet : les USDC ont quitté les adresses du groupe pour la trésorerie de la plateforme.`,
         },
       ],
       truth: {
-        path: [deploy.id, ...earlier.map((t) => t.id), fail.id, pay.id, wrapTx.id, sell.tx.id, dep.tx.id, ...(dep.sweep ? [dep.sweep.id] : []), dep2.tx.id],
-        addresses: [splitter, C1, C2, C3, dep.deposit],
+        path: [deploy.id, ...earlier.map((t) => t.id), fail.id, pay.id, wrapTx.id, sell.tx.id, relayTx.id, dep2.tx.id, dep.tx.id, ...(dep.sweep ? [dep.sweep.id] : [])],
+        addresses: [splitter, C1, C2, C3, U, dep.deposit],
         debrief:
           `1. ${A(w, C1)} déploie le contrat de rançon ${A(w, splitter)} (non vérifié) plusieurs semaines avant les faits.\n` +
-          `2. ${nPayments - 1} autre(s) victime(s) paient déjà ce contrat ; à chaque paiement, il reverse ${shareSet.map((p) => Math.round(p * 100)).join(' / ')} % à trois adresses, en transactions internes.\n` +
-          `3. Peu avant le paiement du cabinet, ${A(w, C3).slice(0, 12)}… tente d'appeler une fonction de retrait : la transaction échoue (« nothing to release »).\n` +
+          `2. Avant le cabinet, ${earlierTxt} déjà ce contrat ; à chaque paiement, il reverse ${shareSet.map((p) => Math.round(p * 100)).join(' / ')} % à trois adresses, en transactions internes.\n` +
+          `3. ${failBeforeH} h avant le paiement du cabinet, ${A(w, C3).slice(0, 12)}… tente d'appeler une fonction de retrait : la transaction échoue (« nothing to release »).\n` +
           `4. Le cabinet paie ${amt(ransom, 'ETH')} : ${amt(c1Part, 'ETH')} au meneur, ${amt(c2Part, 'ETH')} et ${amt(c3Part, 'ETH')} aux deux complices.\n` +
-          `5. Le meneur enveloppe ${amt(wrapAmt, 'ETH')} en WETH, les vend contre ${amt(sell.amountOut, 'USDC')} sur Uniswap et dépose les USDC sur ${ex.entity.name}. Le deuxième complice dépose ${amt(c2Out, 'ETH')} sur ${ex2.entity.name} ; le troisième conserve sa part.\n\n` +
+          `5. Le meneur enveloppe ${amt(wrapAmt, 'ETH')} en WETH et les vend contre ${amt(sell.amountOut, 'USDC')} sur Uniswap. Il transfère ce montant exact à un relais neuf, ${A(w, U)}, à quelques minutes de deux transferts jumeaux de montant voisin financés par des apports extérieurs arrivés juste avant ; le relais dépose les USDC sur ${ex.entity.name}. Les ETH qui lui restent partent en ${branches.length} branches sans issue.\n` +
+          `6. Le deuxième complice dépose ${amt(c2Out, 'ETH')} sur ${ex2.entity.name} ; le troisième en joue une partie sur ${casino.name} (${bets.length} dépôts, ${amt(betTotal, 'ETH')} au total) et garde ${amt(c3Left, 'ETH')} sur son adresse.\n\n` +
+          `Habillage à écarter : vie antérieure des adresses (virements reçus, petites dépenses), paiements du meneur à un hébergeur « bulletproof » (piste secondaire : le blog de fuite y est sans doute hébergé), petites dépenses des complices, micro-envois d'adresses sosies (empoisonnement d'adresse).\n\n` +
           `À retenir : un contrat qui reçoit de l'ETH peut le redistribuer en transactions internes, invisibles dans la liste principale des bénéficiaires et dépourvues d'événements : il faut ouvrir le détail de la transaction. Un contrat non vérifié se lit par son comportement (internes, création, échecs). Une transaction échouée ne déplace rien mais engage son signataire. Enfin, l'enveloppe WETH n'interrompt pas le traçage.`,
       },
       hints: [
@@ -264,6 +315,7 @@ export const evmSplitterInternes: ScenarioTemplate = {
         'La liste des transactions du contrat contient une transaction au statut « Échec » : regardez sa date et son signataire.',
         'La fiche du contrat indique sa transaction de création.',
         'Le meneur appelle deposit() sur le contrat WETH avant de vendre : suivez le jeton obtenu.',
+        'Après la vente, trois envois d\'USDC de montant voisin partent du meneur : un seul correspond au centime près au produit du swap, et les autres sont précédés d\'un apport extérieur.',
       ],
     }
   },

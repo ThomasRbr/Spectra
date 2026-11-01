@@ -11,8 +11,21 @@ const LAST = ['Martin', 'Bernard', 'Dubois', 'Lefèvre', 'Moreau', 'Laurent', 'G
 const CITIES = ['Rennes', 'Lyon', 'Toulouse', 'Nantes', 'Bordeaux', 'Lille', 'Strasbourg', 'Montpellier', 'Dijon', 'Angers', 'Grenoble', 'Clermont-Ferrand', 'Tours', 'Brest', 'Metz', 'Reims', 'Caen', 'Annecy']
 const HANDLES = ['crypt0_lord', 'darkpeel', 'satoshi_fr', 'm0neyman', 'shadowfox', 'v3nom', 'n1ghtcr4wl', 'kr4ken_xx', 'ghost_btc', 'b1tbandit', 'rapt0r', 'zer0trace', 'icewall', 'goldfinch', 'blackmamba77']
 
+// Noms déjà attribués dans une affaire (par générateur) : deux personnages d'un même
+// dossier ne partagent ni prénom ni nom de famille.
+const USED = new WeakMap<Rng, { first: Set<string>; last: Set<string> }>()
+function fresh(r: Rng, pool: string[], kind: 'first' | 'last'): string {
+  let u = USED.get(r)
+  if (!u) USED.set(r, (u = { first: new Set(), last: new Set() }))
+  const used = u[kind]
+  const free = pool.filter((x) => !used.has(x))
+  const v = r.pick(free.length ? free : pool)
+  used.add(v)
+  return v
+}
+
 export function fakeName(r: Rng): string {
-  return `${r.pick(FIRST)} ${r.pick(LAST).toUpperCase()}`
+  return `${fresh(r, FIRST, 'first')} ${fresh(r, LAST, 'last').toUpperCase()}`
 }
 
 export interface FakePerson {
@@ -25,7 +38,7 @@ export interface FakePerson {
 /** Identité fictive avec genre connu (pour accorder les textes). */
 export function fakePerson(r: Rng, gender?: 'f' | 'm'): FakePerson {
   const female = gender ? gender === 'f' : r.chance(0.5)
-  const name = `${r.pick(female ? FIRST_F : FIRST_M)} ${r.pick(LAST).toUpperCase()}`
+  const name = `${fresh(r, female ? FIRST_F : FIRST_M, 'first')} ${fresh(r, LAST, 'last').toUpperCase()}`
   return { name, female, g: (masc, fem) => (female ? fem : masc) }
 }
 
@@ -70,9 +83,16 @@ export function fakePhone(r: Rng): string {
   return `+33 6 ${r.int(10, 99)} ${r.int(10, 99)} ${r.int(10, 99)} ${r.int(10, 99)}`
 }
 
+/** « de » élidé devant une voyelle (pas devant y ni h : « de Yannick », « de Huobex ») : `de(city)` → « d'Angers », « de Lyon ». */
+export function de(word: string): string {
+  return /^[aeiouàâäéèêëîïôöùûüœ]/i.test(word) ? `d'${word}` : `de ${word}`
+}
+
 export function fmtDate(ts: number, withTime = true): string {
   const d = new Date(ts * 1000)
-  return d.toLocaleString('fr-FR', withTime ? { dateStyle: 'long', timeStyle: 'short', timeZone: 'Europe/Paris' } : { dateStyle: 'long', timeZone: 'Europe/Paris' })
+  const s = d.toLocaleString('fr-FR', withTime ? { dateStyle: 'long', timeStyle: 'short', timeZone: 'Europe/Paris' } : { dateStyle: 'long', timeZone: 'Europe/Paris' })
+  // « 1 juillet » → « 1er juillet »
+  return s.replace(/^1 /, '1er ')
 }
 
 /** Adresse lisible d'un id (`btc:bc1q…` → `bc1q…`). */
