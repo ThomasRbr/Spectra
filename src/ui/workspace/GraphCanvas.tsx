@@ -10,7 +10,7 @@ import { useGame, FLAG_META, type Flag } from '../../store/game'
 import { useUi } from '../../store/ui'
 import { aKey, computeEdges, extraLinks, idOf, isAKey, tKey } from '../../lib/graph'
 import { Icon } from '../common'
-import { entityLogo } from '../logos'
+import { entityMark } from '../logos'
 import { findPathFromSelection, openTracer, openTracerFromSelection } from './Tracer'
 import { openPeel } from './Heuristics'
 import { openDemix } from './Demix'
@@ -261,7 +261,7 @@ export function GraphCanvas({ inspectorOpen = false }: { inspectorOpen?: boolean
         const cat = at.entity ? CATEGORY[at.entity.category] : null
         const color = cat?.color ?? (a.contract ? '#818cf8' : '#7a8290')
         const iconName = cat?.icon ?? (a.contract ? 'FileCode2' : 'Wallet')
-        const logo = entityLogo(at.entity?.id)
+        const logo = at.entity ? entityMark(at.entity, color) : undefined
         const flag = flags[id] as Flag | undefined
         const name = at.label ?? (a.contract ? a.label ?? a.contract.name : null)
         const tn = traced?.byAddress.get(id)

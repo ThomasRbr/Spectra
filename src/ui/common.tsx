@@ -3,7 +3,7 @@ import { icons, X, Copy, Check } from 'lucide-react'
 import { CHAINS, type ChainId } from '../engine/chains'
 import { CATEGORY, RISK_META, type Entity, type RiskLevel } from '../engine/entities'
 import { DIFFICULTY, type Difficulty } from '../scenarios/types'
-import { CHAIN_LOGOS, entityLogo } from './logos'
+import { CHAIN_LOGOS, entityMark } from './logos'
 
 /**
  * Couleur de donnée lisible comme texte dans les deux thèmes : mélangée au
@@ -18,15 +18,14 @@ export function Icon({ name, size = 16, className, color, strokeWidth = 2 }: { n
   return <C size={size} className={className} color={color} strokeWidth={strokeWidth} />
 }
 
-/** Logo de marque, rogné en cercle comme les nœuds du graphe. */
-export function Logo({ src, size = 16, className = '' }: { src: string; size?: number; className?: string }) {
-  return <img src={src} alt="" width={size} height={size} draggable={false} className={`shrink-0 rounded-full ${className}`} />
+/** Logo de marque : rond pour une chaîne, carré arrondi pour un service (comme dans le graphe). */
+export function Logo({ src, size = 16, className = '', square }: { src: string; size?: number; className?: string; square?: boolean }) {
+  return <img src={src} alt="" width={size} height={size} draggable={false} className={`shrink-0 ${square ? 'rounded-[22%]' : 'rounded-full'} ${className}`} />
 }
 
-/** Logo de l'entité s'il existe, sinon l'icône de sa catégorie. */
-export function EntityIcon({ entity, size = 16, color }: { entity: Entity; size?: number; color?: string }) {
-  const logo = entityLogo(entity.id)
-  return logo ? <Logo src={logo} size={size} /> : <Icon name={CATEGORY[entity.category].icon} size={size} color={color} />
+/** Logo de l'entité, ou sa marque à initiales dans la couleur de sa catégorie. */
+export function EntityIcon({ entity, size = 16 }: { entity: Entity; size?: number; color?: string }) {
+  return <Logo src={entityMark(entity, CATEGORY[entity.category].color)} size={size} square />
 }
 
 // Les badges restent neutres : la couleur de donnée vit dans le logo ou la
@@ -46,7 +45,7 @@ export function EntityChip({ entity, via }: { entity: Entity; via?: 'cluster' | 
   const m = CATEGORY[entity.category]
   return (
     <span className="chip border border-ink-600 text-ink-100" title={m.label}>
-      {entityLogo(entity.id) ? <EntityIcon entity={entity} size={13} /> : <span className="h-2 w-2 rounded-sm" style={{ background: m.color }} />}
+      <EntityIcon entity={entity} size={14} />
       {entity.name}
       {via === 'cluster' && <span className="text-ink-400">· via cluster</span>}
     </span>
