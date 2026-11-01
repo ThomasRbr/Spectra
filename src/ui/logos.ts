@@ -2,9 +2,14 @@
 // dans le build (aucun appel réseau). Sources : @web3icons/core (MIT) en
 // variante « background » (logo sur fond de marque, carré plein) et
 // simple-icons (CC0) pour Mullvad. Les marques restent la propriété de leurs
-// détenteurs. Une entité sans logo embarqué reçoit une marque à initiales
-// dans la couleur de sa catégorie (entityMark).
+// détenteurs. Quelques icônes officielles sont copiées dans brands/ :
+// ChangeNOW et Hodl Hodl depuis leurs sites, Wasabi (zkSNACKs) depuis le dépôt
+// WalletWasabi (MIT). Une entité sans logo embarqué reçoit une marque à
+// initiales dans la couleur de sa catégorie (entityMark).
 import { siMullvad } from 'simple-icons'
+import changenow from './brands/changenow.png'
+import hodlhodl from './brands/hodlhodl.svg'
+import wasabi from './brands/wasabi.png'
 import oneinch from '@web3icons/core/svgs/exchanges/background/1inch.svg.js'
 import aave from '@web3icons/core/svgs/tokens/background/AAVE.svg.js'
 import mkr from '@web3icons/core/svgs/tokens/background/MKR.svg.js'
@@ -63,6 +68,9 @@ const ENTITY_LOGOS: Record<string, string> = {
   // Circle et MakerDAO (Sky) sont identifiés par le logo de leur actif phare.
   circle: uri(usdc),
   makerdao: uri(mkr),
+  changenow,
+  hodlhodl,
+  wasabi,
 }
 
 export const CHAIN_LOGOS: Record<ChainId, string> = {
